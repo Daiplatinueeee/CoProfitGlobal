@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+/* Animation on Auth */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.6s ease-out;
+}
+
+.animate-fade-in-delay {
+    animation: fadeIn 0.6s ease-out 0.1s both;
+}
+
+.animate-fade-in-delay-2 {
+    animation: fadeIn 0.6s ease-out 0.2s both;
+}
+
+.animate-fade-in-delay-3 {
+    animation: fadeIn 0.6s ease-out 0.3s both;
+}
+
+input::placeholder {
+    color: rgb(156 163 175);
+    transition: color 0.3s ease;
+}
+
+input:focus::placeholder {
+    color: rgb(209 213 219);
+}
