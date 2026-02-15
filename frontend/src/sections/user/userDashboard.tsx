@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Home,
   Users,
@@ -26,6 +27,15 @@ export default function UserDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [, setProfileModalOpen] = useState(false);
   const [profilePicture,] = useState('CP');
+  const navigate = useNavigate();
+
+  // Check for token on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/');
+    }
+  }, [navigate]);
 
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -330,6 +340,11 @@ export default function UserDashboard() {
     return contents[activeTab] || <div></div>;
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    navigate('/auth');
+  };
+
   return (
     <div className="flex h-screen bg-white">
       {/* Sidebar - Apple Inspired */}
@@ -365,8 +380,8 @@ export default function UserDashboard() {
                     }
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition mb-1 ${activeTab === item.id
-                      ? 'bg-blue-50 text-blue-600 font-medium'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    ? 'bg-blue-50 text-blue-600 font-medium'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                     } ${sidebarOpen ? 'justify-start' : 'justify-center lg:justify-center'}`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
@@ -394,7 +409,7 @@ export default function UserDashboard() {
             </button>
             {sidebarOpen && (
               <button
-                onClick={() => alert('Logging out...')}
+                onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm"
               >
                 <LogOut className="w-4 h-4 flex-shrink-0" />
@@ -403,7 +418,7 @@ export default function UserDashboard() {
             )}
             {!sidebarOpen && (
               <button
-                onClick={() => alert('Logging out...')}
+                onClick={handleLogout}
                 className="w-full flex items-center justify-center p-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition"
               >
                 <LogOut className="w-4 h-4" />
