@@ -34,7 +34,7 @@ const OTPModal: React.FC<OTPModalProps> = ({
           <X className="w-6 h-6" />
         </button>
 
-        <h2 className="text-2xl font-bold text-white mb-2">
+        <h2 className="text-2xl text-white mb-2">
           Verify Your Email
         </h2>
         <p className="text-gray-300 text-sm mb-6">

@@ -2,10 +2,9 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import Landing from './sections/landingpage';
 import Auth from './sections/Auth';
+
 import UserDashboard from './sections/user/userDashboard';
-import AdminDashboard from './sections/admin/Admindashboard';
-
-
+import AdminDashboard from './sections/admin/adminDashboard';
 
 const App: React.FC = () => {
   return (

@@ -24,7 +24,6 @@ const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
-// Send OTP via email (for both login and registration)
 export const sendOtpEmail = async (req, res) => {
   const { email, isRegistration } = req.body
 
@@ -73,7 +72,6 @@ export const sendOtpEmail = async (req, res) => {
   }
 }
 
-// Verify OTP (for both login and registration)
 export const verifyOtp = async (req, res) => {
   const { email, otp, isRegistration, password, username, accountType } = req.body
 

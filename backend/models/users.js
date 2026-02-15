@@ -46,11 +46,7 @@ const userSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
-
-        isVerified: {
-            type: Boolean,
-            default: false,
-        },
+       
     },
     
     { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } },

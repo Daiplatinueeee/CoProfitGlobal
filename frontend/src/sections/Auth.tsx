@@ -258,9 +258,9 @@ export default function AuthPage() {
                         {isSignIn ? (
                             <div className="relative group">
                                 <UnderlineInput
-                                    label="Username"
-                                    name="username"
-                                    value={formData.username}
+                                    label="Email"
+                                    name="email"
+                                    value={formData.email}
                                     onChange={handleInputChange}
                                 />
                                 <CircleUserRound className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-black transition-colors duration-300" />
