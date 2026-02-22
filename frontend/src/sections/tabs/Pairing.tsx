@@ -36,7 +36,7 @@ function Pairing() {
 
   return (
     <div className="w-full max-w-6xl mx-auto p-6 bg-white rounded-lg">
-      <h2 className="text-3xl font-bold text-slate-900 mb-8">Pairing History</h2>
+      <h2 className="text-3xl font-semibold text-slate-900 mb-8">Pairing History</h2>
 
       <div className="space-y-4">
         {pairingHistory.map((pairing) => (

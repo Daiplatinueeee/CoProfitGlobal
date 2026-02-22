@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
-import { Upload } from 'lucide-react';
-
-import image1 from '../../assets/pk1.jpeg'
-import image2 from '../../assets/pk2.jpeg'
-import image3 from '../../assets/pk3.jpeg'
-import image4 from '../../assets/pk4.jpeg'
-import image5 from '../../assets/pk5.jpg'
-import image6 from '../../assets/pk6.jpg'
-import image7 from '../../assets/pk7.jpg'
-import image8 from '../../assets/pk8.jpg'
+import { Upload, X, ShoppingCart } from 'lucide-react';
 
 interface Product {
     id: string;
@@ -28,6 +19,16 @@ interface MaintenancePayment {
     proofFile: string | null;
     uploadDate: string | null;
 }
+
+
+import image1 from '../../assets/pk1.jpeg'
+import image2 from '../../assets/pk2.jpeg'
+import image3 from '../../assets/pk3.jpeg'
+import image4 from '../../assets/pk4.jpeg'
+import image5 from '../../assets/pk5.jpg'
+import image6 from '../../assets/pk6.jpg'
+import image7 from '../../assets/pk7.jpg'
+import image8 from '../../assets/pk8.jpg'
 
 export default function Unilevel() {
     const [products] = useState<Product[]>([
@@ -78,7 +79,7 @@ export default function Unilevel() {
         },
         {
             id: '6',
-            name: 'Gold Bundle',
+            name: 'Platinum Bundle',
             price: 10000,
             pv: 100,
             description: 'Ultimate package',
@@ -87,7 +88,7 @@ export default function Unilevel() {
         },
         {
             id: '7',
-            name: 'Gold Bundle',
+            name: 'Diamond Bundle',
             price: 10000,
             pv: 100,
             description: 'Ultimate package',
@@ -96,7 +97,7 @@ export default function Unilevel() {
         },
         {
             id: '8',
-            name: 'Gold Bundle',
+            name: 'Elite Bundle',
             price: 10000,
             pv: 100,
             description: 'Ultimate package',
@@ -105,7 +106,7 @@ export default function Unilevel() {
         },
     ]);
 
-    const [totalUnilevelPV] = useState(2500);
+    const [totalUnilevelPV, setTotalUnilevelPV] = useState(2500);
     const [maintenancePayments, setMaintenancePayments] = useState<MaintenancePayment[]>([
         { id: '1', month: 'January 2025', status: 'completed', paymentMethod: 'Bank Transfer', proofFile: 'proof_jan_2025.pdf', uploadDate: '2025-01-10' },
         { id: '2', month: 'February 2025', status: 'pending', paymentMethod: '', proofFile: null, uploadDate: null },
@@ -114,6 +115,10 @@ export default function Unilevel() {
     const [selectedMonth, setSelectedMonth] = useState('');
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [purchaseQuantity, setPurchaseQuantity] = useState(1);
+    const [showPurchaseModal, setShowPurchaseModal] = useState(false);
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -156,6 +161,43 @@ export default function Unilevel() {
 
     const convertedCash = (totalUnilevelPV * 1).toFixed(2);
     const maintenanceDeadlineStatus = getMaintenanceStatus(1, 15);
+
+    const handleBuyClick = (product: Product) => {
+        setSelectedProduct(product);
+        setPurchaseQuantity(1);
+        setShowPurchaseModal(true);
+    };
+
+    const handleClosePurchaseModal = () => {
+        setShowPurchaseModal(false);
+        setSelectedProduct(null);
+        setPurchaseQuantity(1);
+    };
+
+    const handlePurchase = () => {
+        if (!selectedProduct) return;
+
+        const totalCost = selectedProduct.pv * purchaseQuantity;
+
+        if (totalUnilevelPV < totalCost) {
+            alert('Insufficient PV balance. You need ' + totalCost + ' PV but only have ' + totalUnilevelPV + ' PV.');
+            return;
+        }
+
+        setTotalUnilevelPV(totalUnilevelPV - totalCost);
+        alert(`Successfully purchased ${purchaseQuantity}x ${selectedProduct.name} for ${totalCost} PV!`);
+        handleClosePurchaseModal();
+    };
+
+    const getTotalPurchaseCost = () => {
+        if (!selectedProduct) return 0;
+        return selectedProduct.pv * purchaseQuantity;
+    };
+
+    const getTotalPurchasePrice = () => {
+        if (!selectedProduct) return 0;
+        return selectedProduct.price * purchaseQuantity;
+    };
 
     return (
         <div className="min-h-screen bg-white">
@@ -241,7 +283,14 @@ export default function Unilevel() {
 
                                     {/* Price */}
                                     <div className="border-t border-gray-200 pt-3">
-                                        <p className="text-lg font-semibold text-gray-900">₱{product.price.toLocaleString()}</p>
+                                        <p className="text-lg font-semibold text-gray-900 mb-3">₱{product.price.toLocaleString()}</p>
+                                        <button
+                                            onClick={() => handleBuyClick(product)}
+                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-xs flex items-center justify-center gap-2"
+                                        >
+                                            <ShoppingCart className="w-3.5 h-3.5" />
+                                            Buy with PV
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -348,6 +397,122 @@ export default function Unilevel() {
                         ))}
                     </div>
                 </div>
+
+                {/* Purchase Modal */}
+                {showPurchaseModal && selectedProduct && (
+                    <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-2xl max-w-md w-full p-6 relative">
+                            <button
+                                onClick={handleClosePurchaseModal}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+
+                            <h3 className="text-2xl font-semibold text-gray-900 mb-4">Purchase Product</h3>
+
+                            <div className="mb-6">
+                                <div className="flex items-center gap-4 mb-4">
+                                    <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                                        <img
+                                            src={selectedProduct.image}
+                                            alt={selectedProduct.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-semibold text-gray-900">{selectedProduct.name}</h4>
+                                        <p className="text-sm text-gray-600">{selectedProduct.description}</p>
+                                        <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.pv} PV per unit</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                                    <p className="text-sm text-gray-600 mb-1">Your Available PV</p>
+                                    <p className="text-2xl font-semibold text-gray-900">{totalUnilevelPV} PV</p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-900 mb-2">
+                                            Quantity
+                                        </label>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={() => setPurchaseQuantity(Math.max(1, purchaseQuantity - 1))}
+                                                className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold text-gray-900 transition-colors"
+                                            >
+                                                -
+                                            </button>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={purchaseQuantity}
+                                                onChange={(e) => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-center text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            />
+                                            <button
+                                                onClick={() => setPurchaseQuantity(purchaseQuantity + 1)}
+                                                className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold text-gray-900 transition-colors"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-gray-200 pt-4 space-y-2">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-gray-600">Unit Price</span>
+                                            <span className="font-medium text-gray-900">₱{selectedProduct.price.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-gray-600">Unit PV</span>
+                                            <span className="font-medium text-gray-900">{selectedProduct.pv} PV</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-gray-600">Quantity</span>
+                                            <span className="font-medium text-gray-900">{purchaseQuantity}</span>
+                                        </div>
+                                        <div className="border-t border-gray-200 pt-2 mt-2">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="font-semibold text-gray-900">Total Price</span>
+                                                <span className="text-lg font-semibold text-gray-900">₱{getTotalPurchasePrice().toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-semibold text-gray-900">Total PV Cost</span>
+                                                <span className="text-lg font-semibold text-blue-600">{getTotalPurchaseCost()} PV</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {getTotalPurchaseCost() > totalUnilevelPV && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                                    <p className="text-sm text-red-700 font-medium">
+                                        Insufficient PV balance. You need {getTotalPurchaseCost() - totalUnilevelPV} more PV.
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={handleClosePurchaseModal}
+                                    className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handlePurchase}
+                                    disabled={getTotalPurchaseCost() > totalUnilevelPV}
+                                    className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+                                >
+                                    Purchase
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

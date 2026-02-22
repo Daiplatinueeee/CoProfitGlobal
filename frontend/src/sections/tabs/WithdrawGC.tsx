@@ -105,7 +105,7 @@ export default function WithdrawGC() {
       <div className="mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">Withdraw GC</h1>
+          <h1 className="text-3xl font-semibold text-slate-900 mb-2">Withdraw GC</h1>
           <p className="text-slate-600">Manage your GC withdrawals and view your transaction history</p>
         </div>
 

@@ -143,6 +143,9 @@ function Genealogy() {
   const svgRef = useRef<SVGSVGElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  const ACTION_BTN_WIDTH = 110
+  const ACTION_BTN_HEIGHT = 36
+
   const [originalRoot] = useState<Member>(sampleData)
   const [treeRoot, setTreeRoot] = useState<Member>(sampleData)
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
@@ -166,7 +169,7 @@ function Genealogy() {
 
   const NODE_WIDTH = 190
   const NODE_HEIGHT = 240
-  const HORIZONTAL_SPACING = 300
+  const MIN_HORIZONTAL_SPACING = 280
   const VERTICAL_SPACING = 320
 
   const memberMap = new Map<string, Member>()
@@ -177,6 +180,25 @@ function Genealogy() {
   }
   registerMembers(originalRoot)
 
+  // Calculate the width of a subtree
+  const getSubtreeWidth = (member: Member | undefined): number => {
+    if (!member) return NODE_WIDTH
+
+    const leftWidth = getSubtreeWidth(member.leftChild)
+    const rightWidth = getSubtreeWidth(member.rightChild)
+
+    if (!member.leftChild && !member.rightChild) {
+      return NODE_WIDTH
+    }
+
+    if (member.leftChild && member.rightChild) {
+      return leftWidth + rightWidth + MIN_HORIZONTAL_SPACING
+    }
+
+    return Math.max(leftWidth, rightWidth) + MIN_HORIZONTAL_SPACING / 2
+  }
+
+  // Position nodes with proper spacing based on subtree widths
   const calculatePositions = (
     member: Member,
     x: number,
@@ -185,18 +207,27 @@ function Genealogy() {
   ) => {
     map.set(member.id, { x, y })
 
-    // Calculate spacing based on children to avoid overlap
-    const hasLeftChild = !!member.leftChild
-    const hasRightChild = !!member.rightChild
-    const hasBothChildren = hasLeftChild && hasRightChild
-
-    if (member.leftChild) {
-      const leftX = hasBothChildren ? x - HORIZONTAL_SPACING - 40 : x - HORIZONTAL_SPACING
-      calculatePositions(member.leftChild, leftX, y + VERTICAL_SPACING, map)
+    if (!member.leftChild && !member.rightChild) {
+      return map
     }
 
-    if (member.rightChild) {
-      const rightX = hasBothChildren ? x + HORIZONTAL_SPACING + 40 : x + HORIZONTAL_SPACING
+    const leftWidth = getSubtreeWidth(member.leftChild)
+    const rightWidth = getSubtreeWidth(member.rightChild)
+
+    if (member.leftChild && member.rightChild) {
+      // Both children exist - position them symmetrically
+      const leftX = x - (rightWidth + MIN_HORIZONTAL_SPACING) / 2
+      const rightX = x + (leftWidth + MIN_HORIZONTAL_SPACING) / 2
+
+      calculatePositions(member.leftChild, leftX, y + VERTICAL_SPACING, map)
+      calculatePositions(member.rightChild, rightX, y + VERTICAL_SPACING, map)
+    } else if (member.leftChild) {
+      // Only left child
+      const leftX = x - MIN_HORIZONTAL_SPACING / 2
+      calculatePositions(member.leftChild, leftX, y + VERTICAL_SPACING, map)
+    } else if (member.rightChild) {
+      // Only right child
+      const rightX = x + MIN_HORIZONTAL_SPACING / 2
       calculatePositions(member.rightChild, rightX, y + VERTICAL_SPACING, map)
     }
 
@@ -422,22 +453,24 @@ function Genealogy() {
             style={{ cursor: 'pointer' }}
           >
             <rect
-              x={pos.x - 150}
+              x={pos.x - ACTION_BTN_WIDTH - 8}
               y={pos.y + NODE_HEIGHT + 10}
-              width="150"
-              height="28"
-              rx="6"
+              width={ACTION_BTN_WIDTH}
+              height={ACTION_BTN_HEIGHT}
+              rx="8"
               fill="#10b981"
             />
+
             <text
-              x={pos.x - 75}
-              y={pos.y + NODE_HEIGHT + 29}
+              x={pos.x - ACTION_BTN_WIDTH / 2 - 8}
+              y={pos.y + NODE_HEIGHT + 26}
               textAnchor="middle"
-              fontSize="12"
+              fontSize="11"
               fill="white"
               fontWeight="600"
             >
-              Add Left Member
+              <tspan x={pos.x - ACTION_BTN_WIDTH / 2 - 8} dy="0">Add Left</tspan>
+              <tspan x={pos.x - ACTION_BTN_WIDTH / 2 - 8} dy="12">Member</tspan>
             </text>
           </g>
         )}
@@ -455,22 +488,24 @@ function Genealogy() {
             style={{ cursor: 'pointer' }}
           >
             <rect
-              x={pos.x + NODE_WIDTH}
+              x={pos.x + NODE_WIDTH + 8}
               y={pos.y + NODE_HEIGHT + 10}
-              width="160"
-              height="28"
-              rx="6"
+              width={ACTION_BTN_WIDTH}
+              height={ACTION_BTN_HEIGHT}
+              rx="8"
               fill="#f59e0b"
             />
+
             <text
-              x={pos.x + NODE_WIDTH + 80}
-              y={pos.y + NODE_HEIGHT + 29}
+              x={pos.x + NODE_WIDTH + ACTION_BTN_WIDTH / 2 + 8}
+              y={pos.y + NODE_HEIGHT + 26}
               textAnchor="middle"
-              fontSize="12"
+              fontSize="11"
               fill="white"
               fontWeight="600"
             >
-              Add Right Member
+              <tspan x={pos.x + NODE_WIDTH + ACTION_BTN_WIDTH / 2 + 8} dy="0">Add Right</tspan>
+              <tspan x={pos.x + NODE_WIDTH + ACTION_BTN_WIDTH / 2 + 8} dy="12">Member</tspan>
             </text>
           </g>
         )}

@@ -111,7 +111,7 @@ function Subscription() {
     <div className="w-full min-h-screen bg-white p-8">
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-12">
-        <h1 className="text-4xl font-bold text-slate-900 mb-2">
+        <h1 className="text-3xl font-semibold text-slate-900 mb-2">
           Available Subscriptions
         </h1>
         <p className="text-lg text-slate-600">
