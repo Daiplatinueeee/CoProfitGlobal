@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Home,
@@ -30,12 +30,12 @@ export default function adminDashboard() {
   const [profilePicture,] = useState('CP');
 
   // Check for token on mount
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      navigate('/');
-    }
-  }, [navigate]);
+  // useEffect(() => {
+  //   const token = localStorage.getItem('token');
+  //   if (!token) {
+  //     navigate('/');
+  //   }
+  // }, [navigate]);
 
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -57,7 +57,7 @@ export default function adminDashboard() {
   const renderDashboardContent = () => (
     <div className="space-y-6 pb-6 bg-white">
       {/* Total Income Card - Apple Inspired */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl p-8 border border-blue-100 shadow-lg">
+      <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-3xl p-8 border border-blue-100 shadow-lg">
         <p className="text-sm font-medium text-blue-600 mb-2">Total Payouts</p>
         <p className="text-3xl font-bold text-gray-900 mb-4">₱442,410.00</p>
         <div className="flex items-center gap-6">
@@ -201,7 +201,7 @@ export default function adminDashboard() {
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                     } ${sidebarOpen ? 'justify-start' : 'justify-center lg:justify-center'}`}
                 >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <Icon className="w-5 h-5 shrink-0" />
                   {sidebarOpen && <span className="text-sm">{item.label}</span>}
                 </button>
               );
@@ -214,7 +214,7 @@ export default function adminDashboard() {
               onClick={() => setProfileModalOpen(true)}
               className={`flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition active:bg-gray-100 ${sidebarOpen ? 'w-full' : 'w-full lg:justify-center'}`}
             >
-              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center shrink-0">
                 <span className="text-sm font-bold text-yellow-500">{profilePicture}</span>
               </div>
               {sidebarOpen && (
@@ -229,7 +229,7 @@ export default function adminDashboard() {
                 onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm"
               >
-                <LogOut className="w-4 h-4 flex-shrink-0" />
+                <LogOut className="w-4 h-4 shrink-0" />
                 <span>Logout</span>
               </button>
             )}
