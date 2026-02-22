@@ -1,16 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Home,
-  Users,
   TrendingUp,
   Gift,
   Lock,
   QrCode,
-  Share2,
   Wallet,
   ShoppingBag,
-  BarChart3,
   Network,
   Download,
   Clock,
@@ -21,6 +18,14 @@ import {
 } from 'lucide-react';
 
 import Genealogy from '../tabs/Genealogy';
+import Pairing from '../tabs/Pairing'
+import Payout from '../tabs/Payout';
+import Subscription from '../tabs/Subscription';
+import Direct from '../tabs/Direct';
+import Indirect from '../tabs/Indirect'
+import WithdrawGC from '../tabs/WithdrawGC';
+import UnilevelProducts from '../tabs/UnilevelProducts';
+import PayoutHistory from '../tabs/PayoutHistory'
 
 export default function UserDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -30,37 +35,35 @@ export default function UserDashboard() {
   const navigate = useNavigate();
 
   // Check for token on mount
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      navigate('/');
-    }
-  }, [navigate]);
+  // useEffect(() => {
+  //   const token = localStorage.getItem('token');
+  //   if (!token) {
+  //     navigate('/');
+  //   }
+  // }, [navigate]);
 
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'genealogy', label: 'Genealogy', icon: Network },
+    { id: 'direct-history', label: 'Direct Referal History', icon: Lock },
+    { id: 'indirect-history', label: 'Indirect Referal History', icon: QrCode },
     { id: 'pairing-history', label: 'Pairing History', icon: TrendingUp },
     { id: 'payout-system', label: 'Payout System', icon: Wallet },
-    { id: 'my-pin', label: 'My PIN', icon: Lock },
-    { id: 'package-codes', label: 'Package Available Code', icon: QrCode },
-    { id: 'referral', label: 'My Referral', icon: Share2 },
+    { id: 'subscription', label: 'Subscription', icon: ShoppingBag },
+    { id: 'unilevel-package', label: 'Unilevel Products', icon: Download },
     { id: 'withdraw-gc', label: 'Withdraw GC', icon: Download },
-    { id: 'buy-package', label: 'Buy Package', icon: ShoppingBag },
-    { id: 'upgrade-package', label: 'Upgrade Package', icon: BarChart3 },
-    { id: 'unilevel-package', label: 'Unilevel Package', icon: Users },
-    { id: 'unilevel-codes', label: 'Unilevel Available Codes', icon: QrCode },
+    { id: 'payout-history', label: 'Payout History', icon: Download },
   ], []);
 
   const renderDashboardContent = () => (
     <div className="space-y-6 pb-6 bg-white">
       {/* Current Package Card */}
-      <div className="bg-gradient-to-r from-gray-600 via-gray-400 to-gray-300 rounded-3xl p-8 border border-gray-200">
+      <div className="bg-linear-to-r from-gray-600 via-gray-400 to-gray-300 rounded-3xl p-8 border border-gray-200">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-white/95 mb-2">Current Package</p>
             <p className="text-3xl sm:text-4xl font-bold mb-2 
-     bg-gradient-to-r from-gray-200 via-gray-100 to-gray-300 
+     bg-linear-to-r from-gray-200 via-gray-100 to-gray-300 
      bg-clip-text text-transparent">
               Platinum
             </p>
@@ -73,7 +76,7 @@ export default function UserDashboard() {
       </div>
 
       {/* Total Income Card - Apple Inspired */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl p-8 border border-blue-100 shadow-lg">
+      <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-3xl p-8 border border-blue-100 shadow-lg">
         <p className="text-sm font-medium text-blue-600 mb-2">Total Income</p>
         <p className="text-3xl font-bold text-gray-900 mb-4">₱181,385.00</p>
         <div className="flex items-center gap-6">
@@ -203,7 +206,7 @@ export default function UserDashboard() {
         <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Gift Certificates (GC)</h3>
           <div className="space-y-4">
-            <div className="p-4 bg-gradient-to-r from-rose-50 to-pink-50 rounded border border-rose-200">
+            <div className="p-4 bg-linear-to-r from-rose-50 to-pink-50 rounded border border-rose-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-rose-700 mb-1">Total Earned</p>
@@ -261,7 +264,7 @@ export default function UserDashboard() {
             </div>
             <div className="p-4 bg-amber-50 rounded border border-amber-200">
               <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-amber-900 mb-1">Requirements</p>
                   <p className="text-xs text-amber-700">Must buy products at least once per month</p>
@@ -326,16 +329,14 @@ export default function UserDashboard() {
   const renderTabContent = () => {
     const contents: Record<string, React.ReactElement> = {
       genealogy: <Genealogy />,
-      'pairing-history': <div className="text-center py-12"><p className="text-gray-600">Pairing history view coming soon</p></div>,
-      'payout-system': <div className="text-center py-12"><p className="text-gray-600">Payout system view coming soon</p></div>,
-      'my-pin': <div className="text-center py-12"><p className="text-gray-600">PIN management coming soon</p></div>,
-      'package-codes': <div className="text-center py-12"><p className="text-gray-600">Package codes view coming soon</p></div>,
-      'referral': <div className="text-center py-12"><p className="text-gray-600">Referral management coming soon</p></div>,
-      'withdraw-gc': <div className="text-center py-12"><p className="text-gray-600">Withdraw GC coming soon</p></div>,
-      'buy-package': <div className="text-center py-12"><p className="text-gray-600">Buy package coming soon</p></div>,
-      'upgrade-package': <div className="text-center py-12"><p className="text-gray-600">Upgrade package coming soon</p></div>,
-      'unilevel-package': <div className="text-center py-12"><p className="text-gray-600">Unilevel package coming soon</p></div>,
-      'unilevel-codes': <div className="text-center py-12"><p className="text-gray-600">Unilevel codes coming soon</p></div>,
+      'pairing-history': <Pairing />,
+      'payout-system': <Payout />,
+      'direct-history': <Direct />,
+      'indirect-history': <Indirect />,
+      'withdraw-gc': <WithdrawGC />,
+      'subscription': <Subscription />,
+      'unilevel-package': <UnilevelProducts />,
+      'payout-history': <PayoutHistory />,
     };
     return contents[activeTab] || <div></div>;
   };
@@ -384,7 +385,7 @@ export default function UserDashboard() {
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                     } ${sidebarOpen ? 'justify-start' : 'justify-center lg:justify-center'}`}
                 >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <Icon className="w-5 h-5 shrink-0" />
                   {sidebarOpen && <span className="text-sm">{item.label}</span>}
                 </button>
               );
@@ -397,7 +398,7 @@ export default function UserDashboard() {
               onClick={() => setProfileModalOpen(true)}
               className={`flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition active:bg-gray-100 ${sidebarOpen ? 'w-full' : 'w-full lg:justify-center'}`}
             >
-              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center shrink-0">
                 <span className="text-sm font-bold text-yellow-500">{profilePicture}</span>
               </div>
               {sidebarOpen && (
@@ -412,7 +413,7 @@ export default function UserDashboard() {
                 onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm"
               >
-                <LogOut className="w-4 h-4 flex-shrink-0" />
+                <LogOut className="w-4 h-4 shrink-0" />
                 <span>Logout</span>
               </button>
             )}

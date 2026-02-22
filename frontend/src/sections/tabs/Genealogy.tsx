@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import logo from './../../assets/refs/Logo.webp'
 
 interface Member {
@@ -12,6 +12,63 @@ interface Member {
   leftChild?: Member
   rightChild?: Member
 }
+
+const samplePool: Member[] = [
+  {
+    id: 'sp1',
+    username: 'SAMPLE_USER_01',
+    email: 'sample1@company.com',
+    profileImage: logo,
+    referralCode: 'PIN-1001',
+    leftLegPoints: 0,
+    rightLegPoints: 0,
+  },
+  {
+    id: 'sp2',
+    username: 'SAMPLE_USER_02',
+    email: 'sample2@company.com',
+    profileImage: logo,
+    referralCode: 'PIN-1002',
+    leftLegPoints: 0,
+    rightLegPoints: 0,
+  },
+  {
+    id: 'sp3',
+    username: 'SAMPLE_USER_03',
+    email: 'sample3@company.com',
+    profileImage: logo,
+    referralCode: 'PIN-1003',
+    leftLegPoints: 0,
+    rightLegPoints: 0,
+  },
+  {
+    id: 'sp4',
+    username: 'SAMPLE_USER_04',
+    email: 'sample4@company.com',
+    profileImage: logo,
+    referralCode: 'PIN-1004',
+    leftLegPoints: 0,
+    rightLegPoints: 0,
+  },
+  {
+    id: 'sp5',
+    username: 'SAMPLE_USER_05',
+    email: 'sample5@company.com',
+    profileImage: logo,
+    referralCode: 'PIN-1005',
+    leftLegPoints: 0,
+    rightLegPoints: 0,
+  },
+  {
+    id: 'sp6',
+    username: 'SAMPLE_USER_06',
+    email: 'sample6@company.com',
+    profileImage: logo,
+    referralCode: 'PIN-1006',
+    leftLegPoints: 0,
+    rightLegPoints: 0,
+  },
+]
 
 const sampleData: Member = {
   id: '1',
@@ -84,6 +141,7 @@ interface NodePosition {
 
 function Genealogy() {
   const svgRef = useRef<SVGSVGElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const [originalRoot] = useState<Member>(sampleData)
   const [treeRoot, setTreeRoot] = useState<Member>(sampleData)
@@ -93,6 +151,18 @@ function Genealogy() {
   const [zoom, setZoom] = useState(1)
   const [dragging, setDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+
+  const [search, setSearch] = useState('')
+  const [searchResults, setSearchResults] = useState<Member[]>([])
+
+  const [modal, setModal] = useState<{
+    parent: Member
+    leg: 'left' | 'right'
+  } | null>(null)
+
+  const [newPin, setNewPin] = useState('')
+  const [pinError, setPinError] = useState('')
+  const [selectedFromPool, setSelectedFromPool] = useState<Member | null>(null)
 
   const NODE_WIDTH = 190
   const NODE_HEIGHT = 240
@@ -115,57 +185,113 @@ function Genealogy() {
   ) => {
     map.set(member.id, { x, y })
 
-    if (member.leftChild)
-      calculatePositions(
-        member.leftChild,
-        x - HORIZONTAL_SPACING,
-        y + VERTICAL_SPACING,
-        map
-      )
+    // Calculate spacing based on children to avoid overlap
+    const hasLeftChild = !!member.leftChild
+    const hasRightChild = !!member.rightChild
+    const hasBothChildren = hasLeftChild && hasRightChild
 
-    if (member.rightChild)
-      calculatePositions(
-        member.rightChild,
-        x + HORIZONTAL_SPACING,
-        y + VERTICAL_SPACING,
-        map
-      )
+    if (member.leftChild) {
+      const leftX = hasBothChildren ? x - HORIZONTAL_SPACING - 40 : x - HORIZONTAL_SPACING
+      calculatePositions(member.leftChild, leftX, y + VERTICAL_SPACING, map)
+    }
+
+    if (member.rightChild) {
+      const rightX = hasBothChildren ? x + HORIZONTAL_SPACING + 40 : x + HORIZONTAL_SPACING
+      calculatePositions(member.rightChild, rightX, y + VERTICAL_SPACING, map)
+    }
 
     return map
   }
 
   const positions = calculatePositions(treeRoot, 0, 0)
 
-  const addMember = (parent: Member, leg: 'left' | 'right') => {
-    const referralCode = prompt('Enter referral code:')
-    if (!referralCode) return
+  const attachMember = (parent: Member, leg: 'left' | 'right', member: Member) => {
+    if (leg === 'left' && parent.leftChild) return
+    if (leg === 'right' && parent.rightChild) return
+    leg === 'left' ? (parent.leftChild = member) : (parent.rightChild = member)
+    memberMap.set(member.referralCode, member)
+    setTreeRoot({ ...originalRoot })
+    setModal(null)
+    setNewPin('')
+    setSelectedFromPool(null)
+    setPinError('')
+  }
 
-    if (memberMap.has(referralCode)) {
-      alert('Referral code already exists.')
+  const handlePinChange = (pin: string) => {
+    setNewPin(pin)
+    setPinError('')
+    setSelectedFromPool(null)
+
+    if (!pin) return
+
+    // Check if PIN matches any sample pool member
+    const poolMember = samplePool.find((m) => m.referralCode === pin)
+    if (poolMember) {
+      setSelectedFromPool(poolMember)
+    }
+  }
+
+  const addNewMember = () => {
+    if (!newPin) {
+      setPinError('PIN is required')
       return
     }
 
-    const newMember: Member = {
-      id: Date.now().toString(),
-      username: `USER-${referralCode}`,
-      email: `${referralCode}@company.com`,
-      profileImage: logo,
-      referralCode,
-      leftLegPoints: 0,
-      rightLegPoints: 0,
+    if (memberMap.has(newPin)) {
+      setPinError('This PIN is already registered')
+      return
     }
 
-    if (leg === 'left') {
-      if (parent.leftChild) return
-      parent.leftChild = newMember
+    let memberToAdd: Member
+
+    if (selectedFromPool) {
+      // Use the selected pool member data
+      memberToAdd = { ...selectedFromPool }
     } else {
-      if (parent.rightChild) return
-      parent.rightChild = newMember
+      // Create new member with PIN
+      memberToAdd = {
+        id: Date.now().toString(),
+        username: `USER-${newPin}`,
+        email: `${newPin}@company.com`,
+        profileImage: logo,
+        referralCode: newPin,
+        leftLegPoints: 0,
+        rightLegPoints: 0,
+      }
     }
 
-    memberMap.set(referralCode, newMember)
-    setTreeRoot({ ...originalRoot })
+    attachMember(modal!.parent, modal!.leg, memberToAdd)
   }
+
+  const handleSearch = (value: string) => {
+    setSearch(value)
+    if (!value) return setSearchResults([])
+    const res: Member[] = []
+    memberMap.forEach((m) => {
+      if (
+        m.username.toLowerCase().includes(value.toLowerCase()) ||
+        m.email.toLowerCase().includes(value.toLowerCase()) ||
+        m.referralCode.toLowerCase().includes(value.toLowerCase())
+      ) {
+        res.push(m)
+      }
+    })
+    setSearchResults(res)
+  }
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setModal(null)
+      }
+    }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', (e) => e.key === 'Escape' && setModal(null))
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('keydown', (e) => e.key === 'Escape' && setModal(null))
+    }
+  }, [])
 
   const renderTree = (member: Member): React.ReactNode[] => {
     const pos = positions.get(member.id)
@@ -288,7 +414,10 @@ function Genealogy() {
           <g
             onClick={(e) => {
               e.stopPropagation()
-              addMember(member, 'left')
+              setModal({ parent: member, leg: 'left' })
+              setNewPin('')
+              setSelectedFromPool(null)
+              setPinError('')
             }}
             style={{ cursor: 'pointer' }}
           >
@@ -318,7 +447,10 @@ function Genealogy() {
           <g
             onClick={(e) => {
               e.stopPropagation()
-              addMember(member, 'right')
+              setModal({ parent: member, leg: 'right' })
+              setNewPin('')
+              setSelectedFromPool(null)
+              setPinError('')
             }}
             style={{ cursor: 'pointer' }}
           >
@@ -372,14 +504,155 @@ function Genealogy() {
 
   return (
     <div
-      className="w-full h-screen overflow-hidden bg-white"
+      className="w-full h-screen overflow-hidden bg-white relative"
       style={{ userSelect: 'none' }}
     >
+      {/* SEARCH BAR - FIXED */}
+      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-96">
+        <input
+          value={search}
+          onChange={(e) => handleSearch(e.target.value)}
+          placeholder="Search member..."
+          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-white shadow-lg focus:outline-none focus:border-indigo-500 transition"
+        />
+        {searchResults.length > 0 && (
+          <div className="bg-white shadow-lg rounded-lg mt-2 max-h-60 overflow-auto border border-gray-200">
+            {searchResults.map((m) => (
+              <div
+                key={m.id}
+                className="px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition"
+                onClick={() => {
+                  setTreeRoot(m)
+                  setSearch('')
+                  setSearchResults([])
+                }}
+              >
+                <p className="font-semibold text-gray-800">{m.username}</p>
+                <p className="text-xs text-gray-600">{m.referralCode}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* MODAL */}
+      {modal && (
+        <div
+          className="fixed inset-0 bg-white/60 backdrop-blur-md z-40 flex items-center justify-center"
+          onClick={() => {
+            setModal(null)
+            setNewPin('')
+            setSelectedFromPool(null)
+            setPinError('')
+          }}
+          ref={dropdownRef}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-2xl font-bold mb-6 text-center">
+              Add {modal.leg === 'left' ? 'Left' : 'Right'} Member
+            </h2>
+
+            {/* PIN Input */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Enter Member PIN
+              </label>
+              <input
+                value={newPin}
+                onChange={(e) => handlePinChange(e.target.value)}
+                placeholder="e.g., PIN-1001"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onKeyPress={(e) => e.key === 'Enter' && addNewMember()}
+              />
+              {pinError && <p className="text-red-500 text-sm mt-1">{pinError}</p>}
+            </div>
+
+            {/* Member Card Preview - appears when PIN matches */}
+            {selectedFromPool && (
+              <div className="mb-6 p-6 bg-linear-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-2xl border-2 border-indigo-300 shadow-lg">
+                <div className="flex flex-col items-center">
+                  <div className="mb-4">
+                    <img
+                      src={selectedFromPool.profileImage}
+                      alt={selectedFromPool.username}
+                      className="w-24 h-24 rounded-full border-4 border-indigo-400 object-cover shadow-md"
+                    />
+                  </div>
+                  <h3 className="font-bold text-xl text-indigo-900 mb-1">
+                    {selectedFromPool.username}
+                  </h3>
+                  <p className="text-sm text-gray-700 font-medium mb-3">{selectedFromPool.email}</p>
+                  <div className="bg-white rounded-lg px-4 py-2 border border-indigo-200">
+                    <p className="text-xs text-indigo-700 font-semibold">
+                      PIN: {selectedFromPool.referralCode}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sample Members List */}
+            {!newPin && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Available Members</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {samplePool.map((member) => (
+                    <div
+                      key={member.id}
+                      onClick={() => handlePinChange(member.referralCode)}
+                      className="p-3 border border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 cursor-pointer transition"
+                    >
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={member.profileImage}
+                          alt={member.username}
+                          className="w-12 h-12 rounded-full border-2 border-gray-300 object-cover"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-800">{member.username}</p>
+                          <p className="text-xs text-gray-600">{member.email}</p>
+                          <p className="text-xs text-indigo-600 font-medium">PIN: {member.referralCode}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add Button */}
+            <button
+              onClick={addNewMember}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition"
+            >
+              {selectedFromPool ? 'Add This Member' : 'Create New Member'}
+            </button>
+
+            {/* Close Button */}
+            <button
+              onClick={() => {
+                setModal(null)
+                setNewPin('')
+                setSelectedFromPool(null)
+                setPinError('')
+              }}
+              className="w-full mt-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 rounded-lg transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <svg
         ref={svgRef}
         width="100%"
         height="100%"
-        className="cursor-grab active:cursor-grabbing"
+        className="block cursor-grab active:cursor-grabbing"
+        style={{ cursor: 'grab' }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
