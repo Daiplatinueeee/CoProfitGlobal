@@ -456,7 +456,7 @@ export default function LandingPage() {
                         </div>
 
                         {/* VPs - Branching from COO */}
-                        <div className="absolute top-[600px] w-full px-4 flex justify-center gap-2 md:gap-8 flex-wrap z-10">
+                        <div className="absolute top-150 w-full px-4 flex justify-center gap-2 md:gap-8 flex-wrap z-10">
                             {/* CFO - Margery */}
                             <div
                                 className="relative cursor-pointer group w-40"

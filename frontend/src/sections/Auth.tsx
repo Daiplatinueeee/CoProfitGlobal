@@ -39,7 +39,6 @@ export default function AuthPage() {
         e.preventDefault();
         setError('');
         setIsLoading(true);
-        console.log("[v0] handleLogin called with isSignIn:", isSignIn, "formData:", formData);
 
         try {
             const response = await fetch('http://localhost:3000/api/users/login', {
@@ -88,7 +87,6 @@ export default function AuthPage() {
         e.preventDefault();
         setError('');
         setIsLoading(true);
-        console.log("[v0] handleRegister called with isSignIn:", isSignIn, "formData:", formData);
 
         try {
             const response = await fetch('http://localhost:3000/api/users/register', {
