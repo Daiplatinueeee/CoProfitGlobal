@@ -5,117 +5,194 @@ import pic4 from './../../assets/refs/Logo.webp';
 import pic5 from './../../assets/refs/Logo.webp';
 import pic6 from './../../assets/refs/Logo.webp';
 import pic7 from './../../assets/refs/Logo.webp';
+import pic8 from './../../assets/refs/Logo.webp';
 
 function Direct() {
-  const directReferrals = [
+  const referralsData = [
+    // Level 1 - Direct Referrals
+    { id: 1, level: 1, username: "john_doe", email: "john.doe@gmail.com", profilePicture: pic1, dateTime: "2025-02-22T14:30:00", isActive: true },
+    { id: 2, level: 1, username: "jane_smith", email: "jane.smith@gmail.com", profilePicture: pic2, dateTime: "2025-02-21T10:15:00", isActive: true },
+
+    // Level 2 - Indirect Referrals
+    { id: 3, level: 2, username: "mike_johnson", email: "mike.johnson@gmail.com", profilePicture: pic3, dateTime: "2025-02-18T09:45:00", isActive: true },
+
+    // Level 3 - Spill Over
+    { id: 4, level: 3, username: "alex_turner", email: "alex.turner@gmail.com", profilePicture: pic4, dateTime: "2025-02-16T12:20:00", isActive: false },
+  ];
+
+  const pairingBonusData = [
     {
-      id: 1,
-      date: "2025-02-22",
-      time: "10:30 AM",
-      username: "john_doe",
-      email: "john.doe@gmail.com",
-      profilePicture: pic1,
-      totalPoints: 1250,
+      id: 1, level: 4, dateTime: "2025-02-15T16:00:00",
+      leftUser: { username: "emma_left", profilePicture: pic5 },
+      rightUser: { username: "liam_right", profilePicture: pic6 },
+      totalBonus: 250, isActive: true
     },
     {
-      id: 2,
-      date: "2025-02-21",
-      time: "02:15 PM",
-      username: "jane_smith",
-      email: "jane.smith@gmail.com",
-      profilePicture: pic2,
-      totalPoints: 1180,
-    },
-    {
-      id: 3,
-      date: "2025-02-20",
-      time: "11:45 AM",
-      username: "alex_turner",
-      email: "alex.turner@gmail.com",
-      profilePicture: pic3,
-      totalPoints: 950,
-    },
-    {
-      id: 4,
-      date: "2025-02-19",
-      time: "09:20 AM",
-      username: "sarah_williams",
-      email: "sarah.williams@gmail.com",
-      profilePicture: pic4,
-      totalPoints: 1500,
-    },
-    {
-      id: 5,
-      date: "2025-02-18",
-      time: "03:45 PM",
-      username: "mike_johnson",
-      email: "mike.johnson@gmail.com",
-      profilePicture: pic5,
-      totalPoints: 890,
-    },
-    {
-      id: 6,
-      date: "2025-02-17",
-      time: "01:30 PM",
-      username: "emma_davis",
-      email: "emma.davis@gmail.com",
-      profilePicture: pic6,
-      totalPoints: 1100,
-    },
-    {
-      id: 7,
-      date: "2025-02-17",
-      time: "01:30 PM",
-      username: "emma_davis",
-      email: "emma.davis@gmail.com",
-      profilePicture: pic7,
-      totalPoints: 1100,
+      id: 2, level: 4, dateTime: "2025-02-14T11:30:00",
+      leftUser: { username: "noah_left", profilePicture: pic7 },
+      rightUser: { username: "olivia_right", profilePicture: pic8 },
+      totalBonus: 180, isActive: false
     },
   ];
 
+  const sign5Data = [
+    { rank: "Bronze", count: 0, required: 5, bonus: 500 },
+    { rank: "Silver", count: 0, required: 5, bonus: 1500 },
+    { rank: "Gold", count: 0, required: 5, bonus: 2500 },
+    { rank: "Platinum", count: 0, required: 5, bonus: 3500 },
+  ];
+
+  const leadershipBonusData = pairingBonusData.map(pair => ({
+    id: pair.id,
+    dateTime: pair.dateTime,
+    leadershipBonus: pair.totalBonus * 0.2,
+    isActive: pair.isActive,
+  }));
+
+  const groupedByLevel = referralsData.reduce((acc, referral) => {
+    if (!acc[referral.level]) acc[referral.level] = [];
+    acc[referral.level].push(referral);
+    return acc;
+  }, {} as Record<number, typeof referralsData>);
+
+  const getLevelTitle = (level: string) => {
+    switch (level) {
+      case "1": return "Level 1 - Direct Referrals";
+      case "2": return "Level 2 - Indirect Referrals";
+      case "3": return "Level 3 - Spill Over";
+      default: return "";
+    }
+  };
+
+  const formatDateTime = (dateTime: string) =>
+    new Date(dateTime).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  const getStatusBadge = (isActive: boolean) => (
+    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${isActive ? "bg-green-100 text-green-800" : "bg-slate-200 text-slate-700"}`}>
+      {isActive ? "Active" : "Inactive"}
+    </span>
+  );
+
   return (
-    <div className="w-full max-w-7xl mx-auto p-6 bg-white rounded-lg">
-      <h2 className="text-3xl font-semibold text-slate-900 mb-8">Direct Referrals</h2>
+    <div className="w-full max-w-6xl mx-auto p-6 bg-white space-y-12">
+      <h2 className="text-3xl font-semibold text-slate-900 mb-8">Referral Hierarchy</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {directReferrals.map((referral) => (
-          <div
-            key={referral.id}
-            className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6 border border-slate-200"
-          >
-            {/* Date and Time */}
-            <div className="mb-4 pb-4 border-b border-slate-200">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                {referral.date} • {referral.time}
-              </p>
+      {/* LEVEL 1-3 TABLES */}
+      <div className="space-y-10">
+        {Object.entries(groupedByLevel).map(([level, referrals]) => (
+          <div key={level}>
+            <div className="mb-4 pb-2 border-b-2 border-slate-300">
+              <h3 className="text-xl font-bold text-slate-900">{getLevelTitle(level)}</h3>
+              <p className="text-sm text-slate-500">{referrals.length} record(s)</p>
             </div>
-
-            {/* Profile Section */}
-            <div className="flex flex-col items-center mb-6">
-              <img
-                src={referral.profilePicture}
-                alt={referral.username}
-                className="w-16 h-16 rounded-full mb-4 border-2 border-slate-200"
-              />
-              <h3 className="text-lg font-bold text-slate-900 text-center">
-                {referral.username}
-              </h3>
-              <p className="text-sm text-slate-600 text-center mt-1 break-all">
-                {referral.email}
-              </p>
-            </div>
-
-            {/* Total Points */}
-            <div className="bg-linear-to-br from-indigo-50 to-indigo-100 rounded-lg p-4 border border-indigo-200 text-center">
-              <p className="text-xs font-semibold text-indigo-600 uppercase mb-2">
-                Total Points
-              </p>
-              <p className="text-3xl font-bold text-indigo-600">
-                {referral.totalPoints}
-              </p>
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full text-sm text-left text-slate-600">
+                <thead className="bg-slate-100 text-slate-900 font-semibold">
+                  <tr>
+                    <th className="px-6 py-4 text-center">Profile</th>
+                    <th className="px-6 py-4">Username</th>
+                    <th className="px-6 py-4">Email</th>
+                    <th className="px-6 py-4">Date & Time</th>
+                    <th className="px-6 py-4">Account Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {referrals.map(referral => (
+                    <tr key={referral.id} className="border-t border-slate-200 hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-center"><img src={referral.profilePicture} alt={referral.username} className="w-12 h-12 rounded-full border mx-auto" /></td>
+                      <td className="px-6 py-4 font-semibold text-slate-900">{referral.username}</td>
+                      <td className="px-6 py-4">{referral.email}</td>
+                      <td className="px-6 py-4">{formatDateTime(referral.dateTime)}</td>
+                      <td className="px-6 py-4">{getStatusBadge(referral.isActive)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         ))}
+
+        {/* LEVEL 4 - PAIRING BONUS */}
+        <div>
+          <div className="mb-4 pb-2 border-b-2 border-slate-300">
+            <h3 className="text-xl font-bold text-slate-900">Level 4 - Pairing Bonus</h3>
+            <p className="text-sm text-slate-500">{pairingBonusData.length} pairing record(s)</p>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full text-sm text-left text-slate-600">
+              <thead className="bg-slate-100 text-slate-900 font-semibold">
+                <tr>
+                  <th className="px-6 py-4">Date & Time</th>
+                  <th className="px-6 py-4 text-center">Left Leg</th>
+                  <th className="px-6 py-4 text-center">Right Leg</th>
+                  <th className="px-6 py-4">Total Pairing Bonus</th>
+                  <th className="px-6 py-4">Account Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pairingBonusData.map(pair => (
+                  <tr key={pair.id} className="border-t border-slate-200 hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">{formatDateTime(pair.dateTime)}</td>
+                    <td className="px-6 py-4 text-center flex items-center justify-center gap-3">
+                      <img src={pair.leftUser.profilePicture} className="w-10 h-10 rounded-full" />
+                      <span className="font-semibold">{pair.leftUser.username}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center flex items-center justify-center gap-3">
+                      <img src={pair.rightUser.profilePicture} className="w-10 h-10 rounded-full" />
+                      <span className="font-semibold">{pair.rightUser.username}</span>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-green-700">₱{pair.totalBonus}</td>
+                    <td className="px-6 py-4">{getStatusBadge(pair.isActive)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* LEVEL 5 - SIGN 5 */}
+        <div>
+          <div className="mb-4 pb-2 border-b-2 border-slate-300">
+            <h3 className="text-xl font-bold text-slate-900">Level 5 - Sign 5 Bonus</h3>
+          </div>
+          <div className="grid md:grid-cols-4 gap-6">
+            {sign5Data.map(rank => (
+              <div key={rank.rank} className="border rounded-lg p-5 shadow-sm bg-white">
+                <h4 className="text-lg font-bold mb-2">{rank.rank}</h4>
+                <p className="text-sm text-slate-600 mb-2">{rank.count}/{rank.required} (can exceed)</p>
+                <p className="font-semibold text-green-700 text-lg">Current Bonus: ₱{rank.bonus}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* LEVEL 6 - LEADERSHIP BONUS */}
+        <div>
+          <div className="mb-4 pb-2 border-b-2 border-slate-300">
+            <h3 className="text-xl font-bold text-slate-900">Level 6 - Leadership Bonus (20%)</h3>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full text-sm text-left text-slate-600">
+              <thead className="bg-slate-100 text-slate-900 font-semibold">
+                <tr>
+                  <th className="px-6 py-4">Date & Time</th>
+                  <th className="px-6 py-4">Leadership Bonus (20%)</th>
+                  <th className="px-6 py-4">Account Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leadershipBonusData.map(item => (
+                  <tr key={item.id} className="border-t border-slate-200 hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">{formatDateTime(item.dateTime)}</td>
+                    <td className="px-6 py-4 font-bold text-blue-700">₱{item.leadershipBonus}</td>
+                    <td className="px-6 py-4">{getStatusBadge(item.isActive)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
     </div>
   );

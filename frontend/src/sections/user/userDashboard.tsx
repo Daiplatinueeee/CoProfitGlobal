@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Home,
@@ -32,7 +32,17 @@ export default function UserDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [, setProfileModalOpen] = useState(false);
   const [profilePicture,] = useState('CP');
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
   const navigate = useNavigate();
+
+  // Check if user has disabled the welcome modal
+  useEffect(() => {
+    const hasDisabledModal = localStorage.getItem('disableWelcomeModal');
+    if (!hasDisabledModal) {
+      setShowWelcomeModal(true);
+    }
+  }, []);
 
   // Check for token on mount
   // useEffect(() => {
@@ -51,6 +61,13 @@ export default function UserDashboard() {
     } catch (error) {
       console.error("Copy failed:", error);
     }
+  };
+
+  const handleCloseWelcomeModal = () => {
+    if (dontShowAgain) {
+      localStorage.setItem('disableWelcomeModal', 'true');
+    }
+    setShowWelcomeModal(false);
   };
 
   const menuItems = useMemo(() => [
@@ -365,6 +382,46 @@ export default function UserDashboard() {
 
   return (
     <div className="flex h-screen bg-white">
+      {/* Welcome Modal */}
+      {showWelcomeModal && (
+        <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+            {/* Header */}
+            <div className="text-center mb-6">
+              <h2 className="text-2xl text-gray-900 mb-2">Welcome!</h2>
+              <div className="h-1 w-12 bg-blue-600 rounded-full mx-auto"></div>
+            </div>
+
+            {/* Message */}
+            <p className="text-gray-700 text-center mb-6 leading-relaxed">
+              Thank you for joining CoProfitGlobal! We're grateful to have you as part of our community. Your success is our mission, and we're here to support you every step of the way.
+            </p>
+
+            {/* Checkbox */}
+            <div className="flex items-center gap-3 mb-6 bg-gray-50 p-4 rounded-lg">
+              <input
+                type="checkbox"
+                id="dontShowAgain"
+                checked={dontShowAgain}
+                onChange={(e) => setDontShowAgain(e.target.checked)}
+                className="w-4 h-4 cursor-pointer"
+              />
+              <label htmlFor="dontShowAgain" className="text-sm text-gray-700 cursor-pointer">
+                Do not show this message again
+              </label>
+            </div>
+
+            {/* OK Button */}
+            <button
+              onClick={handleCloseWelcomeModal}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar - Apple Inspired */}
       <div
         className={`fixed lg:static inset-y-0 left-0 bg-white text-gray-900 sidebar-smooth z-40 ${sidebarOpen ? 'w-64' : 'w-0 lg:w-20'
