@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Mail, Eye, EyeOff, ArrowRight, CircleUserRound, Asterisk} from 'lucide-react';
+import { Mail, Eye, EyeOff, ArrowRight, CircleUserRound, Asterisk } from 'lucide-react';
 import { useNavigate } from "react-router-dom"
 import OTPModal from "../modals/OTPModal";
 
@@ -424,32 +424,42 @@ function UnderlineInput({
     icon
 }: any) {
     return (
-        <div className="relative group">
+        <div className="relative w-full">
             <input
                 type={type}
                 name={name}
                 value={value}
                 onChange={onChange}
                 placeholder=" "
-                className="w-full bg-transparent text-white py-2
+                className="peer w-full bg-transparent text-white py-3
                            border-b border-gray-600
                            focus:outline-none focus:border-yellow-500
-                           transition-all duration-300 peer pr-8"
-            />
-            <label
-                className="absolute left-0 top-2 text-gray-400 text-sm
                            transition-all duration-300
-                           peer-focus:-top-4 peer-focus:text-xs peer-focus:text-yellow-500
-                           peer-placeholder-shown:top-2 peer-placeholder-shown:text-sm"
+                           pr-10"
+            />
+
+            <label
+                className="absolute left-0 top-3 text-gray-400 text-sm
+                           transition-all duration-300
+                           pointer-events-none
+                           peer-placeholder-shown:translate-y-0
+                           peer-placeholder-shown:text-sm
+                           peer-focus:-translate-y-6
+                           peer-focus:text-xs
+                           peer-focus:text-yellow-500
+                           peer-not-placeholder-shown:-translate-y-6
+                           peer-not-placeholder-shown:text-xs"
             >
                 {label}
             </label>
+
             {icon && (
-                <div className="absolute right-0 top-2 text-gray-400 group-focus-within:text-yellow-500">
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400">
                     {icon}
                 </div>
             )}
-            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-yellow-500 transition-all duration-300 group-focus-within:w-full"></span>
+
+            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-yellow-500 transition-all duration-300 peer-focus:w-full"></span>
         </div>
     );
 }
@@ -465,34 +475,47 @@ function UnderlinePassword({
     setShowPassword
 }: any) {
     return (
-        <div className="relative group">
+        <div className="relative w-full">
             <input
                 type={showPassword ? "text" : "password"}
                 name={name}
                 value={value}
                 onChange={onChange}
                 placeholder=" "
-                className="w-full bg-transparent text-white py-2
+                className="peer w-full bg-transparent text-white py-3
                            border-b border-gray-600
                            focus:outline-none focus:border-yellow-500
-                           transition-all duration-300 peer pr-8"
-            />
-            <label
-                className="absolute left-0 top-2 text-gray-400 text-sm
                            transition-all duration-300
-                           peer-focus:-top-4 peer-focus:text-xs peer-focus:text-yellow-500
-                           peer-placeholder-shown:top-2 peer-placeholder-shown:text-sm"
+                           pr-10"
+            />
+
+            <label
+                className="absolute left-0 top-3 text-gray-400 text-sm
+                           transition-all duration-300
+                           pointer-events-none
+                           peer-placeholder-shown:translate-y-0
+                           peer-placeholder-shown:text-sm
+                           peer-focus:-translate-y-6
+                           peer-focus:text-xs
+                           peer-focus:text-yellow-500
+                           peer-not-placeholder-shown:-translate-y-6
+                           peer-not-placeholder-shown:text-xs"
             >
                 {label}
             </label>
+
             <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-0 top-2 text-gray-400 hover:text-yellow-500"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-yellow-500"
             >
-                {showPassword ? <EyeOff className="w-5 h-5 mr-4" /> : <Eye className="w-5 h-5 mr-4" />}
+                {showPassword
+                    ? <EyeOff className="w-5 h-5" />
+                    : <Eye className="w-5 h-5" />
+                }
             </button>
-            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-yellow-500 transition-all duration-300 group-focus-within:w-full"></span>
+
+            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-yellow-500 transition-all duration-300 peer-focus:w-full"></span>
         </div>
     );
 }

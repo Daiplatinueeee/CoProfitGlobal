@@ -42,6 +42,17 @@ export default function UserDashboard() {
   //   }
   // }, [navigate]);
 
+  const referralLink = "https://coprofitglobal.com/mlm/referral.php?ref=FOUNDER";
+
+  const handleCopyReferral = async () => {
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      alert("Referral link copied to clipboard!");
+    } catch (error) {
+      console.error("Copy failed:", error);
+    }
+  };
+
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'genealogy', label: 'Genealogy', icon: Network },
@@ -69,8 +80,11 @@ export default function UserDashboard() {
             </p>
             <p className="text-lg sm:text-xl font-semibold text-white/95">₱12,998.00</p>
           </div>
-          <button className="px-6 py-3 rounded-full bg-white text-black font-semibold hover:bg-white/90 transition-all   active:scale-95">
-            Upgrade Package
+          <button
+            onClick={() => setActiveTab('subscription')}
+            className="px-6 py-3 rounded-full bg-white text-black font-semibold hover:bg-white/90 transition-all active:scale-95"
+          >
+            Upgrade Subscription
           </button>
         </div>
       </div>
@@ -140,9 +154,12 @@ export default function UserDashboard() {
               <p className="text-sm text-gray-600 mb-2">Your Referral Link</p>
               <div className="flex items-center gap-2 bg-gray-50 p-3 rounded border border-gray-200">
                 <code className="text-xs font-mono text-slate-700 flex-1 break-all">
-                  https://coprofitglobal.com/mlm/referral.php?ref=FOUNDER
+                  {referralLink}
                 </code>
-                <button className="p-2 hover:bg-gray-200 rounded transition">
+                <button
+                  onClick={handleCopyReferral}
+                  className="p-2 hover:bg-gray-200 rounded transition"
+                >
                   <Copy className="w-4 h-4 text-gray-600" />
                 </button>
               </div>
