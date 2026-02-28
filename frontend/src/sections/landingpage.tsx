@@ -137,37 +137,41 @@ export default function LandingPage() {
         };
     }, []);
 
-    const offices = [
-        {
-            type: 'Headquarters',
-            name: 'New York Hub',
-            owner: 'James Mitchell',
-            address: '123 Fifth Avenue, New York, NY 10016',
-            phone: '+1 (212) 555-0123',
+    const offices = {
+        headOffice: {
+            name: 'C7 Modena Town Square, Tunghaan, Minglanilla Cebu',
+            owner: 'TBA',
+            address: 'TBA',
+            phone: 'TBA',
         },
-        {
-            type: 'Regional Office',
-            name: 'Los Angeles Office',
-            owner: 'Elena Rodriguez',
-            address: '456 Sunset Boulevard, Los Angeles, CA 90028',
-            phone: '+1 (310) 555-0456',
-        },
-        {
-            type: 'Stockist',
-            name: 'Chicago Stockist',
-            owner: 'Robert Thompson',
-            address: '789 Michigan Avenue, Chicago, IL 60611',
-            phone: '+1 (312) 555-0789',
-        },
-        {
-            type: 'Operator Office',
-            name: 'Miami Operations',
-            owner: 'Carlos Santos',
-            address: '321 Ocean Drive, Miami, FL 33139',
-            phone: '+1 (305) 555-0321',
-        },
-    ];
-
+        hubs: [
+            {
+                name: 'Mahayag San Miguel, Bohol',
+                owner: 'Estela Colarte',
+                address: 'TBA',
+                phone: '# 0997 417 4308',
+            },
+            {
+                name: 'Tagbiliran Bohol',
+                owner: 'Atty. Jessie Ancog',
+                address: 'TBA',
+                phone: 'TBA',
+            },
+            {
+                name: 'Tagbilaran Bohol',
+                owner: 'Atty. Jessie Ancog',
+                address: 'TBA',
+                phone: 'TBA',
+            },
+            {
+                name: 'Daro Dumaguete City, Negros Oriental',
+                owner: 'Engr. Gerry Velicaria',
+                address:
+                    'Purok Apitong, Tubtubon, Sibulan, Negros Oriental, Near Tubtubon Barangay Hall',
+                phone: '# 0917 724 0022',
+            },
+        ],
+    };
     const nextSlide = () => {
         setCarouselIndex((prev) => (prev + 1) % productImages.length);
     };
@@ -179,7 +183,7 @@ export default function LandingPage() {
     const navigate = useNavigate()
 
     const navigateToLogin = () => {
-        navigate("/auth") 
+        navigate("/auth")
     }
 
     return (
@@ -197,7 +201,7 @@ export default function LandingPage() {
                         <a href="#contact" className="text-white hover:text-yellow-500 transition">Contact</a>
                     </div>
                     <button className="bg-yellow-500 text-slate-950 px-6 py-2 rounded-full font-semibold hover:bg-yellow-400 transition " onClick={navigateToLogin}  >
-                        Shop Now
+                        Login
                     </button>
                 </div>
             </nav>
@@ -370,7 +374,7 @@ export default function LandingPage() {
                                 height="100%"
                                 src=""
                                 frameBorder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share;"
                                 allowFullScreen
                                 className="absolute inset-0"
                             />
@@ -674,32 +678,53 @@ export default function LandingPage() {
             <footer className="bg-slate-950 border-t border-yellow-600 py-16 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-7xl mx-auto">
                     <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
-                        {offices.map((office, idx) => (
+
+                        {/* Head Office */}
+                        <div className="space-y-4">
+                            <div className="border-l-4 border-yellow-500 pl-4">
+                                <p className="text-yellow-500 font-semibold text-sm">
+                                    HEAD OFFICE
+                                </p>
+                                <h3 className="text-xl font-bold text-white mt-2">
+                                    {offices.headOffice.name}
+                                </h3>
+                            </div>
+                            <div className="space-y-2">
+                                <p className="text-white font-semibold">
+                                    Owner: {offices.headOffice.owner}
+                                </p>
+                                <p className="text-gray-400 text-sm">
+                                    {offices.headOffice.address}
+                                </p>
+                                <p className="text-gray-400 text-sm">
+                                    {offices.headOffice.phone}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Hub Offices */}
+                        {offices.hubs.map((hub, idx) => (
                             <div key={idx} className="space-y-4">
                                 <div className="border-l-4 border-yellow-500 pl-4">
-                                    <p className="text-yellow-500 font-semibold text-sm">{office.type.toUpperCase()}</p>
-                                    <h3 className="text-xl font-bold text-white mt-2">{office.name}</h3>
+                                    <p className="text-yellow-500 font-semibold text-sm">
+                                        HUB OFFICE
+                                    </p>
+                                    <h3 className="text-xl font-bold text-white mt-2">
+                                        {hub.name}
+                                    </h3>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-white font-semibold">Owner: {office.owner}</p>
-                                    <p className="text-gray-400 text-sm">{office.address}</p>
-                                    <p className="text-gray-400 text-sm">{office.phone}</p>
+                                    <p className="text-white font-semibold">
+                                        Owner: {hub.owner}
+                                    </p>
+                                    <p className="text-gray-400 text-sm">{hub.address}</p>
+                                    <p className="text-gray-400 text-sm">{hub.phone}</p>
                                 </div>
                             </div>
                         ))}
                     </div>
 
-                    {/* Footer Bottom */}
-                    <div className="border-t border-yellow-600/30 pt-8 flex flex-col md:flex-row justify-between items-center">
-                        <div className="text-yellow-500 font-bold text-xl mb-4 md:mb-0">CoProfitGlobal.</div>
-                        <div className="flex gap-8 text-gray-400 text-sm">
-                            <a href="#" className="hover:text-yellow-500 transition">Privacy Policy</a>
-                            <a href="#" className="hover:text-yellow-500 transition">Terms of Service</a>
-                            <a href="#" className="hover:text-yellow-500 transition">Contact Us</a>
-                            <a href="#" className="hover:text-yellow-500 transition">Careers</a>
-                        </div>
-                        <p className="text-gray-400 text-sm mt-4 md:mt-0">© 2025 CoProfitGlobal. All rights reserved.</p>
-                    </div>
+                    {/* Footer Bottom remains unchanged */}
                 </div>
             </footer>
         </div>

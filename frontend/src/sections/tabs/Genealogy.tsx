@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import logo from './../../assets/refs/Logo.webp'
 import MemberDetailsPanel from './membersDetailPanel'
+import AddMemberModal from './AddMemberModal'
 
 interface Member {
   id: string
@@ -18,64 +19,13 @@ interface Member {
   sign5Bonus?: number
   leadershipBonus?: number
   pairingBonus?: number
+  age?: number
+  contact?: string
+  address?: string
+  beneficiary?: string
+  birthday?: string
+  password?: string
 }
-
-const samplePool: Member[] = [
-  {
-    id: 'sp1',
-    username: 'SAMPLE_USER_01',
-    email: 'sample1@company.com',
-    profileImage: logo,
-    referralCode: 'PIN-1001',
-    leftLegPoints: 0,
-    rightLegPoints: 0,
-  },
-  {
-    id: 'sp2',
-    username: 'SAMPLE_USER_02',
-    email: 'sample2@company.com',
-    profileImage: logo,
-    referralCode: 'PIN-1002',
-    leftLegPoints: 0,
-    rightLegPoints: 0,
-  },
-  {
-    id: 'sp3',
-    username: 'SAMPLE_USER_03',
-    email: 'sample3@company.com',
-    profileImage: logo,
-    referralCode: 'PIN-1003',
-    leftLegPoints: 0,
-    rightLegPoints: 0,
-  },
-  {
-    id: 'sp4',
-    username: 'SAMPLE_USER_04',
-    email: 'sample4@company.com',
-    profileImage: logo,
-    referralCode: 'PIN-1004',
-    leftLegPoints: 0,
-    rightLegPoints: 0,
-  },
-  {
-    id: 'sp5',
-    username: 'SAMPLE_USER_05',
-    email: 'sample5@company.com',
-    profileImage: logo,
-    referralCode: 'PIN-1005',
-    leftLegPoints: 0,
-    rightLegPoints: 0,
-  },
-  {
-    id: 'sp6',
-    username: 'SAMPLE_USER_06',
-    email: 'sample6@company.com',
-    profileImage: logo,
-    referralCode: 'PIN-1006',
-    leftLegPoints: 0,
-    rightLegPoints: 0,
-  },
-]
 
 const sampleData: Member = {
   id: '1',
@@ -212,9 +162,18 @@ function Genealogy() {
     leg: 'left' | 'right'
   } | null>(null)
 
-  const [newPin, setNewPin] = useState('')
-  const [pinError, setPinError] = useState('')
-  const [selectedFromPool, setSelectedFromPool] = useState<Member | null>(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    age: '',
+    contact: '',
+    address: '',
+    email: '',
+    beneficiary: '',
+    birthday: '',
+    password: '',
+    pin: '',
+  })
+  const [formError, setFormError] = useState('')
 
   const NODE_WIDTH = 190
   const NODE_HEIGHT = 240
@@ -264,18 +223,15 @@ function Genealogy() {
     const rightWidth = getSubtreeWidth(member.rightChild)
 
     if (member.leftChild && member.rightChild) {
-      // Both children exist - position them symmetrically
       const leftX = x - (rightWidth + MIN_HORIZONTAL_SPACING) / 2
       const rightX = x + (leftWidth + MIN_HORIZONTAL_SPACING) / 2
 
       calculatePositions(member.leftChild, leftX, y + VERTICAL_SPACING, map)
       calculatePositions(member.rightChild, rightX, y + VERTICAL_SPACING, map)
     } else if (member.leftChild) {
-      // Only left child
       const leftX = x - MIN_HORIZONTAL_SPACING / 2
       calculatePositions(member.leftChild, leftX, y + VERTICAL_SPACING, map)
     } else if (member.rightChild) {
-      // Only right child
       const rightX = x + MIN_HORIZONTAL_SPACING / 2
       calculatePositions(member.rightChild, rightX, y + VERTICAL_SPACING, map)
     }
@@ -292,52 +248,51 @@ function Genealogy() {
     memberMap.set(member.referralCode, member)
     setTreeRoot({ ...originalRoot })
     setModal(null)
-    setNewPin('')
-    setSelectedFromPool(null)
-    setPinError('')
+    setFormData({
+      name: '',
+      age: '',
+      contact: '',
+      address: '',
+      email: '',
+      beneficiary: '',
+      birthday: '',
+      password: '',
+      pin: '',
+    })
+    setFormError('')
   }
 
-  const handlePinChange = (pin: string) => {
-    setNewPin(pin)
-    setPinError('')
-    setSelectedFromPool(null)
-
-    if (!pin) return
-
-    // Check if PIN matches any sample pool member
-    const poolMember = samplePool.find((m) => m.referralCode === pin)
-    if (poolMember) {
-      setSelectedFromPool(poolMember)
-    }
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    setFormError('')
   }
 
   const addNewMember = () => {
-    if (!newPin) {
-      setPinError('PIN is required')
+    if (!formData.name || !formData.email || !formData.pin) {
+      setFormError('Name, Email, and PIN are required')
       return
     }
 
-    if (memberMap.has(newPin)) {
-      setPinError('This PIN is already registered')
+    if (memberMap.has(formData.pin)) {
+      setFormError('This PIN is already registered')
       return
     }
 
-    let memberToAdd: Member
-
-    if (selectedFromPool) {
-      // Use the selected pool member data
-      memberToAdd = { ...selectedFromPool }
-    } else {
-      // Create new member with PIN
-      memberToAdd = {
-        id: Date.now().toString(),
-        username: `USER-${newPin}`,
-        email: `${newPin}@company.com`,
-        profileImage: logo,
-        referralCode: newPin,
-        leftLegPoints: 0,
-        rightLegPoints: 0,
-      }
+    const memberToAdd: Member = {
+      id: Date.now().toString(),
+      username: formData.name,
+      email: formData.email,
+      profileImage: logo,
+      referralCode: formData.pin,
+      leftLegPoints: 0,
+      rightLegPoints: 0,
+      age: formData.age ? parseInt(formData.age) : undefined,
+      contact: formData.contact,
+      address: formData.address,
+      beneficiary: formData.beneficiary,
+      birthday: formData.birthday,
+      password: formData.password,
     }
 
     attachMember(modal!.parent, modal!.leg, memberToAdd)
@@ -363,13 +318,42 @@ function Genealogy() {
     const close = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setModal(null)
+        setFormData({
+          name: '',
+          age: '',
+          contact: '',
+          address: '',
+          email: '',
+          beneficiary: '',
+          birthday: '',
+          password: '',
+          pin: '',
+        })
+        setFormError('')
+      }
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setModal(null)
+        setFormData({
+          name: '',
+          age: '',
+          contact: '',
+          address: '',
+          email: '',
+          beneficiary: '',
+          birthday: '',
+          password: '',
+          pin: '',
+        })
+        setFormError('')
       }
     }
     window.addEventListener('mousedown', close)
-    window.addEventListener('keydown', (e) => e.key === 'Escape' && setModal(null))
+    window.addEventListener('keydown', handleEscape)
     return () => {
       window.removeEventListener('mousedown', close)
-      window.removeEventListener('keydown', (e) => e.key === 'Escape' && setModal(null))
+      window.removeEventListener('keydown', handleEscape)
     }
   }, [])
 
@@ -501,9 +485,18 @@ function Genealogy() {
             onClick={(e) => {
               e.stopPropagation()
               setModal({ parent: member, leg: 'left' })
-              setNewPin('')
-              setSelectedFromPool(null)
-              setPinError('')
+              setFormData({
+                name: '',
+                age: '',
+                contact: '',
+                address: '',
+                email: '',
+                beneficiary: '',
+                birthday: '',
+                password: '',
+                pin: '',
+              })
+              setFormError('')
             }}
             style={{ cursor: 'pointer' }}
           >
@@ -536,9 +529,18 @@ function Genealogy() {
             onClick={(e) => {
               e.stopPropagation()
               setModal({ parent: member, leg: 'right' })
-              setNewPin('')
-              setSelectedFromPool(null)
-              setPinError('')
+              setFormData({
+                name: '',
+                age: '',
+                contact: '',
+                address: '',
+                email: '',
+                beneficiary: '',
+                birthday: '',
+                password: '',
+                pin: '',
+              })
+              setFormError('')
             }}
             style={{ cursor: 'pointer' }}
           >
@@ -600,144 +602,56 @@ function Genealogy() {
       {/* MAIN CONTENT */}
       <div className="flex-1 overflow-hidden relative">
         {/* SEARCH BAR - FIXED */}
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-96">
-        <input
-          value={search}
-          onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Search member..."
-          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-white shadow-lg focus:outline-none focus:border-indigo-500 transition"
-        />
-        {searchResults.length > 0 && (
-          <div className="bg-white shadow-lg rounded-lg mt-2 max-h-60 overflow-auto border border-gray-200">
-            {searchResults.map((m) => (
-              <div
-                key={m.id}
-                className="px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition"
-                onClick={() => {
-                  setTreeRoot(m)
-                  setSearch('')
-                  setSearchResults([])
-                }}
-              >
-                <p className="font-semibold text-gray-800">{m.username}</p>
-                <p className="text-xs text-gray-600">{m.referralCode}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* MODAL */}
-      {modal && (
-        <div
-          className="fixed inset-0 bg-white/60 backdrop-blur-md z-40 flex items-center justify-center"
-          onClick={() => {
-            setModal(null)
-            setNewPin('')
-            setSelectedFromPool(null)
-            setPinError('')
-          }}
-          ref={dropdownRef}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-2xl mb-6 text-center">
-              Add {modal.leg === 'left' ? 'Left' : 'Right'} Member
-            </h2>
-
-            {/* PIN Input */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Enter Member PIN
-              </label>
-              <input
-                value={newPin}
-                onChange={(e) => handlePinChange(e.target.value)}
-                placeholder="e.g., PIN-1001"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                onKeyPress={(e) => e.key === 'Enter' && addNewMember()}
-              />
-              {pinError && <p className="text-red-500 text-sm mt-1">{pinError}</p>}
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-96">
+          <input
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Search member..."
+            className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-white shadow-lg focus:outline-none focus:border-indigo-500 transition"
+          />
+          {searchResults.length > 0 && (
+            <div className="bg-white shadow-lg rounded-lg mt-2 max-h-60 overflow-auto border border-gray-200">
+              {searchResults.map((m) => (
+                <div
+                  key={m.id}
+                  className="px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition"
+                  onClick={() => {
+                    setTreeRoot(m)
+                    setSearch('')
+                    setSearchResults([])
+                  }}
+                >
+                  <p className="font-semibold text-gray-800">{m.username}</p>
+                  <p className="text-xs text-gray-600">{m.referralCode}</p>
+                </div>
+              ))}
             </div>
-
-            {/* Member Card Preview - appears when PIN matches */}
-            {selectedFromPool && (
-              <div className="mb-6 p-6 bg-linear-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-2xl border-2 border-indigo-300 shadow-lg">
-                <div className="flex flex-col items-center">
-                  <div className="mb-4">
-                    <img
-                      src={selectedFromPool.profileImage}
-                      alt={selectedFromPool.username}
-                      className="w-24 h-24 rounded-full border-4 border-indigo-400 object-cover shadow-md"
-                    />
-                  </div>
-                  <h3 className="font-bold text-xl text-indigo-900 mb-1">
-                    {selectedFromPool.username}
-                  </h3>
-                  <p className="text-sm text-gray-700 font-medium mb-3">{selectedFromPool.email}</p>
-                  <div className="bg-white rounded-lg px-4 py-2 border border-indigo-200">
-                    <p className="text-xs text-indigo-700 font-semibold">
-                      PIN: {selectedFromPool.referralCode}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Sample Members List */}
-            {!newPin && (
-              <div className="mb-6">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Available Members</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {samplePool.map((member) => (
-                    <div
-                      key={member.id}
-                      onClick={() => handlePinChange(member.referralCode)}
-                      className="p-3 border border-gray-200 rounded-lg hover:border-sky-500 hover:bg-sky-50 cursor-pointer transition"
-                    >
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={member.profileImage}
-                          alt={member.username}
-                          className="w-12 h-12 rounded-full border-2 border-gray-300 object-cover"
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-gray-800">{member.username}</p>
-                          <p className="text-xs text-gray-600">{member.email}</p>
-                          <p className="text-xs text-indigo-600 font-medium">PIN: {member.referralCode}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Add Button */}
-            <button
-              onClick={addNewMember}
-              className="w-full bg-sky-500 hover:bg-sky-700 text-white font-semibold py-3 rounded-lg transition"
-            >
-              {selectedFromPool ? 'Add This Member' : 'Create New Member'}
-            </button>
-
-            {/* Close Button */}
-            <button
-              onClick={() => {
-                setModal(null)
-                setNewPin('')
-                setSelectedFromPool(null)
-                setPinError('')
-              }}
-              className="w-full mt-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 rounded-lg transition"
-            >
-              Cancel
-            </button>
-          </div>
+          )}
         </div>
-      )}
+
+        {/* MODAL WITH FORM - NOW SEPARATED TO AddMemberModal COMPONENT */}
+        <AddMemberModal
+          modal={modal}
+          formData={formData}
+          formError={formError}
+          onFormChange={handleFormChange}
+          onAddMember={addNewMember}
+          onClose={() => {
+            setModal(null)
+            setFormData({
+              name: '',
+              age: '',
+              contact: '',
+              address: '',
+              email: '',
+              beneficiary: '',
+              birthday: '',
+              password: '',
+              pin: '',
+            })
+            setFormError('')
+          }}
+        />
 
         <svg
           ref={svgRef}
@@ -758,9 +672,9 @@ function Genealogy() {
       </div>
 
       {/* MEMBER DETAILS SIDEBAR COMPONENT - RIGHT SIDE */}
-      <MemberDetailsPanel 
-        selectedMember={selectedMember} 
-        onClose={() => setSelectedMember(null)} 
+      <MemberDetailsPanel
+        selectedMember={selectedMember}
+        onClose={() => setSelectedMember(null)}
       />
     </div>
   )

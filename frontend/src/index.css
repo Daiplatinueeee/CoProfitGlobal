@@ -38,3 +38,13 @@ input::placeholder {
 input:focus::placeholder {
     color: rgb(209 213 219);
 }
+
+/* No Scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;  
+  scrollbar-width: none;
+}
