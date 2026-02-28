@@ -103,15 +103,15 @@ export default function UserDashboard() {
 
         {/* This Week */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">This Week</h3>
-          <p className="text-3xl font-bold text-gray-900 mb-2">₱8,400.00</p>
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Direct Referals</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-2">1,200</p>
           <p className="text-xs text-gray-600">7 days earnings</p>
         </div>
 
         {/* This Month */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">This Month</h3>
-          <p className="text-3xl font-bold text-gray-900 mb-2">₱12,400.00</p>
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Indirect Referals</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-2">2,000</p>
           <p className="text-xs text-gray-600">Current month total</p>
         </div>
       </div>

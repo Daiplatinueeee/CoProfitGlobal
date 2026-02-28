@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import logo from './../../assets/refs/Logo.webp'
+import MemberDetailsPanel from './membersDetailPanel'
 
 interface Member {
   id: string
@@ -11,6 +12,12 @@ interface Member {
   rightLegPoints: number
   leftChild?: Member
   rightChild?: Member
+  directReferralBonus?: number
+  indirectReferralBonus?: number
+  spillOverBonus?: number
+  sign5Bonus?: number
+  leadershipBonus?: number
+  pairingBonus?: number
 }
 
 const samplePool: Member[] = [
@@ -78,6 +85,12 @@ const sampleData: Member = {
   referralCode: 'REF-FOUNDER',
   leftLegPoints: 0,
   rightLegPoints: 88,
+  directReferralBonus: 2500,
+  indirectReferralBonus: 1200,
+  spillOverBonus: 800,
+  sign5Bonus: 500,
+  leadershipBonus: 3000,
+  pairingBonus: 450,
   leftChild: {
     id: '2',
     username: 'COPROFITGLOBALCORP2',
@@ -86,6 +99,12 @@ const sampleData: Member = {
     referralCode: 'REF-2',
     leftLegPoints: 349,
     rightLegPoints: 0,
+    directReferralBonus: 1200,
+    indirectReferralBonus: 600,
+    spillOverBonus: 400,
+    sign5Bonus: 250,
+    leadershipBonus: 1500,
+    pairingBonus: 350,
     leftChild: {
       id: '4',
       username: 'COPROFITGLOBALCORP04',
@@ -94,6 +113,12 @@ const sampleData: Member = {
       referralCode: 'REF-4',
       leftLegPoints: 0,
       rightLegPoints: 41,
+      directReferralBonus: 600,
+      indirectReferralBonus: 300,
+      spillOverBonus: 200,
+      sign5Bonus: 100,
+      leadershipBonus: 750,
+      pairingBonus: 200,
     },
     rightChild: {
       id: '5',
@@ -103,6 +128,12 @@ const sampleData: Member = {
       referralCode: 'REF-5',
       leftLegPoints: 0,
       rightLegPoints: 0,
+      directReferralBonus: 400,
+      indirectReferralBonus: 150,
+      spillOverBonus: 100,
+      sign5Bonus: 50,
+      leadershipBonus: 400,
+      pairingBonus: 150,
     },
   },
   rightChild: {
@@ -113,6 +144,12 @@ const sampleData: Member = {
     referralCode: 'REF-3',
     leftLegPoints: 0,
     rightLegPoints: 379,
+    directReferralBonus: 1500,
+    indirectReferralBonus: 800,
+    spillOverBonus: 500,
+    sign5Bonus: 300,
+    leadershipBonus: 2000,
+    pairingBonus: 420,
     leftChild: {
       id: '6',
       username: 'COPROFITGLOBALCORP06',
@@ -121,6 +158,12 @@ const sampleData: Member = {
       referralCode: 'REF-6',
       leftLegPoints: 0,
       rightLegPoints: 0,
+      directReferralBonus: 500,
+      indirectReferralBonus: 250,
+      spillOverBonus: 150,
+      sign5Bonus: 75,
+      leadershipBonus: 600,
+      pairingBonus: 180,
     },
     rightChild: {
       id: '7',
@@ -130,6 +173,12 @@ const sampleData: Member = {
       referralCode: 'REF-7',
       leftLegPoints: 0,
       rightLegPoints: 379,
+      directReferralBonus: 800,
+      indirectReferralBonus: 400,
+      spillOverBonus: 250,
+      sign5Bonus: 150,
+      leadershipBonus: 1000,
+      pairingBonus: 300,
     },
   },
 }
@@ -440,6 +489,12 @@ function Genealogy() {
           Points ( L {member.leftLegPoints} • R {member.rightLegPoints} )
         </text>
 
+        {/* Bonus Indicators */}
+        <g>
+          <circle cx={pos.x + 15} cy={pos.y + 15} r="4" fill="#10b981" />
+          <circle cx={pos.x + NODE_WIDTH - 15} cy={pos.y + 15} r="4" fill="#f59e0b" />
+        </g>
+
         {/* LEFT BUTTON */}
         {!member.leftChild && (
           <g
@@ -453,7 +508,7 @@ function Genealogy() {
             style={{ cursor: 'pointer' }}
           >
             <rect
-              x={pos.x - ACTION_BTN_WIDTH - 8}
+              x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH - 6}
               y={pos.y + NODE_HEIGHT + 10}
               width={ACTION_BTN_WIDTH}
               height={ACTION_BTN_HEIGHT}
@@ -462,15 +517,15 @@ function Genealogy() {
             />
 
             <text
-              x={pos.x - ACTION_BTN_WIDTH / 2 - 8}
+              x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6}
               y={pos.y + NODE_HEIGHT + 26}
               textAnchor="middle"
               fontSize="11"
               fill="white"
               fontWeight="600"
             >
-              <tspan x={pos.x - ACTION_BTN_WIDTH / 2 - 8} dy="0">Add Left</tspan>
-              <tspan x={pos.x - ACTION_BTN_WIDTH / 2 - 8} dy="12">Member</tspan>
+              <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="0">Add Left</tspan>
+              <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="12">Member</tspan>
             </text>
           </g>
         )}
@@ -488,7 +543,7 @@ function Genealogy() {
             style={{ cursor: 'pointer' }}
           >
             <rect
-              x={pos.x + NODE_WIDTH + 8}
+              x={pos.x + NODE_WIDTH / 2 + 6}
               y={pos.y + NODE_HEIGHT + 10}
               width={ACTION_BTN_WIDTH}
               height={ACTION_BTN_HEIGHT}
@@ -497,15 +552,15 @@ function Genealogy() {
             />
 
             <text
-              x={pos.x + NODE_WIDTH + ACTION_BTN_WIDTH / 2 + 8}
+              x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6}
               y={pos.y + NODE_HEIGHT + 26}
               textAnchor="middle"
               fontSize="11"
               fill="white"
               fontWeight="600"
             >
-              <tspan x={pos.x + NODE_WIDTH + ACTION_BTN_WIDTH / 2 + 8} dy="0">Add Right</tspan>
-              <tspan x={pos.x + NODE_WIDTH + ACTION_BTN_WIDTH / 2 + 8} dy="12">Member</tspan>
+              <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="0">Add Right</tspan>
+              <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="12">Member</tspan>
             </text>
           </g>
         )}
@@ -539,10 +594,12 @@ function Genealogy() {
 
   return (
     <div
-      className="w-full h-screen overflow-hidden bg-white relative"
+      className="w-full h-screen overflow-hidden bg-white relative flex"
       style={{ userSelect: 'none' }}
     >
-      {/* SEARCH BAR - FIXED */}
+      {/* MAIN CONTENT */}
+      <div className="flex-1 overflow-hidden relative">
+        {/* SEARCH BAR - FIXED */}
       <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-96">
         <input
           value={search}
@@ -586,7 +643,7 @@ function Genealogy() {
             className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-2xl font-bold mb-6 text-center">
+            <h2 className="text-2xl mb-6 text-center">
               Add {modal.leg === 'left' ? 'Left' : 'Right'} Member
             </h2>
 
@@ -638,7 +695,7 @@ function Genealogy() {
                     <div
                       key={member.id}
                       onClick={() => handlePinChange(member.referralCode)}
-                      className="p-3 border border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 cursor-pointer transition"
+                      className="p-3 border border-gray-200 rounded-lg hover:border-sky-500 hover:bg-sky-50 cursor-pointer transition"
                     >
                       <div className="flex items-center gap-3">
                         <img
@@ -661,7 +718,7 @@ function Genealogy() {
             {/* Add Button */}
             <button
               onClick={addNewMember}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition"
+              className="w-full bg-sky-500 hover:bg-sky-700 text-white font-semibold py-3 rounded-lg transition"
             >
               {selectedFromPool ? 'Add This Member' : 'Create New Member'}
             </button>
@@ -682,22 +739,29 @@ function Genealogy() {
         </div>
       )}
 
-      <svg
-        ref={svgRef}
-        width="100%"
-        height="100%"
-        className="block cursor-grab active:cursor-grabbing"
-        style={{ cursor: 'grab' }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-      >
-        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-          {renderTree(treeRoot)}
-        </g>
-      </svg>
+        <svg
+          ref={svgRef}
+          width="100%"
+          height="100%"
+          className="block cursor-grab active:cursor-grabbing"
+          style={{ cursor: 'grab' }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onWheel={handleWheel}
+        >
+          <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+            {renderTree(treeRoot)}
+          </g>
+        </svg>
+      </div>
+
+      {/* MEMBER DETAILS SIDEBAR COMPONENT - RIGHT SIDE */}
+      <MemberDetailsPanel 
+        selectedMember={selectedMember} 
+        onClose={() => setSelectedMember(null)} 
+      />
     </div>
   )
 }

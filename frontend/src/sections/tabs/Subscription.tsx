@@ -38,7 +38,7 @@ function Subscription() {
     },
     {
       name: "Gold",
-      color: "from-yellow-50 to-yellow-100",
+      color: "from-yellow-100 to-yellow-200",
       borderColor: "border-yellow-400",
       features: [
         { label: "Direct Referral", value: "₱500.00" },
@@ -50,8 +50,9 @@ function Subscription() {
     },
     {
       name: "Platinum",
-      color: "from-blue-50 to-blue-100",
-      borderColor: "border-blue-400",
+      color: "from-gray-50 to-gray-300",
+      borderColor: "border-gray-400",
+      isCurrent: true,
       features: [
         { label: "Direct Referral", value: "₱700.00" },
         { label: "Indirect Referral", value: "₱35.00" },
@@ -125,8 +126,10 @@ function Subscription() {
           {subscriptions.map((pkg) => (
             <div
               key={pkg.name}
-              className={`bg-linear-to-br ${pkg.color} border-2 ${pkg.borderColor} rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow`}
+              className={`relative bg-linear-to-br ${pkg.color} border-2 ${pkg.isCurrent ? "border-blue-600 scale-105 shadow-2xl" : pkg.borderColor
+                } rounded-xl p-6 shadow-lg hover:shadow-xl transition-all`}
             >
+
               <h3 className="text-2xl font-bold text-slate-900 mb-6">
                 {pkg.name}
               </h3>
@@ -144,9 +147,18 @@ function Subscription() {
                 ))}
               </div>
 
-              <button className="w-full mt-8 bg-slate-900 text-white py-2 rounded-lg font-semibold hover:bg-slate-800 transition-colors">
-                Choose Plan
-              </button>
+              {pkg.isCurrent ? (
+                <button
+                  disabled
+                  className="w-full mt-8 bg-sky-500 text-white py-2 rounded-lg font-semibold cursor-not-allowed"
+                >
+                  Current Plan
+                </button>
+              ) : (
+                <button className="w-full mt-8 bg-slate-900 text-white py-2 rounded-lg font-semibold hover:bg-slate-800 transition-colors">
+                  Choose Plan
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -179,11 +191,10 @@ function Subscription() {
                     />
                     <label
                       htmlFor={method.id}
-                      className={`block p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                        formData.paymentMethod === method.id
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-slate-200 bg-white hover:border-slate-300"
-                      }`}
+                      className={`block p-4 rounded-lg border-2 cursor-pointer transition-all ${formData.paymentMethod === method.id
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                        }`}
                     >
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-2xl">{method.icon}</span>
