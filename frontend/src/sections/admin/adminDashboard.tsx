@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 import Genealogy from '../tabs/Genealogy';
+import GeneratePin from '../tabs/GeneratePin';
 
 export default function adminDashboard() {
   const navigate = useNavigate();
@@ -141,7 +142,7 @@ export default function adminDashboard() {
   const renderTabContent = () => {
     const contents: Record<string, React.ReactElement> = {
       genealogy: <Genealogy />,
-      'generate-pin': <div className="text-center py-12"><p className="text-gray-600">Generate PIN view coming soon</p></div>,
+      'generate-pin': <GeneratePin />,
       'generate-free-code': <div className="text-center py-12"><p className="text-gray-600">Generate Free Code view coming soon</p></div>,
       'all-generated-pin': <div className="text-center py-12"><p className="text-gray-600">All Generated PIN view coming soon</p></div>,
       'withdrawal-gc-approval': <div className="text-center py-12"><p className="text-gray-600">Withdrawal GC Approval view coming soon</p></div>,

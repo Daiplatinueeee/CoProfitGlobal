@@ -5,7 +5,6 @@ import {
   TrendingUp,
   Gift,
   Lock,
-  QrCode,
   Wallet,
   ShoppingBag,
   Network,
@@ -21,8 +20,7 @@ import Genealogy from '../tabs/Genealogy';
 import Pairing from '../tabs/Pairing'
 import Payout from '../tabs/Payout';
 import Subscription from '../tabs/Subscription';
-import Direct from '../tabs/Direct';
-import Indirect from '../tabs/Indirect'
+import ReferalsHierarchy from '../tabs/ReferalsHierarchy';
 import WithdrawGC from '../tabs/WithdrawGC';
 import UnilevelProducts from '../tabs/UnilevelProducts';
 import PayoutHistory from '../tabs/PayoutHistory'
@@ -36,7 +34,6 @@ export default function UserDashboard() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const navigate = useNavigate();
 
-  // Check if user has disabled the welcome modal
   useEffect(() => {
     const hasDisabledModal = localStorage.getItem('disableWelcomeModal');
     if (!hasDisabledModal) {
@@ -73,8 +70,7 @@ export default function UserDashboard() {
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'genealogy', label: 'Genealogy', icon: Network },
-    { id: 'direct-history', label: 'Direct Referal History', icon: Lock },
-    { id: 'indirect-history', label: 'Indirect Referal History', icon: QrCode },
+    { id: 'referal-hierarchy', label: 'Referal Hierarchy', icon: Lock },
     { id: 'pairing-history', label: 'Pairing History', icon: TrendingUp },
     { id: 'payout-system', label: 'Payout System', icon: Wallet },
     { id: 'subscription', label: 'Subscription', icon: ShoppingBag },
@@ -365,8 +361,7 @@ export default function UserDashboard() {
       genealogy: <Genealogy />,
       'pairing-history': <Pairing />,
       'payout-system': <Payout />,
-      'direct-history': <Direct />,
-      'indirect-history': <Indirect />,
+      'referal-hierarchy': <ReferalsHierarchy />,
       'withdraw-gc': <WithdrawGC />,
       'subscription': <Subscription />,
       'unilevel-package': <UnilevelProducts />,

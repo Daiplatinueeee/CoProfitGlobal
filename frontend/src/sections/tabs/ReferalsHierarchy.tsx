@@ -7,16 +7,11 @@ import pic6 from './../../assets/refs/Logo.webp';
 import pic7 from './../../assets/refs/Logo.webp';
 import pic8 from './../../assets/refs/Logo.webp';
 
-function Direct() {
+function ReferalsHierarchy() {
   const referralsData = [
-    // Level 1 - Direct Referrals
     { id: 1, level: 1, username: "john_doe", email: "john.doe@gmail.com", profilePicture: pic1, dateTime: "2025-02-22T14:30:00", isActive: true },
     { id: 2, level: 1, username: "jane_smith", email: "jane.smith@gmail.com", profilePicture: pic2, dateTime: "2025-02-21T10:15:00", isActive: true },
-
-    // Level 2 - Indirect Referrals
     { id: 3, level: 2, username: "mike_johnson", email: "mike.johnson@gmail.com", profilePicture: pic3, dateTime: "2025-02-18T09:45:00", isActive: true },
-
-    // Level 3 - Spill Over
     { id: 4, level: 3, username: "alex_turner", email: "alex.turner@gmail.com", profilePicture: pic4, dateTime: "2025-02-16T12:20:00", isActive: false },
   ];
 
@@ -112,48 +107,10 @@ function Direct() {
           </div>
         ))}
 
-        {/* LEVEL 4 - PAIRING BONUS */}
+        {/* LEVEL 4 - SIGN 5 */}
         <div>
           <div className="mb-4 pb-2 border-b-2 border-slate-300">
-            <h3 className="text-xl font-bold text-slate-900">Level 4 - Pairing Bonus</h3>
-            <p className="text-sm text-slate-500">{pairingBonusData.length} pairing record(s)</p>
-          </div>
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full text-sm text-left text-slate-600">
-              <thead className="bg-slate-100 text-slate-900 font-semibold">
-                <tr>
-                  <th className="px-6 py-4">Date & Time</th>
-                  <th className="px-6 py-4 text-center">Left Leg</th>
-                  <th className="px-6 py-4 text-center">Right Leg</th>
-                  <th className="px-6 py-4">Total Pairing Bonus</th>
-                  <th className="px-6 py-4">Account Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pairingBonusData.map(pair => (
-                  <tr key={pair.id} className="border-t border-slate-200 hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">{formatDateTime(pair.dateTime)}</td>
-                    <td className="px-6 py-4 text-center flex items-center justify-center gap-3">
-                      <img src={pair.leftUser.profilePicture} className="w-10 h-10 rounded-full" />
-                      <span className="font-semibold">{pair.leftUser.username}</span>
-                    </td>
-                    <td className="px-6 py-4 text-center flex items-center justify-center gap-3">
-                      <img src={pair.rightUser.profilePicture} className="w-10 h-10 rounded-full" />
-                      <span className="font-semibold">{pair.rightUser.username}</span>
-                    </td>
-                    <td className="px-6 py-4 font-bold text-green-700">₱{pair.totalBonus}</td>
-                    <td className="px-6 py-4">{getStatusBadge(pair.isActive)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* LEVEL 5 - SIGN 5 */}
-        <div>
-          <div className="mb-4 pb-2 border-b-2 border-slate-300">
-            <h3 className="text-xl font-bold text-slate-900">Level 5 - Sign 5 Bonus</h3>
+            <h3 className="text-xl font-bold text-slate-900">Level 4 - Sign 5 Bonus</h3>
           </div>
           <div className="grid md:grid-cols-4 gap-6">
             {sign5Data.map(rank => (
@@ -166,10 +123,10 @@ function Direct() {
           </div>
         </div>
 
-        {/* LEVEL 6 - LEADERSHIP BONUS */}
+        {/* LEVEL 5 - LEADERSHIP BONUS */}
         <div>
           <div className="mb-4 pb-2 border-b-2 border-slate-300">
-            <h3 className="text-xl font-bold text-slate-900">Level 6 - Leadership Bonus (20%)</h3>
+            <h3 className="text-xl font-bold text-slate-900">Level 5 - Leadership Bonus (20%)</h3>
           </div>
           <div className="overflow-x-auto rounded-lg border border-slate-200">
             <table className="w-full text-sm text-left text-slate-600">
@@ -198,4 +155,4 @@ function Direct() {
   );
 }
 
-export default Direct;
+export default ReferalsHierarchy;
