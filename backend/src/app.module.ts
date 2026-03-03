@@ -8,6 +8,8 @@ import { AppService } from './app.service';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 
+require("node:dns/promises").setServers(["1.1.1.1", "8.8.8.8"]);
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
