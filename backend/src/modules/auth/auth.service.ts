@@ -8,9 +8,9 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
 import { UsersService } from '../users/users.service';
-import { UserRole } from '../users/schemas/user.schema';
+import { MembershipTier } from '../users/schemas/user.schema';
 
-type AccessPayload = { sub: string; email: string; role: UserRole };
+type AccessPayload = { sub: string; email: string; role: MembershipTier };
 type RefreshPayload = { sub: string; sid: string };
 
 @Injectable()

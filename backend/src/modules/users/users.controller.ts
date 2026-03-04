@@ -19,7 +19,7 @@ export class UsersController {
       id: (user as any)._id.toString(),
       name: user.name,
       email: user.email,
-      role: user.role,
+      membershipTier: user.membershipTier,
       createdAt: (user as any).createdAt,
       updatedAt: (user as any).updatedAt,
     };

@@ -7,8 +7,12 @@ import { AppService } from './app.service';
 
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ProfilesModule } from './modules/profiles/profiles.module';
 
-require("node:dns/promises").setServers(["1.1.1.1", "8.8.8.8"]);
+import { ProductPinsModule } from './modules/product-pins/product-pins.module';
+import { AdminModule } from './modules/admin/admin.module';
+
+require('node:dns/promises').setServers(['1.1.1.1', '8.8.8.8']);
 
 @Module({
   imports: [
@@ -24,6 +28,10 @@ require("node:dns/promises").setServers(["1.1.1.1", "8.8.8.8"]);
 
     UsersModule,
     AuthModule,
+    ProfilesModule,
+
+    ProductPinsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],
