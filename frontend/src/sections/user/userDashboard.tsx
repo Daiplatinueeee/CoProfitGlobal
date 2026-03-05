@@ -81,6 +81,82 @@ export default function UserDashboard() {
 
   const renderDashboardContent = () => (
     <div className="space-y-6 pb-6 bg-white">
+      {/* Total Income Card -  */}
+      <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-3xl p-8 border border-blue-100 shadow-lg">
+        <p className="text-sm font-medium text-blue-600 mb-2">Total Income</p>
+        <p className="text-3xl font-bold text-gray-900 mb-4">₱181,385.00</p>
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col">
+            <span className="text-xs text-gray-600 mb-1">This Week</span>
+            <span className="text-2xl font-semibold text-gray-900">₱8,400.00</span>
+          </div>
+          <div className="w-px h-12 bg-blue-200"></div>
+          <div className="flex flex-col">
+            <span className="text-xs text-gray-600 mb-1">This Month</span>
+            <span className="text-2xl font-semibold text-blue-600">₱12,400.00</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Income Summary Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Direct Referrals (PHP)</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-2">₱0.00</p>
+          <p className="text-xs text-emerald-600 font-medium">↑ 12% from yesterday</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Indirect Referrals (PHP)</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-2">₱0.00</p>
+          <p className="text-xs text-emerald-600 font-medium">↑ 12% from yesterday</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Current Sign5 Bonus (PHP)</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-2">₱500.00</p>
+          <p className="text-xs text-emerald-600 font-medium">↑ 12% from yesterday</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Sales Match Bonus (PHP)</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-2">₱0.00</p>
+          <p className="text-xs text-emerald-600 font-medium">↑ 12% from yesterday</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Repeat Binary Bonus (PHP)</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-2">₱0.00</p>
+          <p className="text-xs text-emerald-600 font-medium">↑ 12% from yesterday</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Leadership Bonus (PHP)</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-2">₱0.00</p>
+          <p className="text-xs text-emerald-600 font-medium">↑ 12% from yesterday</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Stairstep Bonus (PHP)</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-2">₱0.00</p>
+          <p className="text-xs text-emerald-600 font-medium">↑ 12% from yesterday</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Royalty Bonus (PHP)</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-2">₱0.00</p>
+          <p className="text-xs text-emerald-600 font-medium">↑ 12% from yesterday</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Unilevel Bonus (Points Value = 1 PHP)</h3>
+          <p className="text-3xl font-bold text-gray-900 mb-2">0 PV - ₱0.00</p>
+          <p className="text-xs text-emerald-600 font-medium">↑ 12% from yesterday</p>
+        </div>
+
+      </div>
+
       {/* Current Package Card */}
       <div className="bg-linear-to-r from-gray-600 via-gray-400 to-gray-300 rounded-3xl p-8 border border-gray-200">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -102,46 +178,6 @@ export default function UserDashboard() {
         </div>
       </div>
 
-      {/* Total Income Card - Apple Inspired */}
-      <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-3xl p-8 border border-blue-100 shadow-lg">
-        <p className="text-sm font-medium text-blue-600 mb-2">Total Income</p>
-        <p className="text-3xl font-bold text-gray-900 mb-4">₱181,385.00</p>
-        <div className="flex items-center gap-6">
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-600 mb-1">This Week</span>
-            <span className="text-2xl font-semibold text-gray-900">₱8,400.00</span>
-          </div>
-          <div className="w-px h-12 bg-blue-200"></div>
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-600 mb-1">This Month</span>
-            <span className="text-2xl font-semibold text-blue-600">₱12,400.00</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Income Summary Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Income Today */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Income Today</h3>
-          <p className="text-3xl font-bold text-gray-900 mb-2">₱0.00</p>
-          <p className="text-xs text-emerald-600 font-medium">↑ 12% from yesterday</p>
-        </div>
-
-        {/* This Week */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Direct Referals</h3>
-          <p className="text-3xl font-bold text-gray-900 mb-2">1,200</p>
-          <p className="text-xs text-gray-600">7 days earnings</p>
-        </div>
-
-        {/* This Month */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Indirect Referals</h3>
-          <p className="text-3xl font-bold text-gray-900 mb-2">2,000</p>
-          <p className="text-xs text-gray-600">Current month total</p>
-        </div>
-      </div>
 
       {/* Referral Stats & Genealogy */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -150,17 +186,17 @@ export default function UserDashboard() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Referral Stats</h3>
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-gray-600 mb-2">Direct Referrals</p>
+              <p className="text-sm text-gray-600 mb-2">TBA</p>
               <div className="flex items-baseline gap-2">
-                <p className="text-3xl font-bold text-gray-900">22</p>
-                <span className="text-sm text-gray-500">active members</span>
+                <p className="text-3xl font-bold text-gray-900">0</p>
+                <span className="text-sm text-gray-500">TBA</span>
               </div>
             </div>
             <div>
-              <p className="text-sm text-gray-600 mb-2">Indirect Referrals</p>
+              <p className="text-sm text-gray-600 mb-2">TBA</p>
               <div className="flex items-baseline gap-2">
                 <p className="text-3xl font-bold text-gray-900">0</p>
-                <span className="text-sm text-gray-500">total downline</span>
+                <span className="text-sm text-gray-500">TBA</span>
               </div>
             </div>
             <div className="pt-4 border-t border-gray-200">
@@ -379,17 +415,16 @@ export default function UserDashboard() {
     <div className="flex h-screen bg-white">
       {/* Welcome Modal */}
       {showWelcomeModal && (
-        <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
             {/* Header */}
             <div className="text-center mb-6">
               <h2 className="text-2xl text-gray-900 mb-2">Welcome!</h2>
-              <div className="h-1 w-12 bg-blue-600 rounded-full mx-auto"></div>
             </div>
 
             {/* Message */}
             <p className="text-gray-700 text-center mb-6 leading-relaxed">
-              Thank you for joining CoProfitGlobal! We're grateful to have you as part of our community. Your success is our mission, and we're here to support you every step of the way.
+              Thank you for joining CoProfitGlobal!, We're grateful to have you as part of our community. Your success is our mission, and we're here to support you every step of the way.
             </p>
 
             {/* Checkbox */}
@@ -417,7 +452,6 @@ export default function UserDashboard() {
         </div>
       )}
 
-      {/* Sidebar - Apple Inspired */}
       <div
         className={`fixed lg:static inset-y-0 left-0 bg-white text-gray-900 sidebar-smooth z-40 ${sidebarOpen ? 'w-64' : 'w-0 lg:w-20'
           } overflow-hidden border-r border-gray-100`}

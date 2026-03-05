@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import logo from './../../assets/refs/Logo.webp'
-import MemberDetailsPanel from './membersDetailPanel'
+import MemberDetailsPanel from './MembersDetailPanel'
 import AddMemberModal from './AddMemberModal'
 
 interface Member {
@@ -629,7 +629,6 @@ function Genealogy() {
           )}
         </div>
 
-        {/* MODAL WITH FORM - NOW SEPARATED TO AddMemberModal COMPONENT */}
         <AddMemberModal
           modal={modal}
           formData={formData}
@@ -671,7 +670,6 @@ function Genealogy() {
         </svg>
       </div>
 
-      {/* MEMBER DETAILS SIDEBAR COMPONENT - RIGHT SIDE */}
       <MemberDetailsPanel
         selectedMember={selectedMember}
         onClose={() => setSelectedMember(null)}

@@ -3,25 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import {
   Home,
   Lock,
-  QrCode,
-  Wallet,
-  ShoppingBag,
-  BarChart3,
   Network,
-  Download,
   Clock,
   LogOut,
   ChevronLeft,
-  Zap,
-  Gift,
   FileText,
-  CheckCircle,
-  History,
-  Package,
 } from 'lucide-react';
 
 import Genealogy from '../tabs/Genealogy';
 import GeneratePin from '../tabs/GeneratePin';
+import UsersOverview from '../tabs/UsersOverview';
 
 export default function adminDashboard() {
   const navigate = useNavigate();
@@ -42,17 +33,7 @@ export default function adminDashboard() {
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'genealogy', label: 'Genealogy', icon: Network },
     { id: 'generate-pin', label: 'Generate PIN', icon: Lock },
-    { id: 'generate-free-code', label: 'Generate Free Code', icon: QrCode },
-    { id: 'all-generated-pin', label: 'All Generated PIN', icon: Zap },
-    { id: 'withdrawal-gc-approval', label: 'Withdrawal GC Approval', icon: CheckCircle },
-    { id: 'package-requests', label: 'Package Requests', icon: Package },
-    { id: 'approve-withdrawals', label: 'Approve Withdrawals', icon: Download },
-    { id: 'withdrawal-history', label: 'Withdrawal History', icon: History },
-    { id: 'member-balances', label: 'Member Balances', icon: Wallet },
-    { id: 'withdraw-gift-certificate', label: 'Withdraw Gift Certificate', icon: Gift },
-    { id: 'unilevel-product-request', label: 'Unilevel Product Request', icon: ShoppingBag },
-    { id: 'unilevel-monthly-subscription', label: 'Unilevel Monthly Subscription', icon: BarChart3 },
-    { id: 'reports', label: 'Reports', icon: FileText },
+    { id: 'users', label: 'Users Overview', icon: FileText },
   ], []);
 
   const renderDashboardContent = () => (
@@ -102,7 +83,7 @@ export default function adminDashboard() {
           <p className="text-3xl font-bold text-gray-900 mb-2">₱0.00</p>
         </div>
 
-         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
           <h3 className="text-sm font-medium text-gray-500 mb-3">Activation Codes</h3>
           <p className="text-3xl font-bold text-gray-900 mb-2">1,192</p>
         </div>
@@ -143,17 +124,7 @@ export default function adminDashboard() {
     const contents: Record<string, React.ReactElement> = {
       genealogy: <Genealogy />,
       'generate-pin': <GeneratePin />,
-      'generate-free-code': <div className="text-center py-12"><p className="text-gray-600">Generate Free Code view coming soon</p></div>,
-      'all-generated-pin': <div className="text-center py-12"><p className="text-gray-600">All Generated PIN view coming soon</p></div>,
-      'withdrawal-gc-approval': <div className="text-center py-12"><p className="text-gray-600">Withdrawal GC Approval view coming soon</p></div>,
-      'package-requests': <div className="text-center py-12"><p className="text-gray-600">Package Requests view coming soon</p></div>,
-      'approve-withdrawals': <div className="text-center py-12"><p className="text-gray-600">Approve Withdrawals view coming soon</p></div>,
-      'withdrawal-history': <div className="text-center py-12"><p className="text-gray-600">Withdrawal History view coming soon</p></div>,
-      'member-balances': <div className="text-center py-12"><p className="text-gray-600">Member Balances view coming soon</p></div>,
-      'withdraw-gift-certificate': <div className="text-center py-12"><p className="text-gray-600">Withdraw Gift Certificate view coming soon</p></div>,
-      'unilevel-product-request': <div className="text-center py-12"><p className="text-gray-600">Unilevel Product Request view coming soon</p></div>,
-      'unilevel-monthly-subscription': <div className="text-center py-12"><p className="text-gray-600">Unilevel Monthly Subscription view coming soon</p></div>,
-      'reports': <div className="text-center py-12"><p className="text-gray-600">Reports view coming soon</p></div>,
+      'users': <UsersOverview />,
     };
     return contents[activeTab] || <div></div>;
   };
