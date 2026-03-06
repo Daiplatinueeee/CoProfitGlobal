@@ -7,8 +7,20 @@ import { AppService } from './app.service';
 
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ProfilesModule } from './modules/profiles/profiles.module';
 
-require("node:dns/promises").setServers(["1.1.1.1", "8.8.8.8"]);
+import { ProductPinsModule } from './modules/product-pins/product-pins.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { GenealogyModule } from './modules/genealogy/genealogy.module';
+import { ActivationsModule } from './modules/activations/activations.module';
+import { VolumeModule } from './modules/volume/volume.module';
+import { PairingModule } from './modules/pairing/pairing.module';
+import { WalletModule } from './modules/wallet/wallet.module';
+import { Sign5Module } from './modules/sign5/sign5.module';
+import { LeadershipModule } from './modules/leadership/leadership.module';
+import { PeriodsModule } from './modules/periods/periods.module';
+
+require('node:dns/promises').setServers(['1.1.1.1', '8.8.8.8']);
 
 @Module({
   imports: [
@@ -24,6 +36,18 @@ require("node:dns/promises").setServers(["1.1.1.1", "8.8.8.8"]);
 
     UsersModule,
     AuthModule,
+    ProfilesModule,
+
+    ProductPinsModule,
+    AdminModule,
+    GenealogyModule,
+    ActivationsModule,
+    VolumeModule,
+    PairingModule,
+    WalletModule,
+    Sign5Module,
+    LeadershipModule,
+    PeriodsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
