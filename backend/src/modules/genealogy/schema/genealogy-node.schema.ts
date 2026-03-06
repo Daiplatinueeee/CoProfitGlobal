@@ -26,7 +26,7 @@ export class GenealogyNode {
   position: GenealogySide | null;
 
   // Optional denormalized sponsor for faster reads
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true})
   sponsorId: Types.ObjectId;
 
   // Fast slot checks
