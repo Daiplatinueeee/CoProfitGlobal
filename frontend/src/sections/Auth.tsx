@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Mail, Eye, EyeOff, ArrowRight, CircleUserRound, Asterisk } from 'lucide-react';
 import { useNavigate } from "react-router-dom"
-import OTPModal from "../modals/OTPModal";
 
 import bg from "../assets/Gradient Loop Background - Dev Ashish Deval (1080p, h264).mp4";
 
@@ -13,11 +12,8 @@ export default function AuthPage() {
     const [rememberMe, setRememberMe] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const [showOtpModal, setShowOtpModal] = useState(false);
-    const [otpCode, setOtpCode] = useState('');
-    const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
-    const [userEmail, setUserEmail] = useState('');
-    const [accountType, setAccountType] = useState('user');
+    const [, setUserEmail] = useState('');
+    const [, setRole] = useState('user');
     const [formData, setFormData] = useState({
         username: '',
         email: '',
@@ -41,7 +37,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch('http://localhost:3000/api/users/login', {
+            const response = await fetch('http://localhost:3000/auth/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -60,29 +56,23 @@ export default function AuthPage() {
                 return;
             }
 
-            setUserEmail(formData.email);
-            setAccountType(data.user.accountType);
-            setShowOtpModal(true);
+            // Save auth data
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
 
-            // Send OTP for login
-            await fetch('http://localhost:3000/api/users/send-otp', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    email: formData.email,
-                    isRegistration: false,
-                }),
-            });
+            // Navigate based on role
+            if (data.user.accountType === 'admin') {
+                navigate('/admin');
+            } else {
+                navigate('/user');
+            }
 
-            setIsLoading(false);
-        } catch (err: any) {
+        } catch (err) {
             setError('An error occurred. Please try again.');
+        } finally {
             setIsLoading(false);
         }
     };
-
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -111,75 +101,12 @@ export default function AuthPage() {
             }
 
             setUserEmail(formData.email);
-            setAccountType('user');
-            setShowOtpModal(true);
-
-            // Send OTP for registration
-            await fetch('http://localhost:3000/api/users/send-otp', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    email: formData.email,
-                    isRegistration: true,
-                }),
-            });
+            setRole('user');
 
             setIsLoading(false);
         } catch (err: any) {
             setError('An error occurred. Please try again.');
             setIsLoading(false);
-        }
-    };
-
-    const handleVerifyOtp = async () => {
-        setError('');
-        setIsVerifyingOtp(true);
-
-        try {
-            const verifyPayload: any = {
-                email: userEmail,
-                otp: otpCode,
-                isRegistration: !isSignIn,
-            };
-
-            // Include additional data for registration
-            if (!isSignIn) {
-                verifyPayload.password = formData.password;
-                verifyPayload.username = formData.username;
-                verifyPayload.accountType = 'user';
-            }
-
-            const response = await fetch('http://localhost:3000/api/users/verify-otp', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(verifyPayload),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                setError(data.message || 'OTP verification failed');
-                setIsVerifyingOtp(false);
-                return;
-            }
-
-            // Save token to localStorage
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
-
-            // Navigate based on account type
-            if (accountType === 'admin') {
-                navigate('/admin');
-            } else {
-                navigate('/user');
-            }
-        } catch (err: any) {
-            setError('An error occurred. Please try again.');
-            setIsVerifyingOtp(false);
         }
     };
 
@@ -374,17 +301,6 @@ export default function AuthPage() {
                     </p>
                 </div>
             </div>
-
-            <OTPModal
-                show={showOtpModal}
-                onClose={() => setShowOtpModal(false)}
-                userEmail={userEmail}
-                error={error}
-                otpCode={otpCode}
-                setOtpCode={setOtpCode}
-                handleVerifyOtp={handleVerifyOtp}
-                isVerifyingOtp={isVerifyingOtp}
-            />
 
             {/* Right Side - Video Background */}
             <div className="hidden md:flex w-1/2 bg-linear-to-br from-blue-600 to-blue-900 items-center justify-center relative overflow-hidden">
