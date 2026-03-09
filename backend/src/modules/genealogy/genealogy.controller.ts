@@ -1,42 +1,47 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { GenealogyService } from './genealogy.service';
-import { PlaceMemberDto } from './dto/place-member.dto';
-import { FindSlotDto } from './dto/find-slot.dto';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common'
+import { GenealogyService } from './genealogy.service'
+import { PlaceMemberDto } from './dto/place-member.dto'
 
 @Controller('genealogy')
 export class GenealogyController {
   constructor(private readonly genealogyService: GenealogyService) {}
 
-  // bootstrap first/root member manually
-  @Post('root/:userId')
-  createRoot(@Param('userId') userId: string) {
-    return this.genealogyService.createRoot(userId);
+  // auto-create root if missing, then return full root tree
+  @Get('root/:userId')
+  getOrCreateRoot(@Param('userId') userId: string) {
+    return this.genealogyService.getOrCreateRoot(userId)
   }
 
-  // preview slot resolution before actual placement
-  @Post('find-slot')
-  findSlot(@Body() dto: FindSlotDto) {
-    return this.genealogyService.findAvailableSlot(dto);
+  // return full tree for a user if already placed
+  @Get('tree/:userId')
+  getTree(@Param('userId') userId: string) {
+    return this.genealogyService.getTree(userId)
   }
 
-  // consumes pin + activates + places
+  // add/place a member under a parent on left or right
   @Post('place')
   placeMember(@Body() dto: PlaceMemberDto) {
-    return this.genealogyService.placeMember(dto);
+    return this.genealogyService.placeMember(dto)
   }
 
-  @Get('node/:userId')
-  getNode(@Param('userId') userId: string) {
-    return this.genealogyService.getNode(userId);
-  }
-
-  @Get('node/:userId/children')
+  // direct children only
+  @Get('children/:userId')
   getChildren(@Param('userId') userId: string) {
-    return this.genealogyService.getChildren(userId);
+    return this.genealogyService.getChildren(userId)
   }
 
-  @Get('node/:userId/upline')
-  getUpline(@Param('userId') userId: string) {
-    return this.genealogyService.getUpline(userId);
+  // all downlines recursively
+  @Get('downlines/:userId')
+  getDownlines(@Param('userId') userId: string) {
+    return this.genealogyService.getDownlines(userId)
+  }
+
+  // check if target user is inside source user's downline tree
+  @Get('is-downline/:sourceUserId/:targetUserId')
+  isDownline(
+    @Param('sourceUserId') sourceUserId: string,
+    @Param('targetUserId') targetUserId: string,
+  ) {
+    return this.genealogyService.isDownline(sourceUserId, targetUserId)
   }
 }

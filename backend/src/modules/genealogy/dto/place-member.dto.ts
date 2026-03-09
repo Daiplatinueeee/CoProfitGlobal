@@ -1,18 +1,61 @@
-import { IsEnum, IsMongoId, IsString, Length } from 'class-validator';
-import { GenealogySide } from '../schema/genealogy-node.schema';
+import {
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+  IsNumber,
+} from 'class-validator'
+import { Type } from 'class-transformer'
+import { GenealogySide } from '../schema/genealogy-node.schema'
 
 export class PlaceMemberDto {
-  @IsMongoId()
-  userId: string;
-
-  @IsMongoId()
-  sponsorId: string;
+  @IsString()
+  @IsNotEmpty()
+  parentUserId: string
 
   @IsEnum(GenealogySide)
-  preferredSide: GenealogySide;
+  leg: GenealogySide
 
-  // raw 4-digit pin entered by frontend
   @IsString()
-  @Length(4, 4)
-  productPin: string;
+  @IsNotEmpty()
+  username: string
+
+  @IsEmail()
+  email: string
+
+  @IsOptional()
+  @IsString()
+  profileImage?: string
+
+  @IsString()
+  @IsNotEmpty()
+  referralCode: string
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  age?: number
+
+  @IsOptional()
+  @IsString()
+  contact?: string
+
+  @IsOptional()
+  @IsString()
+  address?: string
+
+  @IsOptional()
+  @IsString()
+  beneficiary?: string
+
+  @IsOptional()
+  @IsString()
+  birthday?: string
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  password?: string
 }

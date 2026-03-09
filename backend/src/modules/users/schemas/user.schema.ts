@@ -22,10 +22,10 @@ export enum SystemRole {
 
 @Schema({ _id: false })
 export class RefreshSession {
-  @Prop({ required: true }) // random id for this session
+  @Prop({ required: true })
   sid: string;
 
-  @Prop({ required: true, select: false }) // store HASHED refresh token
+  @Prop({ required: true, select: false })
   refreshTokenHash: string;
 
   @Prop({ required: true })
@@ -34,7 +34,7 @@ export class RefreshSession {
   @Prop({ required: true })
   expiresAt: Date;
 
-  @Prop() // optional metadata
+  @Prop()
   userAgent?: string;
 
   @Prop()
@@ -48,29 +48,63 @@ export class User {
   @Prop({ required: true, trim: true })
   name: string;
 
+  // added for genealogy/frontend compatibility
+  @Prop({ required: true, trim: true, index: true })
+  username: string;
+
   @Prop({ required: true, lowercase: true, trim: true, unique: true, index: true })
   email: string;
 
   @Prop({ required: true, select: false })
   passwordHash: string;
 
-  // ✅ NEW: system role for auth/guards
-  @Prop({ type: String, enum: Object.values(SystemRole), default: SystemRole.USER, index: true })
+  @Prop({
+    type: String,
+    enum: Object.values(SystemRole),
+    default: SystemRole.USER,
+    index: true,
+  })
   role: SystemRole;
 
-  // Product/package tier
-  @Prop({ type: String, enum: Object.values(MembershipTier), default: MembershipTier.BRONZE, index: true })
+  @Prop({
+    type: String,
+    enum: Object.values(MembershipTier),
+    default: MembershipTier.BRONZE,
+    index: true,
+  })
   membershipTier: MembershipTier;
 
-  // Unique referral code for sponsor links
-  @Prop({ required: true, unique: true, index: true })
+  @Prop({ required: true, unique: true, index: true, trim: true })
   referralCode: string;
 
-  // Sponsor (direct referrer)
   @Prop({ type: Types.ObjectId, ref: 'User', default: null, index: true })
   sponsorId: Types.ObjectId | null;
 
-  // multiple devices/sessions supported
+  // added for genealogy/frontend compatibility
+  @Prop({ default: '' })
+  profileImage: string;
+
+  @Prop({ type: Number, default: 0 })
+  leftLegPoints: number;
+
+  @Prop({ type: Number, default: 0 })
+  rightLegPoints: number;
+
+  @Prop({ type: Number, default: null })
+  age?: number | null;
+
+  @Prop({ default: '' })
+  contact?: string;
+
+  @Prop({ default: '' })
+  address?: string;
+
+  @Prop({ default: '' })
+  beneficiary?: string;
+
+  @Prop({ default: '' })
+  birthday?: string;
+
   @Prop({ type: [RefreshSessionSchema], default: [], select: false })
   refreshSessions: RefreshSession[];
 }
@@ -81,5 +115,9 @@ export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.pre('validate', function (this: any) {
   if (!this.referralCode) {
     this.referralCode = crypto.randomBytes(6).toString('base64url').slice(0, 8);
+  }
+
+  if (!this.username && this.name) {
+    this.username = this.name;
   }
 });

@@ -171,4 +171,67 @@ export class VolumeService {
           rightPoints: 0,
         };
   }
+
+  async getTreeBuckets(userId: string, periodKey: string) {
+  if (!Types.ObjectId.isValid(userId)) {
+    throw new BadRequestException('Invalid userId')
+  }
+
+  const rootNode = await this.genealogyModel.findOne({
+    userId: this.toObjectId(userId),
+  })
+
+  if (!rootNode) {
+    throw new NotFoundException('Genealogy root not found')
+  }
+
+  const relevantUserIds = [
+    rootNode.userId,
+    ...(rootNode.ancestors ?? []),
+  ]
+
+  const downlineNodes = await this.genealogyModel
+    .find({
+      ancestors: this.toObjectId(userId),
+    })
+    .select('userId')
+    .lean()
+
+  for (const node of downlineNodes) {
+    relevantUserIds.push(node.userId)
+  }
+
+  const uniqueUserIds = Array.from(
+    new Map(relevantUserIds.map((id) => [id.toString(), id])).values()
+  )
+
+  const buckets = await this.volumeBucketModel
+    .find({
+      userId: { $in: uniqueUserIds },
+      periodKey,
+    })
+    .lean()
+
+  const pointsMap: Record<string, { leftPoints: number; rightPoints: number }> = {}
+
+  for (const userObjectId of uniqueUserIds) {
+    pointsMap[userObjectId.toString()] = {
+      leftPoints: 0,
+      rightPoints: 0,
+    }
+  }
+
+  for (const bucket of buckets) {
+    pointsMap[bucket.userId.toString()] = {
+      leftPoints: bucket.leftPoints ?? 0,
+      rightPoints: bucket.rightPoints ?? 0,
+    }
+  }
+
+  return {
+    userId,
+    periodKey,
+    pointsMap,
+  }
+}
 }

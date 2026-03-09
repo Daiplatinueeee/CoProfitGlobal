@@ -2,30 +2,22 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import * as bcrypt from 'bcrypt';
+} from '@nestjs/common'
+import { InjectModel } from '@nestjs/mongoose'
+import { Model, Types } from 'mongoose'
+import * as bcrypt from 'bcrypt'
 
 import {
   GenealogyNode,
   GenealogyNodeDocument,
   GenealogySide,
-} from './schema/genealogy-node.schema';
-
+} from './schema/genealogy-node.schema'
+import { PlaceMemberDto } from './dto/place-member.dto'
 import {
   User,
   UserDocument,
-} from '../users/schemas/user.schema';
-
-import {
-  ProductPin,
-  ProductPinDocument,
-  PinStatus,
-} from '../product-pins/schema/product-pins.schema';
-
-import { PlaceMemberDto } from './dto/place-member.dto';
-import { FindSlotDto } from './dto/find-slot.dto';
+  SystemRole,
+} from '../users/schemas/user.schema'
 
 @Injectable()
 export class GenealogyService {
@@ -35,383 +27,290 @@ export class GenealogyService {
 
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
-
-    @InjectModel(ProductPin.name)
-    private readonly pinModel: Model<ProductPinDocument>,
   ) {}
 
   private isValidObjectId(id: string) {
-    return Types.ObjectId.isValid(id);
+    return Types.ObjectId.isValid(id)
   }
 
   private toObjectId(id: string) {
-    return new Types.ObjectId(id);
+    return new Types.ObjectId(id)
   }
 
-  /**
-   * Temporary implementation:
-   * because pins are bcrypt-hashed, we cannot query by raw pin directly.
-   * So we scan all UNUSED pins and compare.
-   * Works for now, but later you should add a searchable pin fingerprint.
-   */
-  private async consumeUnusedPin(rawPin: string, userId: string) {
-    const unusedPins = await this.pinModel.find({
-      status: PinStatus.UNUSED,
-    });
-
-    for (const pin of unusedPins) {
-      const isMatch = await bcrypt.compare(rawPin, pin.pinHash);
-      if (!isMatch) continue;
-
-      pin.status = PinStatus.USED;
-      pin.usedByUserId = this.toObjectId(userId);
-      pin.usedAt = new Date();
-      await pin.save();
-
-      return pin;
-    }
-
-    throw new BadRequestException('Invalid or already used product pin');
-  }
-
-  async createRoot(userId: string) {
-    if (!this.isValidObjectId(userId)) {
-      throw new BadRequestException('Invalid userId');
-    }
-
-    const user = await this.userModel.findById(userId);
-    if (!user) throw new NotFoundException('User not found');
-
-    const existingNode = await this.genealogyModel.findOne({
-      userId: this.toObjectId(userId),
-    });
-
-    if (existingNode) {
-      throw new BadRequestException('User is already placed in genealogy');
-    }
-
-    const node = await this.genealogyModel.create({
-      userId: this.toObjectId(userId),
-      parentUserId: null,
-      position: null,
-      sponsorId: user.sponsorId ?? this.toObjectId(userId),
-      leftChildUserId: null,
-      rightChildUserId: null,
-      depth: 0,
-      ancestors: [],
-      isActive: true,
-      activatedAt: new Date(),
-    });
+  private async mapUserToMember(userId: Types.ObjectId | string) {
+    const user = await this.userModel.findById(userId).lean()
+    if (!user) return null
 
     return {
-      message: 'Root node created',
-      node: {
-        id: node._id.toString(),
-        userId: node.userId.toString(),
-        parentUserId: null,
-        position: node.position,
-        depth: node.depth,
-        isActive: node.isActive,
-      },
-    };
+      id: (user as any)._id.toString(),
+      username: (user as any).username ?? (user as any).name ?? '',
+      email: (user as any).email ?? '',
+      profileImage: (user as any).profileImage ?? '',
+      referralCode: (user as any).referralCode ?? '',
+      leftLegPoints: (user as any).leftLegPoints ?? 0,
+      rightLegPoints: (user as any).rightLegPoints ?? 0,
+      age: (user as any).age ?? undefined,
+      contact: (user as any).contact ?? '',
+      address: (user as any).address ?? '',
+      beneficiary: (user as any).beneficiary ?? '',
+      birthday: (user as any).birthday ?? '',
+    }
   }
 
-  async findAvailableSlot(dto: FindSlotDto) {
-    if (!this.isValidObjectId(dto.sponsorId)) {
-      throw new BadRequestException('Invalid sponsorId');
+  private async buildTree(userId: string): Promise<any> {
+    const node = await this.genealogyModel.findOne({
+      userId: this.toObjectId(userId),
+    })
+
+    if (!node) return null
+
+    const member = await this.mapUserToMember(node.userId)
+    if (!member) return null
+
+    let leftChild: any = undefined
+    let rightChild: any = undefined
+
+    if (node.leftChildUserId) {
+      leftChild = await this.buildTree(node.leftChildUserId.toString())
     }
 
-    const sponsorNode = await this.genealogyModel.findOne({
-      userId: this.toObjectId(dto.sponsorId),
-    });
-
-    if (!sponsorNode) {
-      throw new NotFoundException('Sponsor is not placed in genealogy');
+    if (node.rightChildUserId) {
+      rightChild = await this.buildTree(node.rightChildUserId.toString())
     }
 
-    const directField =
-      dto.preferredSide === GenealogySide.LEFT
-        ? 'leftChildUserId'
-        : 'rightChildUserId';
+    return {
+      ...member,
+      leftChild,
+      rightChild,
+    }
+  }
 
-    // If sponsor has direct slot open, place directly under sponsor
-    if (!sponsorNode[directField]) {
-      return {
-        parentUserId: sponsorNode.userId.toString(),
-        finalPosition: dto.preferredSide,
-        reason: 'direct-slot',
-      };
+  async getOrCreateRoot(userId: string) {
+    if (!this.isValidObjectId(userId)) {
+      throw new BadRequestException('Invalid userId')
     }
 
-    // If occupied, search only inside that chosen branch
-    const branchRootUserId = sponsorNode[directField];
-    if (!branchRootUserId) {
-      throw new BadRequestException('Branch root not found');
+    const user = await this.userModel.findById(userId)
+    if (!user) {
+      throw new NotFoundException('User not found')
     }
 
-    const queue: Types.ObjectId[] = [branchRootUserId];
+    let node = await this.genealogyModel.findOne({
+      userId: this.toObjectId(userId),
+    })
 
-    while (queue.length > 0) {
-      const currentUserId = queue.shift();
-      if (!currentUserId) continue;
-
-      const currentNode = await this.genealogyModel.findOne({
-        userId: currentUserId,
-      });
-
-      if (!currentNode) continue;
-
-      // First available slot: left, then right
-      if (!currentNode.leftChildUserId) {
-        return {
-          parentUserId: currentNode.userId.toString(),
-          finalPosition: GenealogySide.LEFT,
-          reason: 'spillover-left',
-        };
-      }
-
-      if (!currentNode.rightChildUserId) {
-        return {
-          parentUserId: currentNode.userId.toString(),
-          finalPosition: GenealogySide.RIGHT,
-          reason: 'spillover-right',
-        };
-      }
-
-      queue.push(currentNode.leftChildUserId);
-      queue.push(currentNode.rightChildUserId);
+    if (!node) {
+      node = await this.genealogyModel.create({
+        userId: this.toObjectId(userId),
+        parentUserId: null,
+        position: null,
+        leftChildUserId: null,
+        rightChildUserId: null,
+        depth: 0,
+        ancestors: [],
+      })
     }
 
-    throw new BadRequestException('No available slot found in selected branch');
+    const tree = await this.buildTree(userId)
+
+    if (!tree) {
+      throw new NotFoundException('Failed to load genealogy root')
+    }
+
+    return tree
+  }
+
+  async getTree(userId: string) {
+    if (!this.isValidObjectId(userId)) {
+      throw new BadRequestException('Invalid userId')
+    }
+
+    const tree = await this.buildTree(userId)
+
+    if (!tree) {
+      throw new NotFoundException('Genealogy tree not found')
+    }
+
+    return tree
   }
 
   async placeMember(dto: PlaceMemberDto) {
-    if (!this.isValidObjectId(dto.userId)) {
-      throw new BadRequestException('Invalid userId');
+    if (!this.isValidObjectId(dto.parentUserId)) {
+      throw new BadRequestException('Invalid parentUserId')
     }
-
-    if (!this.isValidObjectId(dto.sponsorId)) {
-      throw new BadRequestException('Invalid sponsorId');
-    }
-
-    if (dto.userId === dto.sponsorId) {
-      throw new BadRequestException('User cannot sponsor themselves');
-    }
-
-    const user = await this.userModel.findById(dto.userId);
-    if (!user) throw new NotFoundException('User not found');
-
-    const sponsor = await this.userModel.findById(dto.sponsorId);
-    if (!sponsor) throw new NotFoundException('Sponsor not found');
-
-    const existingNode = await this.genealogyModel.findOne({
-      userId: this.toObjectId(dto.userId),
-    });
-
-    if (existingNode) {
-      throw new BadRequestException('User is already placed in genealogy');
-    }
-
-    const sponsorNode = await this.genealogyModel.findOne({
-      userId: this.toObjectId(dto.sponsorId),
-    });
-
-    if (!sponsorNode) {
-      throw new BadRequestException(
-        'Sponsor is not yet placed in genealogy. Create/place sponsor first.',
-      );
-    }
-
-    // 1) consume product pin (this is the activation step)
-    const consumedPin = await this.consumeUnusedPin(dto.productPin, dto.userId);
-
-    // 2) find final slot
-    const slot = await this.findAvailableSlot({
-      sponsorId: dto.sponsorId,
-      preferredSide: dto.preferredSide,
-    });
 
     const parentNode = await this.genealogyModel.findOne({
-      userId: this.toObjectId(slot.parentUserId),
-    });
+      userId: this.toObjectId(dto.parentUserId),
+    })
 
     if (!parentNode) {
-      throw new NotFoundException('Placement parent not found');
+      throw new NotFoundException('Parent genealogy node not found')
     }
 
-    const parentField =
-      slot.finalPosition === GenealogySide.LEFT
-        ? 'leftChildUserId'
-        : 'rightChildUserId';
-
-    if (parentNode[parentField]) {
-      throw new BadRequestException('Final slot is no longer available');
+    if (dto.leg === GenealogySide.LEFT && parentNode.leftChildUserId) {
+      throw new BadRequestException('Left leg already occupied')
     }
 
-    // 3) update user based on activation
-    user.sponsorId = this.toObjectId(dto.sponsorId);
-    user.membershipTier = consumedPin.tier;
-    await user.save();
+    if (dto.leg === GenealogySide.RIGHT && parentNode.rightChildUserId) {
+      throw new BadRequestException('Right leg already occupied')
+    }
 
-    // 4) create genealogy node
-    const node = await this.genealogyModel.create({
-      userId: this.toObjectId(dto.userId),
+    const existingEmail = await this.userModel.findOne({ email: dto.email })
+    if (existingEmail) {
+      throw new BadRequestException('Email already exists')
+    }
+
+    const existingReferralCode = await this.userModel.findOne({
+      referralCode: dto.referralCode,
+    })
+    if (existingReferralCode) {
+      throw new BadRequestException('Referral code already exists')
+    }
+
+    const hashedPassword = dto.password
+      ? await bcrypt.hash(dto.password, 10)
+      : ''
+
+    const createdUser = await this.userModel.create({
+      name: dto.username,
+      username: dto.username,
+      email: dto.email,
+      passwordHash: hashedPassword,
+      profileImage: dto.profileImage ?? '',
+      referralCode: dto.referralCode,
+      leftLegPoints: 0,
+      rightLegPoints: 0,
+      age: dto.age,
+      contact: dto.contact,
+      address: dto.address,
+      beneficiary: dto.beneficiary,
+      birthday: dto.birthday,
+      role: SystemRole.USER,
+    })
+
+    const childNode = await this.genealogyModel.create({
+      userId: createdUser._id,
       parentUserId: parentNode.userId,
-      position: slot.finalPosition,
-      sponsorId: this.toObjectId(dto.sponsorId),
+      position: dto.leg,
       leftChildUserId: null,
       rightChildUserId: null,
       depth: parentNode.depth + 1,
-      ancestors: [...parentNode.ancestors, parentNode.userId],
-      isActive: true,
-      activatedAt: new Date(),
-    });
+      ancestors: [...(parentNode.ancestors ?? []), parentNode.userId],
+    })
 
-    // 5) update parent child pointer
-    parentNode[parentField] = this.toObjectId(dto.userId);
-    await parentNode.save();
-
-    return {
-      message: 'Member placed and activated successfully',
-      placement: {
-        nodeId: node._id.toString(),
-        userId: node.userId.toString(),
-        sponsorId: node.sponsorId.toString(),
-        parentUserId: node.parentUserId?.toString() ?? null,
-        position: node.position,
-        depth: node.depth,
-        isActive: node.isActive,
-      },
-      activation: {
-        tier: consumedPin.tier,
-        pinId: consumedPin._id.toString(),
-        pinStatus: consumedPin.status,
-      },
-      slotResolution: {
-        reason: slot.reason,
-        chosenSide: dto.preferredSide,
-        finalPosition: slot.finalPosition,
-      },
-    };
-  }
-
-  async getNode(userId: string) {
-    if (!this.isValidObjectId(userId)) {
-      throw new BadRequestException('Invalid userId');
+    if (dto.leg === GenealogySide.LEFT) {
+      parentNode.leftChildUserId = childNode.userId
+    } else {
+      parentNode.rightChildUserId = childNode.userId
     }
 
-    const node = await this.genealogyModel.findOne({
-      userId: this.toObjectId(userId),
-    });
-
-    if (!node) throw new NotFoundException('Genealogy node not found');
+    await parentNode.save()
 
     return {
-      id: node._id.toString(),
-      userId: node.userId.toString(),
-      parentUserId: node.parentUserId?.toString() ?? null,
-      position: node.position,
-      sponsorId: node.sponsorId.toString(),
-      leftChildUserId: node.leftChildUserId?.toString() ?? null,
-      rightChildUserId: node.rightChildUserId?.toString() ?? null,
-      depth: node.depth,
-      ancestors: node.ancestors.map((a) => a.toString()),
-      isActive: node.isActive,
-      activatedAt: node.activatedAt,
-      createdAt: (node as any).createdAt,
-      updatedAt: (node as any).updatedAt,
-    };
+      id: createdUser._id.toString(),
+      username: createdUser.username,
+      email: createdUser.email,
+      profileImage: createdUser.profileImage ?? '',
+      referralCode: createdUser.referralCode ?? '',
+      leftLegPoints: createdUser.leftLegPoints ?? 0,
+      rightLegPoints: createdUser.rightLegPoints ?? 0,
+      age: createdUser.age,
+      contact: createdUser.contact,
+      address: createdUser.address,
+      beneficiary: createdUser.beneficiary,
+      birthday: createdUser.birthday,
+      parentUserId: parentNode.userId.toString(),
+      leg: dto.leg,
+    }
   }
 
   async getChildren(userId: string) {
     if (!this.isValidObjectId(userId)) {
-      throw new BadRequestException('Invalid userId');
+      throw new BadRequestException('Invalid userId')
     }
 
     const node = await this.genealogyModel.findOne({
       userId: this.toObjectId(userId),
-    });
+    })
 
-    if (!node) throw new NotFoundException('Genealogy node not found');
+    if (!node) {
+      throw new NotFoundException('Genealogy node not found')
+    }
 
-    const childIds = [node.leftChildUserId, node.rightChildUserId].filter(
-      Boolean,
-    ) as Types.ObjectId[];
+    const left = node.leftChildUserId
+      ? await this.mapUserToMember(node.leftChildUserId)
+      : null
 
-    const childUsers =
-      childIds.length > 0
-        ? await this.userModel
-            .find({ _id: { $in: childIds } })
-            .select('name email membershipTier referralCode')
-            .lean()
-        : [];
-
-    const usersMap = new Map(
-      childUsers.map((u: any) => [u._id.toString(), u]),
-    );
-
-    const leftUser = node.leftChildUserId
-      ? usersMap.get(node.leftChildUserId.toString()) ?? null
-      : null;
-
-    const rightUser = node.rightChildUserId
-      ? usersMap.get(node.rightChildUserId.toString()) ?? null
-      : null;
+    const right = node.rightChildUserId
+      ? await this.mapUserToMember(node.rightChildUserId)
+      : null
 
     return {
-      userId: node.userId.toString(),
-      left: node.leftChildUserId
-        ? {
-            userId: node.leftChildUserId.toString(),
-            name: leftUser?.name ?? null,
-            email: leftUser?.email ?? null,
-            membershipTier: leftUser?.membershipTier ?? null,
-            referralCode: leftUser?.referralCode ?? null,
-          }
-        : null,
-      right: node.rightChildUserId
-        ? {
-            userId: node.rightChildUserId.toString(),
-            name: rightUser?.name ?? null,
-            email: rightUser?.email ?? null,
-            membershipTier: rightUser?.membershipTier ?? null,
-            referralCode: rightUser?.referralCode ?? null,
-          }
-        : null,
-    };
+      userId,
+      left,
+      right,
+    }
   }
 
-  async getUpline(userId: string) {
+  async getDownlines(userId: string) {
     if (!this.isValidObjectId(userId)) {
-      throw new BadRequestException('Invalid userId');
+      throw new BadRequestException('Invalid userId')
     }
 
-    const node = await this.genealogyModel.findOne({
+    const rootNode = await this.genealogyModel.findOne({
       userId: this.toObjectId(userId),
-    });
+    })
 
-    if (!node) throw new NotFoundException('Genealogy node not found');
-
-    if (!node.ancestors.length) {
-      return {
-        userId: node.userId.toString(),
-        upline: [],
-      };
+    if (!rootNode) {
+      throw new NotFoundException('Genealogy node not found')
     }
 
-    const ancestorNodes = await this.genealogyModel
-      .find({ userId: { $in: node.ancestors } })
-      .sort({ depth: 1 })
-      .lean();
+    const downlineNodes = await this.genealogyModel
+      .find({
+        ancestors: this.toObjectId(userId),
+      })
+      .lean()
+
+    const members = await Promise.all(
+      downlineNodes.map(async (node: any) => {
+        const user = await this.mapUserToMember(node.userId)
+        return {
+          ...user,
+          parentUserId: node.parentUserId?.toString() ?? null,
+          position: node.position ?? null,
+          depth: node.depth ?? 0,
+        }
+      }),
+    )
+
+    return members.filter(Boolean)
+  }
+
+  async isDownline(sourceUserId: string, targetUserId: string) {
+    if (!this.isValidObjectId(sourceUserId)) {
+      throw new BadRequestException('Invalid sourceUserId')
+    }
+
+    if (!this.isValidObjectId(targetUserId)) {
+      throw new BadRequestException('Invalid targetUserId')
+    }
+
+    const targetNode = await this.genealogyModel.findOne({
+      userId: this.toObjectId(targetUserId),
+    })
+
+    if (!targetNode) {
+      throw new NotFoundException('Target genealogy node not found')
+    }
+
+    const isDownline = (targetNode.ancestors ?? []).some(
+      (ancestorId) => ancestorId.toString() === sourceUserId,
+    )
 
     return {
-      userId: node.userId.toString(),
-      upline: ancestorNodes.map((a: any) => ({
-        userId: a.userId.toString(),
-        parentUserId: a.parentUserId ? a.parentUserId.toString() : null,
-        position: a.position,
-        depth: a.depth,
-      })),
-    };
+      sourceUserId,
+      targetUserId,
+      isDownline,
+    }
   }
 }

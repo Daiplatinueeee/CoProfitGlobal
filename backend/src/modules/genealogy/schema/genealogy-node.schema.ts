@@ -1,7 +1,7 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
+import { HydratedDocument, Types } from 'mongoose'
 
-export type GenealogyNodeDocument = HydratedDocument<GenealogyNode>;
+export type GenealogyNodeDocument = HydratedDocument<GenealogyNode>
 
 export enum GenealogySide {
   LEFT = 'left',
@@ -11,47 +11,64 @@ export enum GenealogySide {
 @Schema({ timestamps: true })
 export class GenealogyNode {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true, index: true })
-  userId: Types.ObjectId;
+  userId: Types.ObjectId
 
-  // Placement parent in the binary tree
   @Prop({ type: Types.ObjectId, ref: 'User', default: null, index: true })
-  parentUserId: Types.ObjectId | null;
+  parentUserId: Types.ObjectId | null
 
-  // The side this user occupies under parent
-  @Prop({
-    type: String,
-    enum: Object.values(GenealogySide),
-    default: null,
-  })
-  position: GenealogySide | null;
-
-  // Optional denormalized sponsor for faster reads
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true})
-  sponsorId: Types.ObjectId;
-
-  // Fast slot checks
-  @Prop({ type: Types.ObjectId, ref: 'User', default: null })
-  leftChildUserId: Types.ObjectId | null;
+  @Prop({ type: String, enum: GenealogySide, default: null })
+  position: GenealogySide | null
 
   @Prop({ type: Types.ObjectId, ref: 'User', default: null })
-  rightChildUserId: Types.ObjectId | null;
+  leftChildUserId: Types.ObjectId | null
 
-  @Prop({ required: true, default: 0, index: true })
-  depth: number;
+  @Prop({ type: Types.ObjectId, ref: 'User', default: null })
+  rightChildUserId: Types.ObjectId | null
 
-  // Optional ancestor chain for future fast traversal
-  @Prop({ type: [Types.ObjectId], default: [] })
-  ancestors: Types.ObjectId[];
+  @Prop({ type: Number, default: 0 })
+  depth: number
+  
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+  ancestors: Types.ObjectId[]
 
-  // In your flow, placement = activation
-  @Prop({ required: true, default: true, index: true })
-  isActive: boolean;
+  @Prop({ required: true, trim: true })
+  username: string
 
-  @Prop({ type: Date, default: () => new Date() })
-  activatedAt: Date;
-}
+  @Prop({ required: true, unique: true, lowercase: true, trim: true })
+  email: string
 
-export const GenealogyNodeSchema = SchemaFactory.createForClass(GenealogyNode);
+  @Prop({ required: false })
+  password?: string
 
-GenealogyNodeSchema.index({ parentUserId: 1, position: 1 });
-GenealogyNodeSchema.index({ sponsorId: 1 });
+  @Prop({ default: '' })
+  profileImage: string
+
+  @Prop({ required: true, unique: true, trim: true })
+  referralCode: string
+
+  @Prop({ type: Number, default: 0 })
+  leftLegPoints: number
+
+  @Prop({ type: Number, default: 0 })
+  rightLegPoints: number
+
+  @Prop({ type: Number, required: false })
+  age?: number
+
+  @Prop({ required: false })
+  contact?: string
+
+  @Prop({ required: false })
+  address?: string
+
+  @Prop({ required: false })
+  beneficiary?: string
+
+  @Prop({ required: false })
+  birthday?: string
+  }
+
+export const GenealogyNodeSchema = SchemaFactory.createForClass(GenealogyNode)
+
+GenealogyNodeSchema.index({ parentUserId: 1 })
+GenealogyNodeSchema.index({ ancestors: 1 })

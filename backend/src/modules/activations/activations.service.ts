@@ -7,12 +7,14 @@ import { Activation, ActivationDocument } from './schemas/activation.schema';
 
 import { GenealogyService } from '../genealogy/genealogy.service';
 import { MembershipTier } from '../users/schemas/user.schema';
+import { GenealogySide } from '../genealogy/schema/genealogy-node.schema';
 
 @Injectable()
 export class ActivationsService {
   constructor(
     private readonly genealogyService: GenealogyService,
-    @InjectModel(Activation.name) private readonly activationModel: Model<ActivationDocument>,
+    @InjectModel(Activation.name)
+    private readonly activationModel: Model<ActivationDocument>,
   ) {}
 
   private toObjectId(id: string) {
@@ -30,45 +32,49 @@ export class ActivationsService {
       case MembershipTier.PLATINUM:
         return 7;
       default:
-        // compile-time safety, runtime fallback
         return 0;
     }
   }
 
-  /**
-   * Activates (via product pin) and places member in genealogy.
-   * NOTE: GenealogyService currently consumes the pin + sets membershipTier + creates genealogy node.
-   * This service adds an activation audit record on top.
-   */
   async activateAndPlace(dto: ActivateMemberDto) {
-    // Delegate to genealogy (consumes pin + places)
-    const result = await this.genealogyService.placeMember({
-      userId: dto.userId,
-      sponsorId: dto.sponsorId,
-      preferredSide: dto.preferredSide,
-      productPin: dto.productPin,
-    });
-
-    const tier = result?.activation?.tier as MembershipTier | undefined;
-    const pinId = result?.activation?.pinId as string | undefined;
-
-    const placementParentUserId = result?.placement?.parentUserId as string | null | undefined;
-    const position = result?.placement?.position as any;
-
-    if (!tier || !pinId || !placementParentUserId || !position) {
-      throw new BadRequestException('Activation placement response missing required fields');
+    if (!dto.parentUserId) {
+      throw new BadRequestException('parentUserId is required');
     }
 
+    if (!dto.leg) {
+      throw new BadRequestException('leg is required');
+    }
+
+    if (!dto.username || !dto.email || !dto.referralCode) {
+      throw new BadRequestException('username, email, and referralCode are required');
+    }
+
+    const result = await this.genealogyService.placeMember({
+      parentUserId: dto.parentUserId,
+      leg: dto.leg as GenealogySide,
+      username: dto.username,
+      email: dto.email,
+      profileImage: dto.profileImage ?? '',
+      referralCode: dto.referralCode,
+      age: dto.age,
+      contact: dto.contact,
+      address: dto.address,
+      beneficiary: dto.beneficiary,
+      birthday: dto.birthday,
+      password: dto.password,
+    });
+
+    const tier = (dto.membershipTier as MembershipTier) ?? MembershipTier.BRONZE;
     const points = this.pointsForTier(tier);
 
     const activation = await this.activationModel.create({
-      userId: this.toObjectId(dto.userId),
+      userId: this.toObjectId(result.id),
       sponsorId: this.toObjectId(dto.sponsorId),
-      placementParentUserId: this.toObjectId(placementParentUserId),
-      position,
+      placementParentUserId: this.toObjectId(dto.parentUserId),
+      position: dto.leg,
       tier,
       points,
-      pinId: this.toObjectId(pinId),
+      pinId: dto.pinId ? this.toObjectId(dto.pinId) : undefined,
       activatedAt: new Date(),
     });
 
@@ -76,13 +82,13 @@ export class ActivationsService {
       message: 'Activated + placed + recorded activation',
       activation: {
         id: activation._id.toString(),
-        userId: dto.userId,
+        userId: result.id,
         sponsorId: dto.sponsorId,
-        placementParentUserId,
-        position,
+        placementParentUserId: dto.parentUserId,
+        position: dto.leg,
         tier,
         points,
-        pinId,
+        pinId: dto.pinId ?? null,
         activatedAt: activation.activatedAt,
         createdAt: (activation as any).createdAt,
       },
@@ -110,7 +116,7 @@ export class ActivationsService {
       position: row.position,
       tier: row.tier,
       points: row.points,
-      pinId: row.pinId.toString(),
+      pinId: row.pinId?.toString?.() ?? null,
       activatedAt: row.activatedAt,
       createdAt: (row as any).createdAt,
     };
