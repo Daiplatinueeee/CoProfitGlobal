@@ -61,7 +61,7 @@ export default function AuthPage() {
             localStorage.setItem('user', JSON.stringify(data.user));
 
             // Navigate based on role
-            if (data.user.accountType === 'admin') {
+            if (data.user.role === 'admin') {
                 navigate('/admin');
             } else {
                 navigate('/user');
@@ -79,7 +79,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch('http://localhost:3000/api/users/register', {
+            const response = await fetch('http://localhost:3000/auth/signup', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -88,7 +88,7 @@ export default function AuthPage() {
                     email: formData.email,
                     password: formData.password,
                     username: formData.username,
-                    accountType: 'user',
+                    role: 'user',
                 }),
             });
 

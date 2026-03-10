@@ -20,6 +20,8 @@ interface Member {
 
 interface FormData {
   name: string
+  username: string
+  referralCode: string
   age: string
   contact: string
   address: string
@@ -55,6 +57,14 @@ export default function AddMemberModal({
     ? 'from-emerald-50 to-emerald-100'
     : 'from-amber-50 to-amber-100'
 
+  // Check if all required fields are filled
+  const isFormValid = 
+    formData.name?.trim() &&
+    formData.username?.trim() &&
+    formData.email?.trim() &&
+    formData.pin?.trim() &&
+    formData.referralCode?.trim()
+
   return (
     <div
       className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50"
@@ -68,9 +78,8 @@ export default function AddMemberModal({
         <div
           className={`md:w-2/5 bg-linear-to-br ${legGradient} p-8 md:p-12 flex flex-col justify-center items-center md:border-r border-gray-200`}
           style={{
-            backgroundImage: `linear-gradient(135deg, ${isLeftLeg ? '#f0fdf4' : '#fffbf0'} 0%, ${
-              isLeftLeg ? '#e0f2fe' : '#fef3c7'
-            } 100%)`,
+            backgroundImage: `linear-gradient(135deg, ${isLeftLeg ? '#f0fdf4' : '#fffbf0'} 0%, ${isLeftLeg ? '#e0f2fe' : '#fef3c7'
+              } 100%)`,
           }}
         >
           {/* Leg Indicator Circle */}
@@ -175,6 +184,22 @@ export default function AddMemberModal({
 
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Username
+                  <span className="text-red-500 ml-1">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={onFormChange}
+                  placeholder="Enter username"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 transition"
+                  style={{ '--tw-ring-color': legColor } as React.CSSProperties}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
                   Email Address
                   <span className="text-red-500 ml-1">*</span>
                 </label>
@@ -185,6 +210,7 @@ export default function AddMemberModal({
                   onChange={onFormChange}
                   placeholder="Enter email address"
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 transition"
+                  style={{ '--tw-ring-color': legColor } as React.CSSProperties}
                 />
               </div>
 
@@ -200,6 +226,23 @@ export default function AddMemberModal({
                   onChange={onFormChange}
                   placeholder="e.g., PIN-1001"
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 transition"
+                  style={{ '--tw-ring-color': legColor } as React.CSSProperties}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Referral Code
+                  <span className="text-red-500 ml-1">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="referralCode"
+                  value={formData.referralCode}
+                  onChange={onFormChange}
+                  placeholder="Enter referral code"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 transition"
+                  style={{ '--tw-ring-color': legColor } as React.CSSProperties}
                 />
               </div>
             </div>
@@ -218,6 +261,7 @@ export default function AddMemberModal({
                     onChange={onFormChange}
                     placeholder="Age"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 transition"
+                    style={{ '--tw-ring-color': legColor } as React.CSSProperties}
                   />
                 </div>
 
@@ -231,6 +275,7 @@ export default function AddMemberModal({
                     value={formData.birthday}
                     onChange={onFormChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 transition"
+                    style={{ '--tw-ring-color': legColor } as React.CSSProperties}
                   />
                 </div>
               </div>
@@ -246,6 +291,7 @@ export default function AddMemberModal({
                   onChange={onFormChange}
                   placeholder="Phone number"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 transition"
+                  style={{ '--tw-ring-color': legColor } as React.CSSProperties}
                 />
               </div>
 
@@ -258,6 +304,7 @@ export default function AddMemberModal({
                   placeholder="Full address"
                   rows={2}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 transition resize-none"
+                  style={{ '--tw-ring-color': legColor } as React.CSSProperties}
                 />
               </div>
 
@@ -272,6 +319,7 @@ export default function AddMemberModal({
                   placeholder="Beneficiary information"
                   rows={2}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 transition resize-none"
+                  style={{ '--tw-ring-color': legColor } as React.CSSProperties}
                 />
               </div>
 
@@ -284,6 +332,7 @@ export default function AddMemberModal({
                   onChange={onFormChange}
                   placeholder="Enter password"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 transition"
+                  style={{ '--tw-ring-color': legColor } as React.CSSProperties}
                 />
               </div>
             </div>
@@ -293,8 +342,9 @@ export default function AddMemberModal({
               <button
                 type="button"
                 onClick={onAddMember}
-                className="flex-1 py-3 px-4 rounded-xl font-semibold text-white transition transform hover:scale-105 active:scale-95 shadow-md"
-                style={{ backgroundColor: legColor }}
+                disabled={!isFormValid}
+                className="flex-1 py-3 px-4 rounded-xl font-semibold text-white transition transform hover:scale-105 active:scale-95 shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                style={{ backgroundColor: isFormValid ? legColor : '#cccccc' }}
               >
                 Add Member
               </button>

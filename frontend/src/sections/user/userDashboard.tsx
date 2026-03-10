@@ -42,12 +42,12 @@ export default function UserDashboard() {
   }, []);
 
   // Check for token on mount
-  // useEffect(() => {
-  //   const token = localStorage.getItem('token');
-  //   if (!token) {
-  //     navigate('/');
-  //   }
-  // }, [navigate]);
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/');
+    }
+  }, [navigate]);
 
   const referralLink = "https://coprofitglobal.com/mlm/referral.php?ref=FOUNDER";
 
