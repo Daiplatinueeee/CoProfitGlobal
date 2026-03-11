@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import logo from './../../assets/refs/Logo.webp'
-import MemberDetailsPanel from './MembersDetailPanel'
+import MemberDetailsPanel from './membersDetailPanel'
 import AddMemberModal from './AddMemberModal'
 
 interface Member {
@@ -10,6 +10,7 @@ interface Member {
   email: string
   profileImage: string
   referralCode: string
+  membershipTier?: string | null
   leftLegPoints: number
   rightLegPoints: number
   leftChild?: Member
@@ -25,7 +26,6 @@ interface Member {
   address?: string
   beneficiary?: string
   birthday?: string
-  password?: string
 }
 
 interface NodePosition {
@@ -33,17 +33,20 @@ interface NodePosition {
   y: number
 }
 
+interface AddMemberFormData {
+  username: string
+}
+
 const API_BASE_URL = 'http://localhost:3000'
 
 function Genealogy() {
-  const svgRef = useRef<SVGSVGElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
   const ACTION_BTN_WIDTH = 110
   const ACTION_BTN_HEIGHT = 36
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
   const [originalRoot, setOriginalRoot] = useState<Member | null>(null)
   const [treeRoot, setTreeRoot] = useState<Member | null>(null)
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
@@ -61,152 +64,110 @@ function Genealogy() {
     leg: 'left' | 'right'
   } | null>(null)
 
-  const [formData, setFormData] = useState({
-    name: '',
+  const [formData, setFormData] = useState<AddMemberFormData>({
     username: '',
-    age: '',
-    contact: '',
-    address: '',
-    email: '',
-    beneficiary: '',
-    birthday: '',
-    password: '',
-    pin: '',
-    referralCode: '',
   })
   const [formError, setFormError] = useState('')
-  const [, setDownlines] = useState<Member[]>([])
-  const [, setDownlinesLoading] = useState(false)
 
   const NODE_WIDTH = 190
   const NODE_HEIGHT = 240
   const MIN_HORIZONTAL_SPACING = 280
   const VERTICAL_SPACING = 320
 
-  // Fetch genealogy tree from API on component mount
+  const resetModalState = useCallback(() => {
+    setModal(null)
+    setFormData({ username: '' })
+    setFormError('')
+  }, [])
+
+  const extractCurrentUserId = () => {
+    const storedUser = localStorage.getItem('user')
+
+    if (!storedUser) {
+      throw new Error('User not found. Please login first.')
+    }
+
+    try {
+      const userData = JSON.parse(storedUser)
+      return userData.id || userData._id || userData.userId
+    } catch {
+      return storedUser
+    }
+  }
+
+  const fetchRootTree = useCallback(async (userId: string) => {
+    const response = await fetch(`${API_BASE_URL}/genealogy/root/${userId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to load genealogy tree')
+    }
+
+    return data
+  }, [])
+
   useEffect(() => {
     const initializeTree = async () => {
       try {
         setLoading(true)
         setError(null)
 
-        // Get userId from localStorage
-        const storedUser = localStorage.getItem('user')
+        const userId = extractCurrentUserId()
 
-        if (!storedUser) {
-          setError('User not found. Please login first.')
-          setLoading(false)
-          return
+        if (!userId) {
+          throw new Error('User ID not found in localStorage')
         }
 
-        let currentUserId: string
-        try {
-          const userData = JSON.parse(storedUser)
-          currentUserId = userData.id || userData._id || userData.userId
-          console.log('Extracted userId:', currentUserId)
-        } catch (parseError) {
-          currentUserId = storedUser
-          console.log('Using stored user as string:', currentUserId)
-        }
+        setCurrentUserId(userId)
 
-        if (!currentUserId) {
-          setError('User ID not found in localStorage')
-          setLoading(false)
-          return
-        }
-
-        // Fetch or create root tree
-        const url = `${API_BASE_URL}/genealogy/root/${currentUserId}`
-        console.log('Fetching from URL:', url)
-
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
-
-        console.log('Response status:', response.status)
-        const treeData = await response.json()
-        console.log('Response data:', treeData)
-
-        if (!response.ok) {
-          setError(treeData.message || 'Failed to load genealogy tree')
-          setLoading(false)
-          return
-        }
-
+        const treeData = await fetchRootTree(userId)
         setOriginalRoot(treeData)
         setTreeRoot(treeData)
       } catch (err: any) {
-        const errorMessage = err.message || 'Failed to load genealogy tree'
-        setError(errorMessage)
-        console.error('Error fetching genealogy tree:', err)
+        setError(err.message || 'Failed to load genealogy tree')
       } finally {
         setLoading(false)
       }
     }
 
     initializeTree()
-  }, [])
+  }, [fetchRootTree])
 
-  // Fetch all downlines for current user
   useEffect(() => {
-    const fetchDownlinesData = async () => {
-      try {
-        const storedUser = localStorage.getItem('user')
-        if (!storedUser) return
-
-        let currentUserId: string
-        try {
-          const userData = JSON.parse(storedUser)
-          currentUserId = userData.id || userData._id || userData.userId
-        } catch {
-          currentUserId = storedUser
-        }
-
-        if (!currentUserId) return
-
-        setDownlinesLoading(true)
-        const response = await fetch(`${API_BASE_URL}/genealogy/downlines/${currentUserId}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
-
-        const data = await response.json()
-        if (response.ok) {
-          setDownlines(data)
-          console.log('Downlines fetched:', data)
-        } else {
-          console.error('Failed to fetch downlines:', data.message)
-        }
-      } catch (err: any) {
-        console.error('Error fetching downlines:', err)
-      } finally {
-        setDownlinesLoading(false)
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        resetModalState()
       }
     }
 
-    fetchDownlinesData()
-  }, [])
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [resetModalState])
 
-  const memberMap = new Map<string, Member>()
-  const registerMembers = (member: Member | null | undefined) => {
-    if (!member) return
-    memberMap.set(member.referralCode, member)
-    if (member.leftChild) registerMembers(member.leftChild)
-    if (member.rightChild) registerMembers(member.rightChild)
-  }
+  const memberMap = useMemo(() => {
+    const map = new Map<string, Member>()
 
-  useEffect(() => {
-    if (originalRoot) {
-      registerMembers(originalRoot)
+    const registerMembers = (member: Member | null | undefined) => {
+      if (!member) return
+
+      map.set(member.id, member)
+
+      if (member.leftChild) registerMembers(member.leftChild)
+      if (member.rightChild) registerMembers(member.rightChild)
     }
+
+    registerMembers(originalRoot)
+    return map
   }, [originalRoot])
 
-  // Calculate the width of a subtree
+  const allMembers = useMemo(() => Array.from(memberMap.values()), [memberMap])
+
   const getSubtreeWidth = (member: Member | undefined): number => {
     if (!member) return NODE_WIDTH
 
@@ -224,12 +185,11 @@ function Genealogy() {
     return Math.max(leftWidth, rightWidth) + MIN_HORIZONTAL_SPACING / 2
   }
 
-  // Position nodes with proper spacing based on subtree widths
   const calculatePositions = (
     member: Member | null | undefined,
     x: number,
     y: number,
-    map: Map<string, NodePosition> = new Map()
+    map: Map<string, NodePosition> = new Map(),
   ) => {
     if (!member) return map
 
@@ -259,26 +219,19 @@ function Genealogy() {
     return map
   }
 
-  const positions = calculatePositions(treeRoot, 0, 0)
+  const positions = useMemo(
+    () => calculatePositions(treeRoot, 0, 0),
+    [treeRoot],
+  )
 
-  const attachMember = async (parent: Member, leg: 'left' | 'right', memberData: any) => {
+  const attachMember = async (parent: Member, leg: 'left' | 'right', username: string) => {
     try {
       const payload = {
-        parentUserId: parent.id || parent.userId,
-        leg: leg === 'left' ? 'left' : 'right',
-        username: memberData.username || memberData.name,
-        email: memberData.email,
-        referralCode: memberData.referralCode || memberData.pin,
-        password: memberData.password,
-        age: memberData.age ? parseInt(memberData.age) : undefined,
-        contact: memberData.contact,
-        address: memberData.address,
-        beneficiary: memberData.beneficiary,
-        birthday: memberData.birthday,
-        profileImage: logo,
+        parentUserId: parent.userId || parent.id,
+        leg,
+        username: username.trim(),
       }
 
-      // Call the placeMember endpoint
       const response = await fetch(`${API_BASE_URL}/genealogy/place`, {
         method: 'POST',
         headers: {
@@ -294,135 +247,86 @@ function Genealogy() {
         return
       }
 
-      const newMember: Member = {
-        id: data.id || data._id,
-        userId: data.userId,
-        username: data.username,
-        email: data.email,
-        profileImage: data.profileImage || logo,
-        referralCode: data.referralCode,
-        leftLegPoints: data.leftLegPoints || 0,
-        rightLegPoints: data.rightLegPoints || 0,
-        age: data.age,
-        contact: data.contact,
-        address: data.address,
-        beneficiary: data.beneficiary,
-        birthday: data.birthday,
-      }
-
-      if (leg === 'left') {
-        parent.leftChild = newMember
+      if (currentUserId) {
+        const refreshedTree = await fetchRootTree(currentUserId)
+        setOriginalRoot(refreshedTree)
+        setTreeRoot(refreshedTree)
       } else {
-        parent.rightChild = newMember
+        const newMember: Member = {
+          id: data.id || data.userId,
+          userId: data.userId,
+          username: data.username,
+          email: data.email,
+          profileImage: data.profileImage || logo,
+          referralCode: data.referralCode,
+          membershipTier: data.membershipTier ?? null,
+          leftLegPoints: data.leftLegPoints || 0,
+          rightLegPoints: data.rightLegPoints || 0,
+          age: data.age,
+          contact: data.contact,
+          address: data.address,
+          beneficiary: data.beneficiary,
+          birthday: data.birthday,
+        }
+
+        if (leg === 'left') {
+          parent.leftChild = newMember
+        } else {
+          parent.rightChild = newMember
+        }
+
+        setTreeRoot(treeRoot ? { ...treeRoot } : null)
+        setOriginalRoot(originalRoot ? { ...originalRoot } : null)
       }
 
-      memberMap.set(memberData.pin, newMember)
-      setTreeRoot({ ...treeRoot } as Member) // Trigger re-render
-      setModal(null)
-      setFormData({
-        name: '',
-        username: '',
-        age: '',
-        contact: '',
-        address: '',
-        email: '',
-        beneficiary: '',
-        birthday: '',
-        password: '',
-        pin: '',
-        referralCode: '',
-      })
-      setFormError('')
+      resetModalState()
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to add member'
-      setFormError(errorMessage)
+      setFormError(err.message || 'Failed to add member')
       console.error('Error adding member:', err)
     }
   }
 
-  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleFormChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
     setFormError('')
   }
 
   const addNewMember = () => {
+    if (!modal) return
 
-    if (!formData.name || !formData.email || !formData.pin || !formData.username || !formData.referralCode) {
-      setFormError('Name, Username, Email, PIN, and Referral Code are required')
+    const username = formData.username.trim()
+
+    if (!username) {
+      setFormError('Username is required')
       return
     }
 
-    if (memberMap.has(formData.pin)) {
-      setFormError('This PIN is already registered')
-      return
-    }
-
-    attachMember(modal!.parent, modal!.leg, formData)
+    attachMember(modal.parent, modal.leg, username)
   }
 
   const handleSearch = (value: string) => {
     setSearch(value)
-    if (!value) return setSearchResults([])
-    const res: Member[] = []
-    memberMap.forEach((m) => {
-      if (
-        m.username.toLowerCase().includes(value.toLowerCase()) ||
-        m.email.toLowerCase().includes(value.toLowerCase()) ||
-        m.referralCode.toLowerCase().includes(value.toLowerCase())
-      ) {
-        res.push(m)
-      }
-    })
-    setSearchResults(res)
-  }
 
-  useEffect(() => {
-    const close = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setModal(null)
-        setFormData({
-          name: '',
-          username: '',
-          age: '',
-          contact: '',
-          address: '',
-          email: '',
-          beneficiary: '',
-          birthday: '',
-          password: '',
-          pin: '',
-          referralCode: '',
-        })
-        setFormError('')
-      }
+    if (!value.trim()) {
+      setSearchResults([])
+      return
     }
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setModal(null)
-        setFormData({
-          name: '',
-          username: '',
-          age: '',
-          contact: '',
-          address: '',
-          email: '',
-          beneficiary: '',
-          birthday: '',
-          password: '',
-          pin: '',
-          referralCode: '',
-        })
-        setFormError('')
-      }
-    }
-    window.addEventListener('mousedown', close)
-    window.addEventListener('keydown', handleEscape)
-    return () => {
-      window.removeEventListener('mousedown', close)
-      window.removeEventListener('keydown', handleEscape)
-    }
-  }, [])
+
+    const keyword = value.toLowerCase()
+
+    const results = allMembers.filter((m) => {
+      return (
+        m.username.toLowerCase().includes(keyword) ||
+        m.email.toLowerCase().includes(keyword) ||
+        m.referralCode.toLowerCase().includes(keyword)
+      )
+    })
+
+    setSearchResults(results)
+  }
 
   const renderTree = (member: Member | null | undefined): React.ReactNode[] => {
     if (!member) return []
@@ -444,7 +348,7 @@ function Genealogy() {
             y2={childPos.y}
             stroke="rgba(16,185,129,0.25)"
             strokeWidth="2"
-          />
+          />,
         )
       }
       elements.push(...renderTree(member.leftChild))
@@ -462,7 +366,7 @@ function Genealogy() {
             y2={childPos.y}
             stroke="rgba(245,158,11,0.25)"
             strokeWidth="2"
-          />
+          />,
         )
       }
       elements.push(...renderTree(member.rightChild))
@@ -484,13 +388,10 @@ function Genealogy() {
           height={NODE_HEIGHT}
           rx="14"
           fill="white"
-          stroke={
-            selectedMember?.id === member.id ? '#7c3aed' : '#e5e7eb'
-          }
+          stroke={selectedMember?.id === member.id ? '#7c3aed' : '#e5e7eb'}
           strokeWidth="2"
         />
 
-        {/* Profile background */}
         <circle
           cx={pos.x + NODE_WIDTH / 2}
           cy={pos.y + 55}
@@ -499,9 +400,8 @@ function Genealogy() {
           stroke="#d1d5db"
         />
 
-        {/* Profile Image */}
         <image
-          href={member.profileImage}
+          href={member.profileImage || logo}
           x={pos.x + NODE_WIDTH / 2 - 30}
           y={pos.y + 25}
           width="60"
@@ -542,31 +442,17 @@ function Genealogy() {
           Points ( L {member.leftLegPoints} • R {member.rightLegPoints} )
         </text>
 
-        {/* Bonus Indicators */}
         <g>
           <circle cx={pos.x + 15} cy={pos.y + 15} r="4" fill="#10b981" />
           <circle cx={pos.x + NODE_WIDTH - 15} cy={pos.y + 15} r="4" fill="#f59e0b" />
         </g>
 
-        {/* LEFT BUTTON */}
         {!member.leftChild && (
           <g
             onClick={(e) => {
               e.stopPropagation()
               setModal({ parent: member, leg: 'left' })
-              setFormData({
-                name: '',
-                username: '',
-                age: '',
-                contact: '',
-                address: '',
-                email: '',
-                beneficiary: '',
-                birthday: '',
-                password: '',
-                pin: '',
-                referralCode: '',
-              })
+              setFormData({ username: '' })
               setFormError('')
             }}
             style={{ cursor: 'pointer' }}
@@ -588,31 +474,22 @@ function Genealogy() {
               fill="white"
               fontWeight="600"
             >
-              <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="0">Add Left</tspan>
-              <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="12">Member</tspan>
+              <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="0">
+                Add Left
+              </tspan>
+              <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="12">
+                Member
+              </tspan>
             </text>
           </g>
         )}
 
-        {/* RIGHT BUTTON */}
         {!member.rightChild && (
           <g
             onClick={(e) => {
               e.stopPropagation()
               setModal({ parent: member, leg: 'right' })
-              setFormData({
-                name: '',
-                username: '',
-                age: '',
-                contact: '',
-                address: '',
-                email: '',
-                beneficiary: '',
-                birthday: '',
-                password: '',
-                pin: '',
-                referralCode: '',
-              })
+              setFormData({ username: '' })
               setFormError('')
             }}
             style={{ cursor: 'pointer' }}
@@ -634,12 +511,16 @@ function Genealogy() {
               fill="white"
               fontWeight="600"
             >
-              <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="0">Add Right</tspan>
-              <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="12">Member</tspan>
+              <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="0">
+                Add Right
+              </tspan>
+              <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="12">
+                Member
+              </tspan>
             </text>
           </g>
         )}
-      </g>
+      </g>,
     )
 
     return elements
@@ -686,8 +567,7 @@ function Genealogy() {
           <p className="text-gray-600 text-sm">Please make sure:</p>
           <ul className="text-gray-600 text-sm mt-2 text-left inline-block">
             <li>• Your backend server is running on {API_BASE_URL}</li>
-            <li>• VITE_API_URL environment variable is set correctly</li>
-            <li>• You have a valid userId configured</li>
+            <li>• You have a valid logged-in user in localStorage</li>
           </ul>
         </div>
       </div>
@@ -707,9 +587,7 @@ function Genealogy() {
       className="w-full h-screen overflow-hidden bg-white relative flex"
       style={{ userSelect: 'none' }}
     >
-      {/* MAIN CONTENT */}
       <div className="flex-1 overflow-hidden relative">
-        {/* SEARCH BAR - FIXED */}
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-96">
           <input
             value={search}
@@ -743,27 +621,10 @@ function Genealogy() {
           formError={formError}
           onFormChange={handleFormChange}
           onAddMember={addNewMember}
-          onClose={() => {
-            setModal(null)
-            setFormData({
-              name: '',
-              username: '',
-              age: '',
-              contact: '',
-              address: '',
-              email: '',
-              beneficiary: '',
-              birthday: '',
-              password: '',
-              pin: '',
-              referralCode: '',
-            })
-            setFormError('')
-          }}
+          onClose={resetModalState}
         />
 
         <svg
-          ref={svgRef}
           width="100%"
           height="100%"
           className="block cursor-grab active:cursor-grabbing"

@@ -17,26 +17,26 @@ import { AdminUpdateTierDto } from './dto/admin-update-tier.dto';
 import { AdminGeneratePinsDto } from './dto/admin-generate-pins.dto';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 
-import { MembershipTier } from '../users/schemas/user.schema';
+import {
+  MembershipTier,
+  SystemRole,
+} from '../users/schemas/user.schema';
 import { PinStatus } from '../product-pins/schema/product-pins.schema';
 
 @Controller('admin')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(SystemRole.ADMIN)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  // -------------------------
-  // CREATE USER
-  // -------------------------
   @Post('users')
   createUser(@Body() dto: AdminCreateUserDto) {
     return this.adminService.createUser(dto);
   }
 
-  // -------------------------
-  // UPDATE USER MEMBERSHIP
-  // -------------------------
   @Patch('users/:id/membership-tier')
   updateMembershipTier(
     @Param('id') id: string,
@@ -45,18 +45,12 @@ export class AdminController {
     return this.adminService.updateMembershipTier(id, dto);
   }
 
-  // -------------------------
-  // GENERATE PRODUCT PINS
-  // -------------------------
   @Post('pins/generate')
   generatePins(@Req() req: any, @Body() dto: AdminGeneratePinsDto) {
     const adminId = req.user?.sub || req.user?.id;
     return this.adminService.generatePins(adminId, dto);
   }
 
-  // -------------------------
-  // LIST PINS
-  // -------------------------
   @Get('pins')
   listPins(
     @Query('tier') tier?: MembershipTier,
@@ -70,9 +64,6 @@ export class AdminController {
     );
   }
 
-  // -------------------------
-  // VOID PIN
-  // -------------------------
   @Patch('pins/:id/void')
   voidPin(@Param('id') id: string) {
     return this.adminService.voidPin(id);

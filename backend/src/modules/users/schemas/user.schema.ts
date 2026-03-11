@@ -1,5 +1,3 @@
-// src/modules/users/schemas/user.schema.ts
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import * as crypto from 'crypto';

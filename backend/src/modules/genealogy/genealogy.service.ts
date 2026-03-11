@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model, Types } from 'mongoose'
-import * as bcrypt from 'bcrypt'
 
 import {
   GenealogyNode,
@@ -43,10 +42,12 @@ export class GenealogyService {
 
     return {
       id: (user as any)._id.toString(),
+      userId: (user as any)._id.toString(),
       username: (user as any).username ?? (user as any).name ?? '',
       email: (user as any).email ?? '',
       profileImage: (user as any).profileImage ?? '',
       referralCode: (user as any).referralCode ?? '',
+      membershipTier: (user as any).membershipTier ?? null,
       leftLegPoints: (user as any).leftLegPoints ?? 0,
       rightLegPoints: (user as any).rightLegPoints ?? 0,
       age: (user as any).age ?? undefined,
@@ -155,41 +156,36 @@ export class GenealogyService {
       throw new BadRequestException('Right leg already occupied')
     }
 
-    const existingEmail = await this.userModel.findOne({ email: dto.email })
-    if (existingEmail) {
-      throw new BadRequestException('Email already exists')
+    const existingUser = await this.userModel.findOne({
+      username: dto.username.trim(),
+    })
+
+    if (!existingUser) {
+      throw new NotFoundException('User not found')
     }
 
-    const existingReferralCode = await this.userModel.findOne({
-      referralCode: dto.referralCode,
-    })
-    if (existingReferralCode) {
-      throw new BadRequestException('Referral code already exists')
+    if (existingUser.role !== SystemRole.USER) {
+      throw new BadRequestException('Only normal users can be placed in genealogy')
     }
 
-    const hashedPassword = dto.password
-      ? await bcrypt.hash(dto.password, 10)
-      : ''
+    if (!existingUser.membershipTier) {
+      throw new BadRequestException('User has no package tier yet')
+    }
 
-    const createdUser = await this.userModel.create({
-      name: dto.username,
-      username: dto.username,
-      email: dto.email,
-      passwordHash: hashedPassword,
-      profileImage: dto.profileImage ?? '',
-      referralCode: dto.referralCode,
-      leftLegPoints: 0,
-      rightLegPoints: 0,
-      age: dto.age,
-      contact: dto.contact,
-      address: dto.address,
-      beneficiary: dto.beneficiary,
-      birthday: dto.birthday,
-      role: SystemRole.USER,
+    if (existingUser._id.toString() === dto.parentUserId) {
+      throw new BadRequestException('You cannot place a user under themselves')
+    }
+
+    const existingNode = await this.genealogyModel.findOne({
+      userId: existingUser._id,
     })
+
+    if (existingNode) {
+      throw new BadRequestException('User is already placed in genealogy')
+    }
 
     const childNode = await this.genealogyModel.create({
-      userId: createdUser._id,
+      userId: existingUser._id,
       parentUserId: parentNode.userId,
       position: dto.leg,
       leftChildUserId: null,
@@ -207,18 +203,20 @@ export class GenealogyService {
     await parentNode.save()
 
     return {
-      id: createdUser._id.toString(),
-      username: createdUser.username,
-      email: createdUser.email,
-      profileImage: createdUser.profileImage ?? '',
-      referralCode: createdUser.referralCode ?? '',
-      leftLegPoints: createdUser.leftLegPoints ?? 0,
-      rightLegPoints: createdUser.rightLegPoints ?? 0,
-      age: createdUser.age,
-      contact: createdUser.contact,
-      address: createdUser.address,
-      beneficiary: createdUser.beneficiary,
-      birthday: createdUser.birthday,
+      id: existingUser._id.toString(),
+      userId: existingUser._id.toString(),
+      username: existingUser.username,
+      email: existingUser.email,
+      profileImage: existingUser.profileImage ?? '',
+      referralCode: existingUser.referralCode ?? '',
+      membershipTier: existingUser.membershipTier,
+      leftLegPoints: existingUser.leftLegPoints ?? 0,
+      rightLegPoints: existingUser.rightLegPoints ?? 0,
+      age: existingUser.age,
+      contact: existingUser.contact,
+      address: existingUser.address,
+      beneficiary: existingUser.beneficiary,
+      birthday: existingUser.birthday,
       parentUserId: parentNode.userId.toString(),
       leg: dto.leg,
     }

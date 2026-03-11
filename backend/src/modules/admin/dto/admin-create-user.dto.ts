@@ -1,12 +1,30 @@
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { MembershipTier } from '../../users/schemas/user.schema';
+import {
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
+import {
+  MembershipTier,
+  SystemRole,
+} from '../../users/schemas/user.schema';
 
 export class AdminCreateUserDto {
+  @IsString()
+  @MinLength(2)
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  username?: string;
+
   @IsEmail()
   email: string;
 
   @IsString()
-  @MinLength(8)
+  @MinLength(6)
   password: string;
 
   @IsOptional()
@@ -14,6 +32,10 @@ export class AdminCreateUserDto {
   membershipTier?: MembershipTier;
 
   @IsOptional()
+  @IsEnum(SystemRole)
+  role?: SystemRole;
+
+  @IsOptional()
   @IsString()
-  role?: string; // system role: 'admin' or 'user'
+  sponsorReferralCode?: string;
 }
