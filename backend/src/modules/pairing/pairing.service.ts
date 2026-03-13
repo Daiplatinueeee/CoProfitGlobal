@@ -5,8 +5,11 @@ import { Model, Types } from 'mongoose';
 import { PairingState, PairingStateDocument } from './schemas/pairing-state.schema';
 import { PairingAward, PairingAwardDocument } from './schemas/pairing-award.schema';
 
-// we read volume buckets
-import { VolumeBucket, VolumeBucketDocument } from '../volume/schemas/volume-bucket.schema';
+import {
+  VolumeBucket,
+  VolumeBucketDocument,
+  VolumeLeg,
+} from '../volume/schemas/volume-bucket.schema';
 
 @Injectable()
 export class PairingService {
@@ -25,30 +28,13 @@ export class PairingService {
   }
 
   private todayPeriodKey(): string {
-    return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
-  }
-
-  /**
-   * Gets the most recent pairing state BEFORE this period to obtain carry-out.
-   * This is how we carry points across days.
-   */
-  private async getPreviousCarry(userId: Types.ObjectId, periodKey: string) {
-    const prev = await this.stateModel
-      .findOne({ userId, periodKey: { $lt: periodKey } })
-      .sort({ periodKey: -1 })
-      .lean();
-
-    return {
-      leftCarryIn: prev?.leftCarryOut ?? 0,
-      rightCarryIn: prev?.rightCarryOut ?? 0,
-    };
+    return new Date().toISOString().slice(0, 10);
   }
 
   async runPairing(userIdStr: string, periodKey?: string) {
     const userId = this.toObjectId(userIdStr);
     const pk = periodKey ?? this.todayPeriodKey();
 
-    // idempotency: if award already exists for this period, return it
     const existingAward = await this.awardModel.findOne({ userId, periodKey: pk }).lean();
     const existingState = await this.stateModel.findOne({ userId, periodKey: pk }).lean();
 
@@ -61,33 +47,47 @@ export class PairingService {
       };
     }
 
-    // Read volume points earned for this period
-    const bucket = await this.bucketModel.findOne({ userId, periodKey: pk }).lean();
+    const [leftBucket, rightBucket] = await Promise.all([
+      this.bucketModel.findOne({
+        ownerUserId: userId,
+        leg: VolumeLeg.LEFT,
+      }).lean(),
+      this.bucketModel.findOne({
+        ownerUserId: userId,
+        leg: VolumeLeg.RIGHT,
+      }).lean(),
+    ]);
 
-    const leftEarned = bucket?.leftPoints ?? 0;
-    const rightEarned = bucket?.rightPoints ?? 0;
+    const leftEarned = leftBucket?.availablePoints ?? 0;
+    const rightEarned = rightBucket?.availablePoints ?? 0;
 
-    // Carry-in from previous period
-    const { leftCarryIn, rightCarryIn } = await this.getPreviousCarry(userId, pk);
+    // availablePoints already includes carry from previous periods
+    const leftCarryIn = 0;
+    const rightCarryIn = 0;
 
-    // Totals available to pair this period
-    const leftTotal = leftCarryIn + leftEarned;
-    const rightTotal = rightCarryIn + rightEarned;
+    const leftTotal = leftEarned;
+    const rightTotal = rightEarned;
 
-    // Pairable points = min(left, right)
     const pairable = Math.min(leftTotal, rightTotal);
-
-    // Cap enforcement (cap is per period here)
-    const capRemaining = this.CAP_LIMIT; // since per period, used starts at 0
-    const pairedPoints = Math.min(pairable, capRemaining);
-
+    const pairedPoints = Math.min(pairable, this.CAP_LIMIT);
     const payoutPhp = pairedPoints * this.RATE_PHP_PER_POINT;
 
-    // Deduct paired points from both sides; leftover becomes carry-out
     const leftCarryOut = leftTotal - pairedPoints;
     const rightCarryOut = rightTotal - pairedPoints;
 
-    // Persist state (one per period)
+    if (pairedPoints > 0) {
+      await Promise.all([
+        this.bucketModel.updateOne(
+          { ownerUserId: userId, leg: VolumeLeg.LEFT },
+          { $inc: { availablePoints: -pairedPoints } },
+        ),
+        this.bucketModel.updateOne(
+          { ownerUserId: userId, leg: VolumeLeg.RIGHT },
+          { $inc: { availablePoints: -pairedPoints } },
+        ),
+      ]);
+    }
+
     const state = await this.stateModel.create({
       userId,
       periodKey: pk,
@@ -111,7 +111,6 @@ export class PairingService {
       capUsed: pairedPoints,
     });
 
-    // Persist award (one per period)
     const award = await this.awardModel.create({
       userId,
       periodKey: pk,

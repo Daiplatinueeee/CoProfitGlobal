@@ -16,41 +16,48 @@ import { WalletService } from '../wallet/wallet.service';
 
 @Injectable()
 export class Sign5Service {
+  private readonly MAX_CASH_SETS_PER_TIER_PER_MONTH = 5;
+
   constructor(
-    @InjectModel(Activation.name) private readonly activationModel: Model<ActivationDocument>,
-    @InjectModel(Sign5Status.name) private readonly statusModel: Model<Sign5StatusDocument>,
-    @InjectModel(Sign5Award.name) private readonly awardModel: Model<Sign5AwardDocument>,
+    @InjectModel(Activation.name)
+    private readonly activationModel: Model<ActivationDocument>,
+
+    @InjectModel(Sign5Status.name)
+    private readonly statusModel: Model<Sign5StatusDocument>,
+
+    @InjectModel(Sign5Award.name)
+    private readonly awardModel: Model<Sign5AwardDocument>,
+
     private readonly walletService: WalletService,
   ) {}
 
   private toObjectId(id: string) {
-    if (!Types.ObjectId.isValid(id)) throw new BadRequestException('Invalid ObjectId');
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid ObjectId');
+    }
     return new Types.ObjectId(id);
   }
 
   private currentMonthKey(): string {
-    const d = new Date();
-    return d.toISOString().slice(0, 7); // YYYY-MM
+    return new Date().toISOString().slice(0, 7); // YYYY-MM
   }
 
   private monthRange(monthKey: string): { start: Date; end: Date } {
-    // monthKey = "YYYY-MM"
     const [yStr, mStr] = monthKey.split('-');
     const y = Number(yStr);
     const m = Number(mStr);
 
-    if (!y || !m || m < 1 || m > 12) throw new BadRequestException('Invalid monthKey');
+    if (!y || !m || m < 1 || m > 12) {
+      throw new BadRequestException('Invalid monthKey');
+    }
 
-    // start = first day of month UTC
     const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
-    // end = first day of next month UTC
     const end = new Date(Date.UTC(y, m, 1, 0, 0, 0, 0));
+
     return { start, end };
   }
 
   private tierCashValuePhp(tier: MembershipTier): number {
-    // Your amounts:
-    // bronze – 500, silver – 1500, gold – 2500, platinum – 3500
     switch (tier) {
       case MembershipTier.BRONZE:
         return 500;
@@ -65,13 +72,6 @@ export class Sign5Service {
     }
   }
 
-  /**
-   * NOTE on GC points:
-   * You said: after max 5, "can only received GC pts instead of points."
-   * This implementation sets GC points amount = same numeric value as PHP amount for that set.
-   * If you want a conversion (e.g., 1 PHP = 1 GC point), keep this.
-   * If different, change gcPointsPerSet logic here.
-   */
   private gcPointsPerSet(tier: MembershipTier): number {
     return this.tierCashValuePhp(tier);
   }
@@ -83,14 +83,137 @@ export class Sign5Service {
   ): Promise<number> {
     const { start, end } = this.monthRange(monthKey);
 
-    // Direct referrals = activations where sponsorId is the user
-    const count = await this.activationModel.countDocuments({
+    return this.activationModel.countDocuments({
       sponsorId,
       tier,
       activatedAt: { $gte: start, $lt: end },
     });
+  }
 
-    return count;
+  private async evaluateTier(params: {
+    userId: Types.ObjectId;
+    userIdStr: string;
+    monthKey: string;
+    tier: MembershipTier;
+    count: number;
+    now: Date;
+  }) {
+    const { userId, userIdStr, monthKey, tier, count, now } = params;
+
+    const setsOfFive = Math.floor(count / 5);
+
+    const targetCashSetsPaid = Math.min(
+      setsOfFive,
+      this.MAX_CASH_SETS_PER_TIER_PER_MONTH,
+    );
+
+    const targetGcSetsPaid = Math.max(
+      setsOfFive - this.MAX_CASH_SETS_PER_TIER_PER_MONTH,
+      0,
+    );
+
+    const existing = await this.awardModel.findOne({
+      userId,
+      monthKey,
+      tier,
+    });
+
+    const previouslyPaidCashSets = existing?.cashSetsPaid ?? 0;
+    const previouslyPaidGcSets = existing?.gcSetsPaid ?? 0;
+
+    const newCashSetsToPay = Math.max(
+      targetCashSetsPaid - previouslyPaidCashSets,
+      0,
+    );
+
+    const newGcSetsToPay = Math.max(
+      targetGcSetsPaid - previouslyPaidGcSets,
+      0,
+    );
+
+    const deltaCashAmountPhp = newCashSetsToPay * this.tierCashValuePhp(tier);
+    const deltaGcPointsAmount = newGcSetsToPay * this.gcPointsPerSet(tier);
+
+    if (deltaCashAmountPhp > 0) {
+      await this.walletService.credit({
+        userId: userIdStr,
+        currency: WalletCurrency.PHP,
+        amount: deltaCashAmountPhp,
+        source: WalletTxnSource.SIGN5,
+        refKey: `sign5:cash:${userIdStr}:${monthKey}:${tier}:${previouslyPaidCashSets + 1}-${targetCashSetsPaid}`,
+        note: `Sign5 cash payout for ${tier} (${monthKey})`,
+        meta: {
+          monthKey,
+          tier,
+          newCashSetsToPay,
+          targetCashSetsPaid,
+          referralsCount: count,
+        },
+      });
+    }
+
+    if (deltaGcPointsAmount > 0) {
+      await this.walletService.credit({
+        userId: userIdStr,
+        currency: WalletCurrency.GC_POINTS,
+        amount: deltaGcPointsAmount,
+        source: WalletTxnSource.SIGN5,
+        refKey: `sign5:gc:${userIdStr}:${monthKey}:${tier}:${previouslyPaidGcSets + 1}-${targetGcSetsPaid}`,
+        note: `Sign5 GC points for ${tier} (${monthKey})`,
+        meta: {
+          monthKey,
+          tier,
+          newGcSetsToPay,
+          targetGcSetsPaid,
+          referralsCount: count,
+        },
+      });
+    }
+
+    const nextCashAmountPhp =
+      targetCashSetsPaid * this.tierCashValuePhp(tier);
+    const nextGcPointsAmount =
+      targetGcSetsPaid * this.gcPointsPerSet(tier);
+
+    const updated = await this.awardModel.findOneAndUpdate(
+      { userId, monthKey, tier },
+      {
+        $set: {
+          referralsCount: count,
+          setsOfFive,
+          cashSetsPaid: targetCashSetsPaid,
+          gcSetsPaid: targetGcSetsPaid,
+          cashAmountPhp: nextCashAmountPhp,
+          gcPointsAmount: nextGcPointsAmount,
+          awardedAt: now,
+        },
+        $setOnInsert: {
+          userId,
+          monthKey,
+          tier,
+        },
+      },
+      {
+        upsert: true,
+        new: true,
+      },
+    ).lean();
+
+    return {
+      tier,
+      referralsCount: count,
+      setsOfFive,
+      cashSetsPaid: targetCashSetsPaid,
+      gcSetsPaid: targetGcSetsPaid,
+      cashAmountPhp: nextCashAmountPhp,
+      gcPointsAmount: nextGcPointsAmount,
+      newCashSetsToPay,
+      newGcSetsToPay,
+      deltaCashAmountPhp,
+      deltaGcPointsAmount,
+      alreadyUpToDate: newCashSetsToPay === 0 && newGcSetsToPay === 0,
+      award: updated,
+    };
   }
 
   async evaluateForUser(userIdStr: string, monthKey?: string) {
@@ -98,13 +221,14 @@ export class Sign5Service {
     const mk = monthKey ?? this.currentMonthKey();
     const now = new Date();
 
-    // 1) Count direct referral activations for each tier
-    const bronzeCount = await this.countDirectReferralActivations(userId, MembershipTier.BRONZE, mk);
-    const silverCount = await this.countDirectReferralActivations(userId, MembershipTier.SILVER, mk);
-    const goldCount = await this.countDirectReferralActivations(userId, MembershipTier.GOLD, mk);
-    const platinumCount = await this.countDirectReferralActivations(userId, MembershipTier.PLATINUM, mk);
+    const [bronzeCount, silverCount, goldCount, platinumCount] =
+      await Promise.all([
+        this.countDirectReferralActivations(userId, MembershipTier.BRONZE, mk),
+        this.countDirectReferralActivations(userId, MembershipTier.SILVER, mk),
+        this.countDirectReferralActivations(userId, MembershipTier.GOLD, mk),
+        this.countDirectReferralActivations(userId, MembershipTier.PLATINUM, mk),
+      ]);
 
-    // 2) Upsert monthly status snapshot
     await this.statusModel.updateOne(
       { userId, monthKey: mk },
       {
@@ -115,111 +239,83 @@ export class Sign5Service {
           platinumCount,
           evaluatedAt: now,
         },
-        $setOnInsert: { userId, monthKey: mk },
+        $setOnInsert: {
+          userId,
+          monthKey: mk,
+        },
       },
       { upsert: true },
     );
 
-    // 3) Compute awards per tier
-    const tierResults = await Promise.all(
-      [MembershipTier.BRONZE, MembershipTier.SILVER, MembershipTier.GOLD, MembershipTier.PLATINUM].map(async (tier) => {
-        const count =
-          tier === MembershipTier.BRONZE ? bronzeCount :
-          tier === MembershipTier.SILVER ? silverCount :
-          tier === MembershipTier.GOLD ? goldCount :
-          platinumCount;
-
-        const setsOfFive = Math.floor(count / 5);
-
-        const cashSetsPaid = Math.min(setsOfFive, 5);
-        const gcSetsPaid = Math.max(setsOfFive - 5, 0);
-
-        const cashAmountPhp = cashSetsPaid * this.tierCashValuePhp(tier);
-        const gcPointsAmount = gcSetsPaid * this.gcPointsPerSet(tier);
-
-        // Idempotency: one award doc per tier/month/user. If exists, we won't re-post wallet.
-        const existing = await this.awardModel.findOne({ userId, monthKey: mk, tier }).lean();
-        if (existing) {
-          return {
-            tier,
-            referralsCount: existing.referralsCount,
-            setsOfFive: existing.setsOfFive,
-            cashSetsPaid: existing.cashSetsPaid,
-            gcSetsPaid: existing.gcSetsPaid,
-            cashAmountPhp: existing.cashAmountPhp,
-            gcPointsAmount: existing.gcPointsAmount,
-            alreadyAwarded: true,
-          };
-        }
-
-        // Save award record
-        await this.awardModel.create({
-          userId,
-          monthKey: mk,
-          tier,
-          referralsCount: count,
-          setsOfFive,
-          cashSetsPaid,
-          gcSetsPaid,
-          cashAmountPhp,
-          gcPointsAmount,
-          awardedAt: now,
-        });
-
-        // 4) Post to wallet (cash PHP and GC points separately), idempotent via refKey
-        // Cash (PHP)
-        if (cashAmountPhp > 0) {
-          await this.walletService.credit({
-            userId: userIdStr,
-            currency: WalletCurrency.PHP,
-            amount: cashAmountPhp,
-            source: WalletTxnSource.SIGN5,
-            refKey: `sign5:cash:${userIdStr}:${mk}:${tier}`,
-            note: `Sign5 cash payout for ${tier} (${mk})`,
-            meta: { monthKey: mk, tier, cashSetsPaid, referralsCount: count },
-          });
-        }
-
-        // GC points
-        if (gcPointsAmount > 0) {
-          await this.walletService.credit({
-            userId: userIdStr,
-            currency: WalletCurrency.GC_POINTS,
-            amount: gcPointsAmount,
-            source: WalletTxnSource.SIGN5,
-            refKey: `sign5:gc:${userIdStr}:${mk}:${tier}`,
-            note: `Sign5 GC points for ${tier} (${mk})`,
-            meta: { monthKey: mk, tier, gcSetsPaid, referralsCount: count },
-          });
-        }
-
-        return {
-          tier,
-          referralsCount: count,
-          setsOfFive,
-          cashSetsPaid,
-          gcSetsPaid,
-          cashAmountPhp,
-          gcPointsAmount,
-          alreadyAwarded: false,
-        };
+    const awards = await Promise.all([
+      this.evaluateTier({
+        userId,
+        userIdStr,
+        monthKey: mk,
+        tier: MembershipTier.BRONZE,
+        count: bronzeCount,
+        now,
       }),
-    );
+      this.evaluateTier({
+        userId,
+        userIdStr,
+        monthKey: mk,
+        tier: MembershipTier.SILVER,
+        count: silverCount,
+        now,
+      }),
+      this.evaluateTier({
+        userId,
+        userIdStr,
+        monthKey: mk,
+        tier: MembershipTier.GOLD,
+        count: goldCount,
+        now,
+      }),
+      this.evaluateTier({
+        userId,
+        userIdStr,
+        monthKey: mk,
+        tier: MembershipTier.PLATINUM,
+        count: platinumCount,
+        now,
+      }),
+    ]);
 
     return {
       message: 'Sign5 evaluated',
       userId: userIdStr,
       monthKey: mk,
-      counts: { bronzeCount, silverCount, goldCount, platinumCount },
-      awards: tierResults,
+      counts: {
+        bronzeCount,
+        silverCount,
+        goldCount,
+        platinumCount,
+      },
+      awards: awards.map((a) => ({
+        tier: a.tier,
+        referralsCount: a.referralsCount,
+        setsOfFive: a.setsOfFive,
+        cashSetsPaid: a.cashSetsPaid,
+        gcSetsPaid: a.gcSetsPaid,
+        cashAmountPhp: a.cashAmountPhp,
+        gcPointsAmount: a.gcPointsAmount,
+        newCashSetsToPay: a.newCashSetsToPay,
+        newGcSetsToPay: a.newGcSetsToPay,
+        deltaCashAmountPhp: a.deltaCashAmountPhp,
+        deltaGcPointsAmount: a.deltaGcPointsAmount,
+        alreadyUpToDate: a.alreadyUpToDate,
+      })),
     };
   }
 
   async getStatus(userIdStr: string, monthKey: string) {
     const userId = this.toObjectId(userIdStr);
 
-    const status = await this.statusModel.findOne({ userId, monthKey }).lean();
-    const awards = await this.awardModel.find({ userId, monthKey }).lean();
+    const [status, awards] = await Promise.all([
+      this.statusModel.findOne({ userId, monthKey }).lean(),
+      this.awardModel.find({ userId, monthKey }).sort({ tier: 1 }).lean(),
+    ]);
 
     return {
       userId: userIdStr,

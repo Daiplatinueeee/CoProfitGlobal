@@ -11,6 +11,7 @@ import {
   ProductPin,
   ProductPinSchema,
 } from '../product-pins/schema/product-pins.schema'
+import { VolumeModule } from '../volume/volume.module'
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import {
       { name: User.name, schema: UserSchema },
       { name: ProductPin.name, schema: ProductPinSchema },
     ]),
+    VolumeModule,
   ],
   controllers: [GenealogyController],
   providers: [GenealogyService],

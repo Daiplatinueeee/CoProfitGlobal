@@ -18,6 +18,10 @@ import {
   SystemRole,
 } from '../users/schemas/user.schema'
 
+import { VolumeService } from '../volume/volume.service'
+import { ProductPin, ProductPinDocument } from '../product-pins/schema/product-pins.schema'
+
+
 @Injectable()
 export class GenealogyService {
   constructor(
@@ -26,6 +30,11 @@ export class GenealogyService {
 
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+
+    @InjectModel(ProductPin.name)
+    private readonly productPinModel: Model<ProductPinDocument>,
+
+  private readonly volumeService: VolumeService,
   ) {}
 
   private isValidObjectId(id: string) {
@@ -136,6 +145,7 @@ export class GenealogyService {
   }
 
   async placeMember(dto: PlaceMemberDto) {
+    
     if (!this.isValidObjectId(dto.parentUserId)) {
       throw new BadRequestException('Invalid parentUserId')
     }
@@ -199,9 +209,9 @@ export class GenealogyService {
     } else {
       parentNode.rightChildUserId = childNode.userId
     }
-
+    
     await parentNode.save()
-
+    await this.volumeService.awardActivationVolume(existingUser._id.toString())
     return {
       id: existingUser._id.toString(),
       userId: existingUser._id.toString(),

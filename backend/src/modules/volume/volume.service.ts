@@ -1,237 +1,319 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common'
+import { InjectModel } from '@nestjs/mongoose'
+import { Model, Types } from 'mongoose'
 
-import { Activation, ActivationDocument } from '../activations/schemas/activation.schema';
-import { VolumeEvent, VolumeEventDocument } from './schemas/volume-event.schema';
-import { VolumeBucket, VolumeBucketDocument } from './schemas/volume-bucket.schema';
+import {
+  User,
+  UserDocument,
+  MembershipTier,
+} from '../users/schemas/user.schema'
 
-import { GenealogyNode, GenealogyNodeDocument, GenealogySide } from '../genealogy/schema/genealogy-node.schema';
-import { MembershipTier } from '../users/schemas/user.schema';
+import {
+  GenealogyNode,
+  GenealogyNodeDocument,
+} from '../genealogy/schema/genealogy-node.schema'
+
+import {
+  VolumeBucket,
+  VolumeBucketDocument,
+  VolumeLeg,
+} from './schemas/volume-bucket.schema'
+
+import {
+  VolumeLedger,
+  VolumeLedgerDocument,
+} from './schemas/volume-ledger.schema'
+
+import { MEMBERSHIP_TIER_POINTS } from './volume-points'
 
 @Injectable()
 export class VolumeService {
   constructor(
-    @InjectModel(Activation.name) private readonly activationModel: Model<ActivationDocument>,
-    @InjectModel(VolumeEvent.name) private readonly volumeEventModel: Model<VolumeEventDocument>,
-    @InjectModel(VolumeBucket.name) private readonly volumeBucketModel: Model<VolumeBucketDocument>,
-    @InjectModel(GenealogyNode.name) private readonly genealogyModel: Model<GenealogyNodeDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
+
+    @InjectModel(GenealogyNode.name)
+    private readonly genealogyModel: Model<GenealogyNodeDocument>,
+
+    @InjectModel(VolumeBucket.name)
+    private readonly volumeBucketModel: Model<VolumeBucketDocument>,
+
+    @InjectModel(VolumeLedger.name)
+    private readonly volumeLedgerModel: Model<VolumeLedgerDocument>,
   ) {}
 
+  private isValidObjectId(id: string) {
+    return Types.ObjectId.isValid(id)
+  }
+
   private toObjectId(id: string) {
-    if (!Types.ObjectId.isValid(id)) throw new BadRequestException('Invalid ObjectId');
-    return new Types.ObjectId(id);
+    return new Types.ObjectId(id)
   }
 
-  /**
-   * Decide your period granularity here:
-   * - Daily: "YYYY-MM-DD" (good if pairing cap resets daily)
-   * - Monthly: "YYYY-MM" (good if pairing cap resets monthly)
-   *
-   * For now we use DAILY.
-   */
-  private periodKeyFromDate(d: Date): string {
-    return d.toISOString().slice(0, 10); // "YYYY-MM-DD"
-  }
-
-  private sideFromUplineAndNext(
-    uplineNode: GenealogyNodeDocument,
-    nextDownlineUserId: Types.ObjectId,
-  ): GenealogySide {
-    if (uplineNode.leftChildUserId?.toString() === nextDownlineUserId.toString()) {
-      return GenealogySide.LEFT;
+  private getTierPoints(tier: MembershipTier): number {
+    const points = MEMBERSHIP_TIER_POINTS[tier]
+    if (points == null) {
+      throw new BadRequestException(`No points configured for tier: ${tier}`)
     }
-    if (uplineNode.rightChildUserId?.toString() === nextDownlineUserId.toString()) {
-      return GenealogySide.RIGHT;
-    }
-    // If this happens, the ancestor chain or child pointers are inconsistent.
-    throw new BadRequestException('Genealogy path mismatch (cannot resolve side)');
+    return points
   }
 
-  /**
-   * Apply volume from a single activation to all uplines in the placement tree.
-   *
-   * Writes:
-   * - VolumeEvent per upline (audit)
-   * - VolumeBucket increments per upline per period (for pairing)
-   */
-  async applyActivationVolume(activationId: string) {
-    const activation = await this.activationModel.findById(this.toObjectId(activationId)).lean();
-    if (!activation) throw new NotFoundException('Activation not found');
+  private async hasEventBeenProcessed(eventKey: string): Promise<boolean> {
+    const existing = await this.volumeLedgerModel.exists({ eventKey })
+    return !!existing
+  }
 
-    const sourceUserId = activation.userId.toString();
+  private async creditVolumeToUplines(params: {
+    sourceUserId: string
+    points: number
+    membershipTier: MembershipTier
+    reason: string
+    eventKey: string
+  }) {
+    const { sourceUserId, points, membershipTier, reason, eventKey } = params
 
-    // Find source genealogy node (must exist because your flow places on activation)
-    const sourceNode = await this.genealogyModel.findOne({ userId: this.toObjectId(sourceUserId) });
-    if (!sourceNode) throw new BadRequestException('Source user is not placed in genealogy');
+    if (!this.isValidObjectId(sourceUserId)) {
+      throw new BadRequestException('Invalid sourceUserId')
+    }
 
-    const ancestors = sourceNode.ancestors ?? [];
-    if (ancestors.length === 0) {
-      // Root user: no uplines to credit
+    if (points <= 0) {
       return {
-        message: 'No uplines to credit (root user)',
-        creditedUplines: 0,
-        periodKey: this.periodKeyFromDate(activation.activatedAt),
-      };
+        sourceUserId,
+        points,
+        membershipTier,
+        awardedTo: [],
+        skipped: true,
+        message: 'No positive points to award',
+      }
     }
 
-    // Chain: [ancestor0, ancestor1, ..., parent, sourceUser]
-    const chain: Types.ObjectId[] = [...ancestors, sourceNode.userId];
-
-    // Fetch all ancestor nodes in one query for side resolution
-    const ancestorNodes = await this.genealogyModel.find({ userId: { $in: ancestors } });
-    const byUserId = new Map<string, GenealogyNodeDocument>();
-    for (const n of ancestorNodes) byUserId.set(n.userId.toString(), n);
-
-    const occurredAt = activation.activatedAt ?? new Date();
-    const periodKey = this.periodKeyFromDate(occurredAt);
-
-    const points = activation.points;
-    const tier = activation.tier as MembershipTier;
-
-    // Optional: idempotency check (avoid double-apply on same activation)
-    const already = await this.volumeEventModel.exists({ activationId: activation._id });
-    if (already) {
+    const alreadyProcessed = await this.hasEventBeenProcessed(eventKey)
+    if (alreadyProcessed) {
       return {
-        message: 'Volume already applied for this activation',
-        creditedUplines: 0,
-        periodKey,
-      };
+        sourceUserId,
+        points,
+        membershipTier,
+        awardedTo: [],
+        skipped: true,
+        message: `Event already processed: ${eventKey}`,
+      }
     }
 
-    let credited = 0;
+    const sourceNode = await this.genealogyModel.findOne({
+      userId: this.toObjectId(sourceUserId),
+    }).lean()
 
-    // For each ancestor i, the “next downline” on path is chain[i+1]
-    for (let i = 0; i < ancestors.length; i++) {
-      const uplineUserId = chain[i];       // ancestor at i
-      const nextDownlineId = chain[i + 1]; // the child on the path to source
+    if (!sourceNode) {
+      throw new NotFoundException('Source genealogy node not found')
+    }
 
-      const uplineNode = byUserId.get(uplineUserId.toString());
-      if (!uplineNode) {
-        throw new BadRequestException('Genealogy ancestor node missing');
+    const ancestorIds = (sourceNode.ancestors ?? []).map((id: any) => id.toString())
+
+    if (ancestorIds.length === 0) {
+      return {
+        sourceUserId,
+        points,
+        membershipTier,
+        awardedTo: [],
+        skipped: false,
+        message: 'Source user has no uplines',
+      }
+    }
+
+    const ancestorNodes = await this.genealogyModel.find({
+      userId: { $in: ancestorIds.map((id) => this.toObjectId(id)) },
+    }).lean()
+
+    const ancestorNodeMap = new Map(
+      ancestorNodes.map((node: any) => [node.userId.toString(), node]),
+    )
+
+    const fullPath = [...ancestorIds, sourceUserId]
+    const awardedTo: Array<{ ownerUserId: string; leg: VolumeLeg; points: number }> = []
+
+    for (let i = 0; i < fullPath.length - 1; i++) {
+      const ancestorUserId = fullPath[i]
+      const nextUserIdInPath = fullPath[i + 1]
+
+      const ancestorNode: any = ancestorNodeMap.get(ancestorUserId)
+      if (!ancestorNode) continue
+
+      let leg: VolumeLeg | null = null
+
+      if (
+        ancestorNode.leftChildUserId &&
+        ancestorNode.leftChildUserId.toString() === nextUserIdInPath
+      ) {
+        leg = VolumeLeg.LEFT
+      } else if (
+        ancestorNode.rightChildUserId &&
+        ancestorNode.rightChildUserId.toString() === nextUserIdInPath
+      ) {
+        leg = VolumeLeg.RIGHT
       }
 
-      const side = this.sideFromUplineAndNext(uplineNode, nextDownlineId);
-
-      // 1) Write audit event
-      await this.volumeEventModel.create({
-        activationId: activation._id,
-        sourceUserId: activation.userId,
-        uplineUserId,
-        side,
-        tier,
-        points,
-        periodKey,
-        occurredAt,
-      });
-
-      // 2) Upsert bucket and increment left/right
-      const inc: any = side === GenealogySide.LEFT
-        ? { leftPoints: points }
-        : { rightPoints: points };
+      if (!leg) {
+        throw new BadRequestException(
+          `Could not resolve leg for ancestor ${ancestorUserId} toward source ${sourceUserId}`,
+        )
+      }
 
       await this.volumeBucketModel.updateOne(
-        { userId: uplineUserId, periodKey },
-        { $inc: inc, $setOnInsert: { userId: uplineUserId, periodKey, leftPoints: 0, rightPoints: 0 } },
+        {
+          ownerUserId: this.toObjectId(ancestorUserId),
+          leg,
+        },
+        {
+          $inc: {
+            totalPoints: points,
+            availablePoints: points,
+          },
+        },
         { upsert: true },
-      );
+      )
 
-      credited++;
+      await this.userModel.updateOne(
+        { _id: this.toObjectId(ancestorUserId) },
+        leg === VolumeLeg.LEFT
+          ? { $inc: { leftLegPoints: points } }
+          : { $inc: { rightLegPoints: points } },
+      )
+
+      await this.volumeLedgerModel.create({
+        eventKey,
+        ownerUserId: this.toObjectId(ancestorUserId),
+        sourceUserId: this.toObjectId(sourceUserId),
+        leg,
+        membershipTier,
+        points,
+        reason,
+      })
+
+      awardedTo.push({
+        ownerUserId: ancestorUserId,
+        leg,
+        points,
+      })
     }
 
     return {
-      message: 'Volume applied',
-      activationId: activation._id.toString(),
       sourceUserId,
-      tier,
       points,
-      periodKey,
-      creditedUplines: credited,
-    };
-  }
-
-  async getBucket(userId: string, periodKey: string) {
-    if (!Types.ObjectId.isValid(userId)) throw new BadRequestException('Invalid userId');
-
-    const row = await this.volumeBucketModel
-      .findOne({ userId: this.toObjectId(userId), periodKey })
-      .lean();
-
-    return row
-      ? {
-          userId: row.userId.toString(),
-          periodKey: row.periodKey,
-          leftPoints: row.leftPoints,
-          rightPoints: row.rightPoints,
-        }
-      : {
-          userId,
-          periodKey,
-          leftPoints: 0,
-          rightPoints: 0,
-        };
-  }
-
-  async getTreeBuckets(userId: string, periodKey: string) {
-  if (!Types.ObjectId.isValid(userId)) {
-    throw new BadRequestException('Invalid userId')
-  }
-
-  const rootNode = await this.genealogyModel.findOne({
-    userId: this.toObjectId(userId),
-  })
-
-  if (!rootNode) {
-    throw new NotFoundException('Genealogy root not found')
-  }
-
-  const relevantUserIds = [
-    rootNode.userId,
-    ...(rootNode.ancestors ?? []),
-  ]
-
-  const downlineNodes = await this.genealogyModel
-    .find({
-      ancestors: this.toObjectId(userId),
-    })
-    .select('userId')
-    .lean()
-
-  for (const node of downlineNodes) {
-    relevantUserIds.push(node.userId)
-  }
-
-  const uniqueUserIds = Array.from(
-    new Map(relevantUserIds.map((id) => [id.toString(), id])).values()
-  )
-
-  const buckets = await this.volumeBucketModel
-    .find({
-      userId: { $in: uniqueUserIds },
-      periodKey,
-    })
-    .lean()
-
-  const pointsMap: Record<string, { leftPoints: number; rightPoints: number }> = {}
-
-  for (const userObjectId of uniqueUserIds) {
-    pointsMap[userObjectId.toString()] = {
-      leftPoints: 0,
-      rightPoints: 0,
+      membershipTier,
+      eventKey,
+      awardedTo,
+      skipped: false,
     }
   }
 
-  for (const bucket of buckets) {
-    pointsMap[bucket.userId.toString()] = {
-      leftPoints: bucket.leftPoints ?? 0,
-      rightPoints: bucket.rightPoints ?? 0,
+  async awardActivationVolume(memberUserId: string) {
+    if (!this.isValidObjectId(memberUserId)) {
+      throw new BadRequestException('Invalid memberUserId')
     }
+
+    const user = await this.userModel.findById(memberUserId).lean()
+    if (!user) {
+      throw new NotFoundException('User not found')
+    }
+
+    const points = this.getTierPoints(user.membershipTier)
+    const eventKey = `activation:${memberUserId}`
+
+    return this.creditVolumeToUplines({
+      sourceUserId: memberUserId,
+      points,
+      membershipTier: user.membershipTier,
+      reason: 'member_activation',
+      eventKey,
+    })
   }
 
-  return {
-    userId,
-    periodKey,
-    pointsMap,
+  async awardUpgradeVolume(
+    userId: string,
+    oldTier: MembershipTier,
+    newTier: MembershipTier,
+  ) {
+    if (!this.isValidObjectId(userId)) {
+      throw new BadRequestException('Invalid userId')
+    }
+
+    const oldPoints = this.getTierPoints(oldTier)
+    const newPoints = this.getTierPoints(newTier)
+    const delta = newPoints - oldPoints
+
+    if (delta <= 0) {
+      return {
+        userId,
+        oldTier,
+        newTier,
+        delta,
+        awardedTo: [],
+        skipped: true,
+        message: 'No upgrade delta to award',
+      }
+    }
+
+    const eventKey = `upgrade:${userId}:${oldTier}->${newTier}`
+
+    return this.creditVolumeToUplines({
+      sourceUserId: userId,
+      points: delta,
+      membershipTier: newTier,
+      reason: 'membership_upgrade_delta',
+      eventKey,
+    })
   }
-}
+
+  async getVolumeSummary(userId: string) {
+    if (!this.isValidObjectId(userId)) {
+      throw new BadRequestException('Invalid userId')
+    }
+
+    const objectId = this.toObjectId(userId)
+
+    const [user, buckets, ledger] = await Promise.all([
+      this.userModel.findById(objectId).lean(),
+      this.volumeBucketModel.find({ ownerUserId: objectId }).lean(),
+      this.volumeLedgerModel
+        .find({ ownerUserId: objectId })
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .lean(),
+    ])
+
+    if (!user) {
+      throw new NotFoundException('User not found')
+    }
+
+    const leftBucket = buckets.find((b) => b.leg === VolumeLeg.LEFT)
+    const rightBucket = buckets.find((b) => b.leg === VolumeLeg.RIGHT)
+
+    return {
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        membershipTier: user.membershipTier,
+      },
+      legs: {
+        left: {
+          userFieldPoints: user.leftLegPoints ?? 0,
+          totalPoints: leftBucket?.totalPoints ?? 0,
+          availablePoints: leftBucket?.availablePoints ?? 0,
+        },
+        right: {
+          userFieldPoints: user.rightLegPoints ?? 0,
+          totalPoints: rightBucket?.totalPoints ?? 0,
+          availablePoints: rightBucket?.availablePoints ?? 0,
+        },
+      },
+      recentLedger: ledger,
+    }
+  }
 }

@@ -5,11 +5,20 @@ import { Model, Types } from 'mongoose';
 import { Activation, ActivationDocument } from '../activations/schemas/activation.schema';
 import { PairingAward, PairingAwardDocument } from '../pairing/schemas/pairing-award.schema';
 
-import { LeadershipQualification, LeadershipQualificationDocument } from './schemas/leadership-qualification.schema';
-import { LeadershipAward, LeadershipAwardDocument } from './schemas/leadership-award.schema';
+import {
+  LeadershipQualification,
+  LeadershipQualificationDocument,
+} from './schemas/leadership-qualification.schema';
+import {
+  LeadershipAward,
+  LeadershipAwardDocument,
+} from './schemas/leadership-award.schema';
 
 import { WalletService } from '../wallet/wallet.service';
-import { WalletCurrency, WalletTxnSource } from '../wallet/schemas/wallet-transaction.schema';
+import {
+  WalletCurrency,
+  WalletTxnSource,
+} from '../wallet/schemas/wallet-transaction.schema';
 
 @Injectable()
 export class LeadershipService {
@@ -17,15 +26,25 @@ export class LeadershipService {
   private readonly RATE = 0.05;
 
   constructor(
-    @InjectModel(Activation.name) private readonly activationModel: Model<ActivationDocument>,
-    @InjectModel(PairingAward.name) private readonly pairingAwardModel: Model<PairingAwardDocument>,
-    @InjectModel(LeadershipQualification.name) private readonly qualModel: Model<LeadershipQualificationDocument>,
-    @InjectModel(LeadershipAward.name) private readonly awardModel: Model<LeadershipAwardDocument>,
+    @InjectModel(Activation.name)
+    private readonly activationModel: Model<ActivationDocument>,
+
+    @InjectModel(PairingAward.name)
+    private readonly pairingAwardModel: Model<PairingAwardDocument>,
+
+    @InjectModel(LeadershipQualification.name)
+    private readonly qualModel: Model<LeadershipQualificationDocument>,
+
+    @InjectModel(LeadershipAward.name)
+    private readonly awardModel: Model<LeadershipAwardDocument>,
+
     private readonly walletService: WalletService,
   ) {}
 
   private toObjectId(id: string) {
-    if (!Types.ObjectId.isValid(id)) throw new BadRequestException('Invalid ObjectId');
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid ObjectId');
+    }
     return new Types.ObjectId(id);
   }
 
@@ -33,49 +52,64 @@ export class LeadershipService {
     return new Date().toISOString().slice(0, 7); // YYYY-MM
   }
 
-  private monthRange(monthKey: string): { start: Date; end: Date } {
-    const [yStr, mStr] = monthKey.split('-');
-    const y = Number(yStr);
-    const m = Number(mStr);
-    if (!y || !m || m < 1 || m > 12) throw new BadRequestException('Invalid monthKey');
-
-    const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
-    const end = new Date(Date.UTC(y, m, 1, 0, 0, 0, 0));
-    return { start, end };
-  }
-
-  private leadershipWindow(monthKey: string): { windowStart: Date; windowEnd: Date } {
-    // windowStart = 15th 00:00 UTC, windowEnd = 30th 23:59:59 UTC (15-day compliance)
-    // Note: if month has 31 days, still a 15-day window ends on 30th.
-    const [yStr, mStr] = monthKey.split('-');
-    const y = Number(yStr);
-    const m = Number(mStr);
-
-    const windowStart = new Date(Date.UTC(y, m - 1, 15, 0, 0, 0, 0));
-    const windowEnd = new Date(Date.UTC(y, m - 1, 30, 23, 59, 59, 999));
-    return { windowStart, windowEnd };
-  }
-
   private parseAsOf(asOfIso?: string): Date {
     if (!asOfIso) return new Date();
     const d = new Date(asOfIso);
-    if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid asOfDateIso');
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException('Invalid asOfDateIso');
+    }
     return d;
   }
 
+  private monthStart(monthKey: string): Date {
+    const [yStr, mStr] = monthKey.split('-');
+    const y = Number(yStr);
+    const m = Number(mStr);
+
+    if (!y || !m || m < 1 || m > 12) {
+      throw new BadRequestException('Invalid monthKey');
+    }
+
+    return new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
+  }
+
+  private leadershipWindow(monthKey: string): { windowStart: Date; windowEnd: Date } {
+    const [yStr, mStr] = monthKey.split('-');
+    const y = Number(yStr);
+    const m = Number(mStr);
+
+    if (!y || !m || m < 1 || m > 12) {
+      throw new BadRequestException('Invalid monthKey');
+    }
+
+    const windowStart = new Date(Date.UTC(y, m - 1, 15, 0, 0, 0, 0));
+    const windowEnd = new Date(Date.UTC(y, m - 1, 30, 23, 59, 59, 999));
+
+    return { windowStart, windowEnd };
+  }
+
+  private asOfDayKey(asOf: Date): string {
+    return asOf.toISOString().slice(0, 10); // YYYY-MM-DD
+  }
+
   /**
-   * Unilevel balance definition (ASSUMPTION):
-   * Sum of Activation.points for DIRECT referrals within the month:
-   * activation.sponsorId = userId
-   * activatedAt within month range
+   * Month-to-date unilevel points:
+   * direct referral activations from first day of month up to asOf
    */
-  private async computeUnilevelPoints(userId: Types.ObjectId, monthKey: string): Promise<number> {
-    const { start, end } = this.monthRange(monthKey);
+  private async computeUnilevelPoints(
+    userId: Types.ObjectId,
+    monthKey: string,
+    asOf: Date,
+  ): Promise<number> {
+    const start = this.monthStart(monthKey);
 
     const rows = await this.activationModel
       .find({
         sponsorId: userId,
-        activatedAt: { $gte: start, $lt: end },
+        activatedAt: {
+          $gte: start,
+          $lte: asOf,
+        },
       })
       .select('points')
       .lean();
@@ -84,17 +118,26 @@ export class LeadershipService {
   }
 
   /**
-   * Pairing total PHP within month:
-   * PairingAward.periodKey is "YYYY-MM-DD" in your current pairing module.
-   * We include all awards where periodKey starts with monthKey.
+   * Month-to-date pairing total:
+   * PairingAward.periodKey is YYYY-MM-DD, so include
+   * all awards from month start up to the asOf day.
    */
-  private async computePairingTotalPhp(userId: Types.ObjectId, monthKey: string): Promise<number> {
+  private async computePairingTotalPhp(
+    userId: Types.ObjectId,
+    monthKey: string,
+    asOf: Date,
+  ): Promise<number> {
+    const asOfDay = this.asOfDayKey(asOf);
+
     const rows = await this.pairingAwardModel
       .find({
         userId,
-        periodKey: { $regex: `^${monthKey}` },
+        periodKey: {
+          $gte: `${monthKey}-01`,
+          $lte: asOfDay,
+        },
       })
-      .select('payoutPhp')
+      .select('payoutPhp periodKey')
       .lean();
 
     return rows.reduce((sum, r: any) => sum + (r.payoutPhp ?? 0), 0);
@@ -107,10 +150,9 @@ export class LeadershipService {
 
     const { windowStart, windowEnd } = this.leadershipWindow(mk);
 
-    // enforce evaluation window rule (15th to 30th)
     if (asOf < windowStart) {
       return {
-        message: 'Not in leadership evaluation window yet',
+        message: 'Not in leadership claim period yet',
         userId: userIdStr,
         monthKey: mk,
         windowStart,
@@ -118,9 +160,10 @@ export class LeadershipService {
         asOf,
       };
     }
+
     if (asOf > windowEnd) {
       return {
-        message: 'Leadership compliance window already ended for this month',
+        message: 'Leadership claim period already ended for this month',
         userId: userIdStr,
         monthKey: mk,
         windowStart,
@@ -129,11 +172,9 @@ export class LeadershipService {
       };
     }
 
-    // 1) compute unilevel points & qualification
-    const unilevelPoints = await this.computeUnilevelPoints(userId, mk);
+    const unilevelPoints = await this.computeUnilevelPoints(userId, mk, asOf);
     const qualified = unilevelPoints >= this.THRESHOLD;
 
-    // 2) upsert qualification snapshot
     await this.qualModel.updateOne(
       { userId, monthKey: mk },
       {
@@ -145,7 +186,10 @@ export class LeadershipService {
           windowEnd,
           evaluatedAt: asOf,
         },
-        $setOnInsert: { userId, monthKey: mk },
+        $setOnInsert: {
+          userId,
+          monthKey: mk,
+        },
       },
       { upsert: true },
     );
@@ -160,52 +204,66 @@ export class LeadershipService {
         qualified: false,
         windowStart,
         windowEnd,
+        asOf,
       };
     }
 
-    // 3) prevent duplicate award
+    const pairingTotalPhp = await this.computePairingTotalPhp(userId, mk, asOf);
+    const targetLeadershipPhp =
+      Math.round(pairingTotalPhp * this.RATE * 100) / 100;
+
     const existingAward = await this.awardModel.findOne({ userId, monthKey: mk }).lean();
-    if (existingAward) {
-      return {
-        message: 'Leadership award already granted',
-        userId: userIdStr,
-        monthKey: mk,
-        qualified: true,
-        unilevelPoints,
-        pairingTotalPhp: existingAward.pairingTotalPhp,
-        leadershipPhp: existingAward.leadershipPhp,
-      };
-    }
+    const previouslyAwardedPhp = existingAward?.leadershipPhp ?? 0;
 
-    // 4) compute leadership payout based on pairing
-    const pairingTotalPhp = await this.computePairingTotalPhp(userId, mk);
-    const leadershipPhp = Math.round(pairingTotalPhp * this.RATE * 100) / 100; // 2 decimals
+    const deltaLeadershipPhp = Math.max(
+      Math.round((targetLeadershipPhp - previouslyAwardedPhp) * 100) / 100,
+      0,
+    );
 
-    // 5) store award
-    await this.awardModel.create({
-      userId,
-      monthKey: mk,
-      pairingTotalPhp,
-      rate: this.RATE,
-      leadershipPhp,
-      awardedAt: asOf,
-    });
+    await this.awardModel.updateOne(
+      { userId, monthKey: mk },
+      {
+        $set: {
+          pairingTotalPhp,
+          rate: this.RATE,
+          leadershipPhp: targetLeadershipPhp,
+          awardedAt: asOf,
+        },
+        $setOnInsert: {
+          userId,
+          monthKey: mk,
+        },
+      },
+      { upsert: true },
+    );
 
-    // 6) credit wallet (idempotent key)
-    if (leadershipPhp > 0) {
+    if (deltaLeadershipPhp > 0) {
       await this.walletService.credit({
         userId: userIdStr,
         currency: WalletCurrency.PHP,
-        amount: leadershipPhp,
+        amount: deltaLeadershipPhp,
         source: WalletTxnSource.LEADERSHIP,
-        refKey: `leadership:${userIdStr}:${mk}`,
-        note: `Leadership bonus (5% of pairing) for ${mk}`,
-        meta: { monthKey: mk, pairingTotalPhp, rate: this.RATE, unilevelPoints },
+        refKey: `leadership:${userIdStr}:${mk}:to:${targetLeadershipPhp}`,
+        note: `Leadership bonus update for ${mk}`,
+        meta: {
+          monthKey: mk,
+          asOf,
+          unilevelPoints,
+          threshold: this.THRESHOLD,
+          pairingTotalPhp,
+          rate: this.RATE,
+          previouslyAwardedPhp,
+          targetLeadershipPhp,
+          deltaLeadershipPhp,
+        },
       });
     }
 
     return {
-      message: 'Leadership bonus granted',
+      message:
+        deltaLeadershipPhp > 0
+          ? 'Leadership bonus evaluated and credited'
+          : 'Leadership bonus evaluated, no new delta to credit',
       userId: userIdStr,
       monthKey: mk,
       qualified: true,
@@ -213,9 +271,12 @@ export class LeadershipService {
       threshold: this.THRESHOLD,
       pairingTotalPhp,
       rate: this.RATE,
-      leadershipPhp,
+      previouslyAwardedPhp,
+      targetLeadershipPhp,
+      deltaLeadershipPhp,
       windowStart,
       windowEnd,
+      asOf,
     };
   }
 
@@ -248,4 +309,4 @@ export class LeadershipService {
         : null,
     };
   }
-}   
+}

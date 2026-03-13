@@ -1,46 +1,34 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { VolumeService } from './volume.service';
-import { ApplyActivationVolumeDto } from './dto/apply-activation-volume.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common'
+import { VolumeService } from './volume.service'
+import { MembershipTier } from '../users/schemas/user.schema'
 
 @Controller('volume')
-@UseGuards(JwtAuthGuard)
 export class VolumeController {
   constructor(private readonly volumeService: VolumeService) {}
 
-  // Apply volume for one activation (call after activation+placement)
-  @Post('apply-activation')
-  applyActivation(@Body() dto: ApplyActivationVolumeDto) {
-    return this.volumeService.applyActivationVolume(dto.activationId);
+  @Post('activation')
+  awardActivation(@Body() body: { memberUserId: string }) {
+    return this.volumeService.awardActivationVolume(body.memberUserId)
   }
 
-  // Read totals for pairing
-  @Get('bucket/:userId')
-  getBucket(
-    @Param('userId') userId: string,
-    @Query('periodKey') periodKey: string,
+  @Post('upgrade')
+  awardUpgrade(
+    @Body()
+    body: {
+      userId: string
+      oldTier: MembershipTier
+      newTier: MembershipTier
+    },
   ) {
-    return this.volumeService.getBucket(userId, periodKey);
+    return this.volumeService.awardUpgradeVolume(
+      body.userId,
+      body.oldTier,
+      body.newTier,
+    )
   }
 
-  // Gaw kani nga endpoint mo ket ni siya sa tibuok tree
-  /*
-
-  {
-  "periodKey": "2026-03-10",
-  "pointsMap": {
-    "rootUserId": { "leftPoints": 10, "rightPoints": 10 },
-    "leftMember1Id": { "leftPoints": 10, "rightPoints": 10 },
-    "rightMember2Id": { "leftPoints": 15, "rightPoints": 15 }
+  @Get('summary/:userId')
+  getSummary(@Param('userId') userId: string) {
+    return this.volumeService.getVolumeSummary(userId)
   }
-}
-  
-  */
-  @Get('tree-buckets/:userId')
-  getTreeBuckets(
-  @Param('userId') userId: string,
-  @Query('periodKey') periodKey: string,
-) {
-  return this.volumeService.getTreeBuckets(userId, periodKey)
-}
 }
