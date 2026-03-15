@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 interface Member {
   id: string;
   username: string;
@@ -14,13 +16,76 @@ interface Member {
   pairingBonus?: number;
 }
 
+interface ReferralCounts {
+  direct: number;
+  indirect: number;
+  total: number;
+}
+
 interface MemberDetailsPanelProps {
   selectedMember: Member | null;
   onClose: () => void;
 }
 
 export default function MemberDetailsPanel({ selectedMember, onClose }: MemberDetailsPanelProps) {
+  const [referralCounts, setReferralCounts] = useState<ReferralCounts | null>(null);
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [referralError, setReferralError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedMember?.id) return;
+
+    const fetchReferralCounts = async () => {
+      setReferralLoading(true);
+      setReferralError(null);
+      setReferralCounts(null);
+
+      try {
+        const res = await fetch(`/genealogy/referrals/${selectedMember.id}`);
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch referral counts (${res.status})`);
+        }
+
+        const data = await res.json();
+
+        // Response shape: { counts: { direct, indirect, total }, direct: [...], indirect: [...] }
+        setReferralCounts(data.counts);
+      } catch (err: any) {
+        setReferralError(err.message ?? 'Failed to load referral data');
+      } finally {
+        setReferralLoading(false);
+      }
+    };
+
+    fetchReferralCounts();
+  }, [selectedMember?.id]);
+
   if (!selectedMember) return null;
+
+  const renderReferralBadge = (count: number | undefined) => {
+    if (referralLoading) {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+          <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+          </svg>
+          Loading...
+        </span>
+      );
+    }
+
+    if (referralError) {
+      return <span className="text-xs text-red-400">—</span>;
+    }
+
+    return (
+      <span className="inline-block bg-white/70 border border-current rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums">
+        {(count ?? 0).toLocaleString()} members
+      </span>
+    );
+  };
 
   return (
     <div className="w-96 bg-white border-l border-gray-200 overflow-y-auto shadow-xl">
@@ -78,8 +143,15 @@ export default function MemberDetailsPanel({ selectedMember, onClose }: MemberDe
                 <p className="text-sm font-medium text-gray-900">Total Direct Referral</p>
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full mt-1"></span>
               </div>
-              <p className="text-lg font-semibold text-green-600 mb-1">{(selectedMember.directReferralBonus || 0).toLocaleString()}</p>
-              <p className="text-xs text-gray-600 group-hover:text-gray-700">Direct line between leader & downline</p>
+              <p className="text-lg font-semibold text-green-600 mb-1">
+                {(selectedMember.directReferralBonus || 0).toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-600 group-hover:text-gray-700 mb-2">
+                Direct line between leader &amp; downline
+              </p>
+              <div className="text-green-600">
+                {renderReferralBadge(referralCounts?.direct)}
+              </div>
             </div>
 
             {/* Indirect Referral */}
@@ -88,8 +160,15 @@ export default function MemberDetailsPanel({ selectedMember, onClose }: MemberDe
                 <p className="text-sm font-medium text-gray-900">Total Indirect Referral</p>
                 <span className="w-1.5 h-1.5 bg-purple-500 rounded-full mt-1"></span>
               </div>
-              <p className="text-lg font-semibold text-purple-600 mb-1">{(selectedMember.indirectReferralBonus || 0).toLocaleString()}</p>
-              <p className="text-xs text-gray-600 group-hover:text-gray-700">Downline through another leader</p>
+              <p className="text-lg font-semibold text-purple-600 mb-1">
+                {(selectedMember.indirectReferralBonus || 0).toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-600 group-hover:text-gray-700 mb-2">
+                Downline through another leader
+              </p>
+              <div className="text-purple-600">
+                {renderReferralBadge(referralCounts?.indirect)}
+              </div>
             </div>
 
             {/* Spill Over */}
