@@ -16,7 +16,7 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 
-import Genealogy from '../tabs/Genealogy';
+import Genealogy from '../tabs/GenealogyAlt';
 import Pairing from '../tabs/Pairing'
 import Payout from '../tabs/Payout';
 import Subscription from '../tabs/Subscription';

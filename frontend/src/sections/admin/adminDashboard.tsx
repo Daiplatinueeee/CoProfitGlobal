@@ -130,6 +130,7 @@ export default function adminDashboard() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('accessToken');
     localStorage.removeItem('token');
     navigate('/auth');
   };
