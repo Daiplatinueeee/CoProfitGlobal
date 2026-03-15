@@ -44,4 +44,17 @@ export class GenealogyController {
   ) {
     return this.genealogyService.isDownline(sourceUserId, targetUserId)
   }
+
+  @Get('referrals/:userId')
+  getReferralCounts(@Param('userId') userId: string) {
+    return this.genealogyService.getReferralCounts(userId)
+  }
+
+  @Get('referral-relation/:rootUserId/:targetUserId')
+  getReferralRelation(
+    @Param('rootUserId') rootUserId: string,
+    @Param('targetUserId') targetUserId: string,
+  ) {
+    return this.genealogyService.getReferralRelation(rootUserId, targetUserId)
+  }
 }

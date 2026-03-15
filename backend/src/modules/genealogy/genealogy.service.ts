@@ -34,7 +34,7 @@ export class GenealogyService {
     @InjectModel(ProductPin.name)
     private readonly productPinModel: Model<ProductPinDocument>,
 
-  private readonly volumeService: VolumeService,
+    private readonly volumeService: VolumeService,
   ) {}
 
   private isValidObjectId(id: string) {
@@ -43,6 +43,225 @@ export class GenealogyService {
 
   private toObjectId(id: string) {
     return new Types.ObjectId(id)
+  }
+
+  /**
+   * This helper loads all users once, then builds a sponsor tree in memory.
+   * We use sponsorId because sponsorId = who referred the user.
+   *
+   * direct referral  = user.sponsorId === rootUserId
+   * indirect referral = rootUserId exists somewhere higher in the sponsor chain
+   */
+  private async buildReferralLists(rootUserId: string) {
+    if (!this.isValidObjectId(rootUserId)) {
+      throw new BadRequestException('Invalid userId')
+    }
+
+    const rootObjectId = this.toObjectId(rootUserId)
+
+    const rootUser = await this.userModel.findById(rootObjectId).lean()
+    if (!rootUser) {
+      throw new NotFoundException('User not found')
+    }
+
+    // Load users needed for referral traversal
+    const users = await this.userModel
+      .find({}, {
+        name: 1,
+        username: 1,
+        email: 1,
+        role: 1,
+        membershipTier: 1,
+        sponsorId: 1,
+        referralCode: 1,
+        profileImage: 1,
+        leftLegPoints: 1,
+        rightLegPoints: 1,
+        age: 1,
+        contact: 1,
+        address: 1,
+        beneficiary: 1,
+        birthday: 1,
+      })
+      .lean()
+
+    // Group users by sponsorId
+    const sponsoredByMap = new Map<string, any[]>()
+
+    for (const user of users) {
+      const sponsorId = user.sponsorId?.toString()
+      if (!sponsorId) continue
+
+      if (!sponsoredByMap.has(sponsorId)) {
+        sponsoredByMap.set(sponsorId, [])
+      }
+
+      sponsoredByMap.get(sponsorId)!.push(user)
+    }
+
+    const direct: any[] = []
+    const indirect: any[] = []
+    const all: any[] = []
+    const visited = new Set<string>()
+
+    /**
+     * level = 1 -> direct referral
+     * level >= 2 -> indirect referral
+     */
+    const walk = (sponsorUserId: string, level: number) => {
+      const children = sponsoredByMap.get(sponsorUserId) ?? []
+
+      for (const child of children) {
+        const childId = child._id.toString()
+
+        if (visited.has(childId)) continue
+        visited.add(childId)
+
+        const item = {
+          id: childId,
+          userId: childId,
+          name: child.name ?? '',
+          username: child.username,
+          email: child.email,
+          role: child.role,
+          membershipTier: child.membershipTier,
+          sponsorId: child.sponsorId?.toString() ?? null,
+          referralCode: child.referralCode ?? '',
+          profileImage: child.profileImage ?? '',
+          leftLegPoints: child.leftLegPoints ?? 0,
+          rightLegPoints: child.rightLegPoints ?? 0,
+          age: child.age ?? null,
+          contact: child.contact ?? '',
+          address: child.address ?? '',
+          beneficiary: child.beneficiary ?? '',
+          birthday: child.birthday ?? '',
+          referralLevel: level,
+          referralType: level === 1 ? 'direct' : 'indirect',
+        }
+
+        all.push(item)
+
+        if (level === 1) {
+          direct.push(item)
+        } else {
+          indirect.push(item)
+        }
+
+        walk(childId, level + 1)
+      }
+    }
+
+    walk(rootUserId, 1)
+
+    return {
+      rootUser: {
+        id: rootUser._id.toString(),
+        userId: rootUser._id.toString(),
+        name: rootUser.name ?? '',
+        username: rootUser.username,
+        email: rootUser.email,
+        role: rootUser.role,
+        membershipTier: rootUser.membershipTier,
+        sponsorId: rootUser.sponsorId?.toString() ?? null,
+        referralCode: rootUser.referralCode ?? '',
+      },
+      counts: {
+        direct: direct.length,
+        indirect: indirect.length,
+        total: all.length,
+      },
+      direct,
+      indirect,
+      all,
+    }
+  }
+
+  /**
+   * Get count + full list of referrals
+   */
+  async getReferralCounts(userId: string) {
+    return this.buildReferralLists(userId)
+  }
+
+  /**
+   * Validate relation between root user and target user.
+   *
+   * direct referral:
+   *   target.sponsorId === rootUserId
+   *
+   * indirect referral:
+   *   target.sponsorId !== rootUserId
+   *   BUT if we keep following sponsorId upward,
+   *   it eventually reaches rootUserId
+   */
+  async getReferralRelation(rootUserId: string, targetUserId: string) {
+    if (!this.isValidObjectId(rootUserId)) {
+      throw new BadRequestException('Invalid rootUserId')
+    }
+
+    if (!this.isValidObjectId(targetUserId)) {
+      throw new BadRequestException('Invalid targetUserId')
+    }
+
+    if (rootUserId === targetUserId) {
+      return {
+        rootUserId,
+        targetUserId,
+        related: false,
+        type: null,
+        level: 0,
+        message: 'A user is not their own referral',
+      }
+    }
+
+    let current = await this.userModel.findById(targetUserId).lean()
+
+    if (!current) {
+      throw new NotFoundException('Target user not found')
+    }
+
+    let level = 0
+    const chain: string[] = []
+
+    /**
+     * We start from target user and keep moving upward:
+     *
+     * targetUser -> sponsorId -> sponsor's sponsorId -> ...
+     *
+     * If at any step sponsorId === rootUserId,
+     * then the target user belongs to root user's referral network.
+     *
+     * level 1 = direct
+     * level 2+ = indirect
+     */
+    while (current?.sponsorId) {
+      level++
+
+      const sponsorId = current.sponsorId.toString()
+      chain.push(sponsorId)
+
+      if (sponsorId === rootUserId) {
+        return {
+          rootUserId,
+          targetUserId,
+          related: true,
+          type: level === 1 ? 'direct' : 'indirect',
+          level,
+          chain,
+        }
+      }
+
+      current = await this.userModel.findById(sponsorId).lean()
+    }
+
+    return {
+      rootUserId,
+      targetUserId,
+      related: false,
+      type: null,
+      level: 0,
+      chain,
+    }
   }
 
   private async mapUserToMember(userId: Types.ObjectId | string) {
@@ -145,92 +364,97 @@ export class GenealogyService {
   }
 
   async placeMember(dto: PlaceMemberDto) {
-    
-    if (!this.isValidObjectId(dto.parentUserId)) {
-      throw new BadRequestException('Invalid parentUserId')
-    }
-
-    const parentNode = await this.genealogyModel.findOne({
-      userId: this.toObjectId(dto.parentUserId),
-    })
-
-    if (!parentNode) {
-      throw new NotFoundException('Parent genealogy node not found')
-    }
-
-    if (dto.leg === GenealogySide.LEFT && parentNode.leftChildUserId) {
-      throw new BadRequestException('Left leg already occupied')
-    }
-
-    if (dto.leg === GenealogySide.RIGHT && parentNode.rightChildUserId) {
-      throw new BadRequestException('Right leg already occupied')
-    }
-
-    const existingUser = await this.userModel.findOne({
-      username: dto.username.trim(),
-    })
-
-    if (!existingUser) {
-      throw new NotFoundException('User not found')
-    }
-
-    if (existingUser.role !== SystemRole.USER) {
-      throw new BadRequestException('Only normal users can be placed in genealogy')
-    }
-
-    if (!existingUser.membershipTier) {
-      throw new BadRequestException('User has no package tier yet')
-    }
-
-    if (existingUser._id.toString() === dto.parentUserId) {
-      throw new BadRequestException('You cannot place a user under themselves')
-    }
-
-    const existingNode = await this.genealogyModel.findOne({
-      userId: existingUser._id,
-    })
-
-    if (existingNode) {
-      throw new BadRequestException('User is already placed in genealogy')
-    }
-
-    const childNode = await this.genealogyModel.create({
-      userId: existingUser._id,
-      parentUserId: parentNode.userId,
-      position: dto.leg,
-      leftChildUserId: null,
-      rightChildUserId: null,
-      depth: parentNode.depth + 1,
-      ancestors: [...(parentNode.ancestors ?? []), parentNode.userId],
-    })
-
-    if (dto.leg === GenealogySide.LEFT) {
-      parentNode.leftChildUserId = childNode.userId
-    } else {
-      parentNode.rightChildUserId = childNode.userId
-    }
-    
-    await parentNode.save()
-    await this.volumeService.awardActivationVolume(existingUser._id.toString())
-    return {
-      id: existingUser._id.toString(),
-      userId: existingUser._id.toString(),
-      username: existingUser.username,
-      email: existingUser.email,
-      profileImage: existingUser.profileImage ?? '',
-      referralCode: existingUser.referralCode ?? '',
-      membershipTier: existingUser.membershipTier,
-      leftLegPoints: existingUser.leftLegPoints ?? 0,
-      rightLegPoints: existingUser.rightLegPoints ?? 0,
-      age: existingUser.age,
-      contact: existingUser.contact,
-      address: existingUser.address,
-      beneficiary: existingUser.beneficiary,
-      birthday: existingUser.birthday,
-      parentUserId: parentNode.userId.toString(),
-      leg: dto.leg,
-    }
+  if (!this.isValidObjectId(dto.parentUserId)) {
+    throw new BadRequestException('Invalid parentUserId')
   }
+
+  const parentNode = await this.genealogyModel.findOne({
+    userId: this.toObjectId(dto.parentUserId),
+  })
+
+  if (!parentNode) {
+    throw new NotFoundException('Parent genealogy node not found')
+  }
+
+  if (dto.leg === GenealogySide.LEFT && parentNode.leftChildUserId) {
+    throw new BadRequestException('Left leg already occupied')
+  }
+
+  if (dto.leg === GenealogySide.RIGHT && parentNode.rightChildUserId) {
+    throw new BadRequestException('Right leg already occupied')
+  }
+
+  const existingUser = await this.userModel.findOne({
+    username: dto.username.trim(),
+  })
+
+  if (!existingUser) {
+    throw new NotFoundException('User not found')
+  }
+
+  if (existingUser.role !== SystemRole.USER) {
+    throw new BadRequestException('Only normal users can be placed in genealogy')
+  }
+
+  if (!existingUser.membershipTier) {
+    throw new BadRequestException('User has no package tier yet')
+  }
+
+  if (existingUser._id.toString() === dto.parentUserId) {
+    throw new BadRequestException('You cannot place a user under themselves')
+  }
+
+  const existingNode = await this.genealogyModel.findOne({
+    userId: existingUser._id,
+  })
+
+  if (existingNode) {
+    throw new BadRequestException('User is already placed in genealogy')
+  }
+
+  // set sponsor/referrer = placer
+  existingUser.sponsorId = parentNode.userId
+  await existingUser.save()
+
+  const childNode = await this.genealogyModel.create({
+    userId: existingUser._id,
+    parentUserId: parentNode.userId,
+    position: dto.leg,
+    leftChildUserId: null,
+    rightChildUserId: null,
+    depth: parentNode.depth + 1,
+    ancestors: [...(parentNode.ancestors ?? []), parentNode.userId],
+  })
+
+  if (dto.leg === GenealogySide.LEFT) {
+    parentNode.leftChildUserId = childNode.userId
+  } else {
+    parentNode.rightChildUserId = childNode.userId
+  }
+
+  await parentNode.save()
+  await this.volumeService.awardActivationVolume(existingUser._id.toString())
+
+  return {
+    id: existingUser._id.toString(),
+    userId: existingUser._id.toString(),
+    username: existingUser.username,
+    email: existingUser.email,
+    profileImage: existingUser.profileImage ?? '',
+    referralCode: existingUser.referralCode ?? '',
+    sponsorId: existingUser.sponsorId?.toString() ?? null,
+    membershipTier: existingUser.membershipTier,
+    leftLegPoints: existingUser.leftLegPoints ?? 0,
+    rightLegPoints: existingUser.rightLegPoints ?? 0,
+    age: existingUser.age,
+    contact: existingUser.contact,
+    address: existingUser.address,
+    beneficiary: existingUser.beneficiary,
+    birthday: existingUser.birthday,
+    parentUserId: parentNode.userId.toString(),
+    leg: dto.leg,
+  }
+}
 
   async getChildren(userId: string) {
     if (!this.isValidObjectId(userId)) {
