@@ -19,7 +19,10 @@ import {
 } from '../users/schemas/user.schema'
 
 import { VolumeService } from '../volume/volume.service'
-import { ProductPin, ProductPinDocument } from '../product-pins/schema/product-pins.schema'
+import {
+  ProductPin,
+  ProductPinDocument,
+} from '../product-pins/schema/product-pins.schema'
 
 @Injectable()
 export class GenealogyService {
@@ -46,7 +49,7 @@ export class GenealogyService {
 
   /**
    * direct referral  = target.sponsorId === rootUserId
-   * indirect referral = rootUserId is found higher in sponsor chain at level 2+
+   * indirect referral = rootUserId exists higher in sponsor chain at level 2+
    *
    * spillover = target is inside root user's genealogy subtree,
    *             but target was NOT directly sponsored by root user
@@ -55,6 +58,7 @@ export class GenealogyService {
    * - direct / indirect use sponsorId
    * - spillover uses genealogy ancestors / placement tree
    */
+  
   private async buildReferralLists(rootUserId: string) {
     if (!this.isValidObjectId(rootUserId)) {
       throw new BadRequestException('Invalid userId')
@@ -101,7 +105,7 @@ export class GenealogyService {
       users.map((user: any) => [user._id.toString(), user]),
     )
 
-    // sponsor tree: sponsorId -> sponsored users
+    // sponsor tree map: sponsorId -> direct sponsored users
     const sponsoredByMap = new Map<string, any[]>()
 
     for (const user of users) {
@@ -118,8 +122,7 @@ export class GenealogyService {
     const direct: any[] = []
     const indirect: any[] = []
     const spillover: any[] = []
-    const allReferrals: any[] = []
-
+    const all: any[] = []
     const visited = new Set<string>()
 
     /**
@@ -158,7 +161,7 @@ export class GenealogyService {
           referralType: level === 1 ? 'direct' : 'indirect',
         }
 
-        allReferrals.push(item)
+        all.push(item)
 
         if (level === 1) {
           direct.push(item)
@@ -174,14 +177,14 @@ export class GenealogyService {
 
     /**
      * Spillover uses genealogy downline.
-     * If a user is inside my subtree but I did not personally sponsor them,
+     * If a user is in my genealogy subtree but I did not directly sponsor them,
      * they count as spillover for me.
      *
-     * This is separate from sponsor direct/indirect.
-     * A member can be:
-     * - indirect only
-     * - spillover only
-     * - both indirect and spillover
+     * A member can be both:
+     * - indirect referral
+     * - spillover
+     *
+     * because sponsor chain and placement tree are separate concepts.
      */
     for (const node of downlineNodes) {
       const downlineUserId = node.userId.toString()
@@ -192,7 +195,7 @@ export class GenealogyService {
 
       const sponsorId = user.sponsorId?.toString() ?? null
 
-      // if I directly sponsored them, they are direct referral, not spillover
+      // Direct sponsored users are direct referrals, not spillover for root user
       if (sponsorId === rootUserId) {
         continue
       }
@@ -238,12 +241,12 @@ export class GenealogyService {
         direct: direct.length,
         indirect: indirect.length,
         spillover: spillover.length,
-        total: allReferrals.length, // total sponsor-network referrals only
+        total: all.length, // total sponsor-network referrals only (direct + indirect)
       },
       direct,
       indirect,
       spillover,
-      all: allReferrals,
+      all,
     }
   }
 
@@ -255,19 +258,14 @@ export class GenealogyService {
   }
 
   /**
-   * direct:
-   *   target.sponsorId === rootUserId
+   * Relationship meaning:
+   * - direct: target.sponsorId === rootUserId
+   * - indirect: rootUserId found higher in sponsor chain at level 2+
+   * - spillover: target is in root genealogy subtree but target.sponsorId !== rootUserId
    *
-   * indirect:
-   *   rootUserId appears higher in target's sponsor chain at level 2+
-   *
-   * spillover:
-   *   target is inside root user's genealogy subtree
-   *   AND target.sponsorId !== rootUserId
-   *
-   * Important:
-   * a target can be both indirect and spillover at the same time,
-   * so this response returns booleans instead of one single type.
+   * We return booleans because one user can be both:
+   * - indirect referral
+   * - spillover
    */
   async getReferralRelation(rootUserId: string, targetUserId: string) {
     if (!this.isValidObjectId(rootUserId)) {
@@ -295,9 +293,11 @@ export class GenealogyService {
     const [rootUser, targetUser, targetNode] = await Promise.all([
       this.userModel.findById(rootUserId).lean(),
       this.userModel.findById(targetUserId).lean(),
-      this.genealogyModel.findOne({
-        userId: this.toObjectId(targetUserId),
-      }).lean(),
+      this.genealogyModel
+        .findOne({
+          userId: this.toObjectId(targetUserId),
+        })
+        .lean(),
     ])
 
     if (!rootUser) {
@@ -343,7 +343,7 @@ export class GenealogyService {
 
     /**
      * spillover means:
-     * target is somewhere in my genealogy subtree,
+     * target is in my genealogy subtree,
      * but I did not directly sponsor target.
      */
     const isSpillover =

@@ -11,7 +11,7 @@ export class PlaceMemberDto {
   @IsString()
   username: string
 
-  // actual user who clicked / placed / referred this member
+  // actual logged-in user who clicked add/place member
   @IsMongoId()
   placerUserId: string
 }

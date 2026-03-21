@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import logo from './../../assets/refs/Logo.webp'
-import MemberDetailsPanel from './MembersDetailPanel'
+import MemberDetailsPanel from './membersDetailPanel'
 import AddMemberModal from './AddMemberModal'
 
 interface Member {
@@ -224,67 +224,45 @@ function Genealogy() {
     [treeRoot],
   )
 
-  const attachMember = async (parent: Member, leg: 'left' | 'right', username: string) => {
-    try {
-      const payload = {
-        parentUserId: parent.userId || parent.id,
-        leg,
-        username: username.trim(),
-      }
-
-      const response = await fetch(`${API_BASE_URL}/genealogy/place`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setFormError(data.message || 'Failed to add member')
-        return
-      }
-
-      if (currentUserId) {
-        const refreshedTree = await fetchRootTree(currentUserId)
-        setOriginalRoot(refreshedTree)
-        setTreeRoot(refreshedTree)
-      } else {
-        const newMember: Member = {
-          id: data.id || data.userId,
-          userId: data.userId,
-          username: data.username,
-          email: data.email,
-          profileImage: data.profileImage || logo,
-          referralCode: data.referralCode,
-          membershipTier: data.membershipTier ?? null,
-          leftLegPoints: data.leftLegPoints || 0,
-          rightLegPoints: data.rightLegPoints || 0,
-          age: data.age,
-          contact: data.contact,
-          address: data.address,
-          beneficiary: data.beneficiary,
-          birthday: data.birthday,
-        }
-
-        if (leg === 'left') {
-          parent.leftChild = newMember
-        } else {
-          parent.rightChild = newMember
-        }
-
-        setTreeRoot(treeRoot ? { ...treeRoot } : null)
-        setOriginalRoot(originalRoot ? { ...originalRoot } : null)
-      }
-
-      resetModalState()
-    } catch (err: any) {
-      setFormError(err.message || 'Failed to add member')
-      console.error('Error adding member:', err)
+ const attachMember = async (parent: Member, leg: 'left' | 'right', username: string) => {
+  try {
+    if (!currentUserId) {
+      setFormError('Logged-in user not found')
+      return
     }
+
+    const payload = {
+      parentUserId: parent.userId || parent.id,
+      leg,
+      username: username.trim(),
+      placerUserId: currentUserId,
+    }
+
+    const response = await fetch(`${API_BASE_URL}/genealogy/place`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      setFormError(data.message || 'Failed to add member')
+      return
+    }
+
+    const refreshedTree = await fetchRootTree(currentUserId)
+    setOriginalRoot(refreshedTree)
+    setTreeRoot(refreshedTree)
+
+    resetModalState()
+  } catch (err: any) {
+    setFormError(err.message || 'Failed to add member')
+    console.error('Error adding member:', err)
   }
+}
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
