@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import logo from './../../assets/refs/Logo.webp'
-import MemberDetailsPanel from './MembersDetailPanel'
+import MemberDetailsPanel from './membersDetailPanel'
 import AddMemberModal from './AddMemberModal'
 
 interface Member {

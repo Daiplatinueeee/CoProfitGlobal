@@ -12,26 +12,33 @@ export class Sign5Award {
   @Prop({ required: true, index: true }) // YYYY-MM
   monthKey: string;
 
-  @Prop({ type: String, enum: Object.values(MembershipTier), required: true, index: true })
+  @Prop({
+    type: String,
+    enum: Object.values(MembershipTier),
+    required: true,
+    index: true,
+  })
   tier: MembershipTier;
 
-  @Prop({ required: true })
+  @Prop({ required: true, default: 0 })
   referralsCount: number;
 
-  @Prop({ required: true })
-  setsOfFive: number; // floor(count/5)
+  // 0 or 1 only
+  // becomes 1 once the user reaches at least 5 direct activations of this tier in the month
+  @Prop({ required: true, default: 0 })
+  cashSetPaid: number;
 
-  @Prop({ required: true })
-  cashSetsPaid: number; // min(setsOfFive, 5)
+  // number of referrals beyond the first 5
+  @Prop({ required: true, default: 0 })
+  gcReferralCountPaid: number;
 
-  @Prop({ required: true })
-  gcSetsPaid: number; // max(setsOfFive - 5, 0)
+  @Prop({ required: true, default: 0 })
+  cashAmountPhp: number;
 
-  @Prop({ required: true })
-  cashAmountPhp: number; // cashSetsPaid * tierCashValue
-
-  @Prop({ required: true })
-  gcPointsAmount: number; // gcSetsPaid * tierCashValue (or your chosen conversion)
+  // current implementation:
+  // gcPointsAmount = gcReferralCountPaid * tierRewardValue
+  @Prop({ required: true, default: 0 })
+  gcPointsAmount: number;
 
   @Prop({ type: Date, required: true })
   awardedAt: Date;

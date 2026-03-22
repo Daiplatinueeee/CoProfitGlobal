@@ -3,10 +3,19 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
 import { MembershipTier } from '../users/schemas/user.schema';
-import { Activation, ActivationDocument } from '../activations/schemas/activation.schema';
+import {
+  Activation,
+  ActivationDocument,
+} from '../activations/schemas/activation.schema';
 
-import { Sign5Status, Sign5StatusDocument } from './schemas/sign5-status.schema';
-import { Sign5Award, Sign5AwardDocument } from './schemas/sign5-award.schema';
+import {
+  Sign5Status,
+  Sign5StatusDocument,
+} from './schemas/sign5-status.schema';
+import {
+  Sign5Award,
+  Sign5AwardDocument,
+} from './schemas/sign5-award.schema';
 
 import {
   WalletCurrency,
@@ -16,7 +25,7 @@ import { WalletService } from '../wallet/wallet.service';
 
 @Injectable()
 export class Sign5Service {
-  private readonly MAX_CASH_SETS_PER_TIER_PER_MONTH = 5;
+  private readonly REQUIRED_DIRECTS_FOR_CASH = 5;
 
   constructor(
     @InjectModel(Activation.name)
@@ -57,7 +66,8 @@ export class Sign5Service {
     return { start, end };
   }
 
-  private tierCashValuePhp(tier: MembershipTier): number {
+  // cash reward value per tier
+  private tierRewardValue(tier: MembershipTier): number {
     switch (tier) {
       case MembershipTier.BRONZE:
         return 500;
@@ -70,10 +80,6 @@ export class Sign5Service {
       default:
         return 0;
     }
-  }
-
-  private gcPointsPerSet(tier: MembershipTier): number {
-    return this.tierCashValuePhp(tier);
   }
 
   private async countDirectReferralActivations(
@@ -100,15 +106,14 @@ export class Sign5Service {
   }) {
     const { userId, userIdStr, monthKey, tier, count, now } = params;
 
-    const setsOfFive = Math.floor(count / 5);
+    const rewardValue = this.tierRewardValue(tier);
 
-    const targetCashSetsPaid = Math.min(
-      setsOfFive,
-      this.MAX_CASH_SETS_PER_TIER_PER_MONTH,
-    );
-
-    const targetGcSetsPaid = Math.max(
-      setsOfFive - this.MAX_CASH_SETS_PER_TIER_PER_MONTH,
+    // your business rule:
+    // first completed 5 of the month = one cash reward
+    // anything beyond the first 5 = GC points
+    const targetCashSetPaid = count >= this.REQUIRED_DIRECTS_FOR_CASH ? 1 : 0;
+    const targetGcReferralCountPaid = Math.max(
+      count - this.REQUIRED_DIRECTS_FOR_CASH,
       0,
     );
 
@@ -118,21 +123,26 @@ export class Sign5Service {
       tier,
     });
 
-    const previouslyPaidCashSets = existing?.cashSetsPaid ?? 0;
-    const previouslyPaidGcSets = existing?.gcSetsPaid ?? 0;
+    const previouslyPaidCashSet = existing?.cashSetPaid ?? 0;
+    const previouslyPaidGcReferralCount =
+      existing?.gcReferralCountPaid ?? 0;
 
-    const newCashSetsToPay = Math.max(
-      targetCashSetsPaid - previouslyPaidCashSets,
+    // delta logic so repeated evaluation only credits newly earned rewards
+    const newCashSetToPay = Math.max(
+      targetCashSetPaid - previouslyPaidCashSet,
       0,
     );
 
-    const newGcSetsToPay = Math.max(
-      targetGcSetsPaid - previouslyPaidGcSets,
+    const newGcReferralCountToPay = Math.max(
+      targetGcReferralCountPaid - previouslyPaidGcReferralCount,
       0,
     );
 
-    const deltaCashAmountPhp = newCashSetsToPay * this.tierCashValuePhp(tier);
-    const deltaGcPointsAmount = newGcSetsToPay * this.gcPointsPerSet(tier);
+    const deltaCashAmountPhp = newCashSetToPay * rewardValue;
+
+    // current implementation:
+    // each excess referral gives GC points equivalent to the tier value
+    const deltaGcPointsAmount = newGcReferralCountToPay * rewardValue;
 
     if (deltaCashAmountPhp > 0) {
       await this.walletService.credit({
@@ -140,14 +150,14 @@ export class Sign5Service {
         currency: WalletCurrency.PHP,
         amount: deltaCashAmountPhp,
         source: WalletTxnSource.SIGN5,
-        refKey: `sign5:cash:${userIdStr}:${monthKey}:${tier}:${previouslyPaidCashSets + 1}-${targetCashSetsPaid}`,
+        refKey: `sign5:cash:${userIdStr}:${monthKey}:${tier}`,
         note: `Sign5 cash payout for ${tier} (${monthKey})`,
         meta: {
           monthKey,
           tier,
-          newCashSetsToPay,
-          targetCashSetsPaid,
           referralsCount: count,
+          newCashSetToPay,
+          targetCashSetPaid,
         },
       });
     }
@@ -158,31 +168,28 @@ export class Sign5Service {
         currency: WalletCurrency.GC_POINTS,
         amount: deltaGcPointsAmount,
         source: WalletTxnSource.SIGN5,
-        refKey: `sign5:gc:${userIdStr}:${monthKey}:${tier}:${previouslyPaidGcSets + 1}-${targetGcSetsPaid}`,
-        note: `Sign5 GC points for ${tier} (${monthKey})`,
+        refKey: `sign5:gc:${userIdStr}:${monthKey}:${tier}:${previouslyPaidGcReferralCount + 1}-${targetGcReferralCountPaid}`,
+        note: `Sign5 GC payout for ${tier} (${monthKey})`,
         meta: {
           monthKey,
           tier,
-          newGcSetsToPay,
-          targetGcSetsPaid,
           referralsCount: count,
+          newGcReferralCountToPay,
+          targetGcReferralCountPaid,
         },
       });
     }
 
-    const nextCashAmountPhp =
-      targetCashSetsPaid * this.tierCashValuePhp(tier);
-    const nextGcPointsAmount =
-      targetGcSetsPaid * this.gcPointsPerSet(tier);
+    const nextCashAmountPhp = targetCashSetPaid * rewardValue;
+    const nextGcPointsAmount = targetGcReferralCountPaid * rewardValue;
 
     const updated = await this.awardModel.findOneAndUpdate(
       { userId, monthKey, tier },
       {
         $set: {
           referralsCount: count,
-          setsOfFive,
-          cashSetsPaid: targetCashSetsPaid,
-          gcSetsPaid: targetGcSetsPaid,
+          cashSetPaid: targetCashSetPaid,
+          gcReferralCountPaid: targetGcReferralCountPaid,
           cashAmountPhp: nextCashAmountPhp,
           gcPointsAmount: nextGcPointsAmount,
           awardedAt: now,
@@ -202,16 +209,16 @@ export class Sign5Service {
     return {
       tier,
       referralsCount: count,
-      setsOfFive,
-      cashSetsPaid: targetCashSetsPaid,
-      gcSetsPaid: targetGcSetsPaid,
+      cashSetPaid: targetCashSetPaid,
+      gcReferralCountPaid: targetGcReferralCountPaid,
       cashAmountPhp: nextCashAmountPhp,
       gcPointsAmount: nextGcPointsAmount,
-      newCashSetsToPay,
-      newGcSetsToPay,
+      newCashSetToPay,
+      newGcReferralCountToPay,
       deltaCashAmountPhp,
       deltaGcPointsAmount,
-      alreadyUpToDate: newCashSetsToPay === 0 && newGcSetsToPay === 0,
+      alreadyUpToDate:
+        newCashSetToPay === 0 && newGcReferralCountToPay === 0,
       award: updated,
     };
   }
@@ -295,13 +302,12 @@ export class Sign5Service {
       awards: awards.map((a) => ({
         tier: a.tier,
         referralsCount: a.referralsCount,
-        setsOfFive: a.setsOfFive,
-        cashSetsPaid: a.cashSetsPaid,
-        gcSetsPaid: a.gcSetsPaid,
+        cashSetPaid: a.cashSetPaid,
+        gcReferralCountPaid: a.gcReferralCountPaid,
         cashAmountPhp: a.cashAmountPhp,
         gcPointsAmount: a.gcPointsAmount,
-        newCashSetsToPay: a.newCashSetsToPay,
-        newGcSetsToPay: a.newGcSetsToPay,
+        newCashSetToPay: a.newCashSetToPay,
+        newGcReferralCountToPay: a.newGcReferralCountToPay,
         deltaCashAmountPhp: a.deltaCashAmountPhp,
         deltaGcPointsAmount: a.deltaGcPointsAmount,
         alreadyUpToDate: a.alreadyUpToDate,
@@ -332,13 +338,12 @@ export class Sign5Service {
       awards: awards.map((a) => ({
         tier: a.tier,
         referralsCount: a.referralsCount,
-        setsOfFive: a.setsOfFive,
-        cashSetsPaid: a.cashSetsPaid,
-        gcSetsPaid: a.gcSetsPaid,
+        cashSetPaid: a.cashSetPaid,
+        gcReferralCountPaid: a.gcReferralCountPaid,
         cashAmountPhp: a.cashAmountPhp,
         gcPointsAmount: a.gcPointsAmount,
         awardedAt: a.awardedAt,
       })),
     };
   }
-}
+} 

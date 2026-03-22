@@ -4,7 +4,6 @@ import { Model, Types } from 'mongoose';
 
 import { Activation, ActivationDocument } from '../activations/schemas/activation.schema';
 import { PairingAward, PairingAwardDocument } from '../pairing/schemas/pairing-award.schema';
-
 import {
   LeadershipQualification,
   LeadershipQualificationDocument,
@@ -13,6 +12,10 @@ import {
   LeadershipAward,
   LeadershipAwardDocument,
 } from './schemas/leadership-award.schema';
+import {
+  GenealogyNode,
+  GenealogyNodeDocument,
+} from '../genealogy/schema/genealogy-node.schema';
 
 import { WalletService } from '../wallet/wallet.service';
 import {
@@ -32,6 +35,9 @@ export class LeadershipService {
     @InjectModel(PairingAward.name)
     private readonly pairingAwardModel: Model<PairingAwardDocument>,
 
+    @InjectModel(GenealogyNode.name)
+    private readonly genealogyNodeModel: Model<GenealogyNodeDocument>,
+
     @InjectModel(LeadershipQualification.name)
     private readonly qualModel: Model<LeadershipQualificationDocument>,
 
@@ -41,6 +47,10 @@ export class LeadershipService {
     private readonly walletService: WalletService,
   ) {}
 
+  private round2(value: number): number {
+    return Math.round(value * 100) / 100;
+  }
+
   private toObjectId(id: string) {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('Invalid ObjectId');
@@ -48,42 +58,56 @@ export class LeadershipService {
     return new Types.ObjectId(id);
   }
 
+  private parseMonthKey(monthKey: string): { year: number; month: number } {
+    const [yStr, mStr] = monthKey.split('-');
+    const year = Number(yStr);
+    const month = Number(mStr);
+
+    if (!year || !month || month < 1 || month > 12) {
+      throw new BadRequestException('Invalid monthKey');
+    }
+
+    return { year, month };
+  }
+
   private currentMonthKey(): string {
-    return new Date().toISOString().slice(0, 7); // YYYY-MM
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
   }
 
   private parseAsOf(asOfIso?: string): Date {
     if (!asOfIso) return new Date();
+
     const d = new Date(asOfIso);
     if (Number.isNaN(d.getTime())) {
       throw new BadRequestException('Invalid asOfDateIso');
     }
+
     return d;
   }
 
   private monthStart(monthKey: string): Date {
-    const [yStr, mStr] = monthKey.split('-');
-    const y = Number(yStr);
-    const m = Number(mStr);
-
-    if (!y || !m || m < 1 || m > 12) {
-      throw new BadRequestException('Invalid monthKey');
-    }
-
-    return new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
+    const { year, month } = this.parseMonthKey(monthKey);
+    return new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
   }
 
+  private monthEnd(monthKey: string): Date {
+    const { year, month } = this.parseMonthKey(monthKey);
+    // last day of the target month
+    return new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  }
+
+  /**
+   * Grace window:
+   * 15th 00:00:00.000 up to last day of month 23:59:59.999
+   */
   private leadershipWindow(monthKey: string): { windowStart: Date; windowEnd: Date } {
-    const [yStr, mStr] = monthKey.split('-');
-    const y = Number(yStr);
-    const m = Number(mStr);
+    const { year, month } = this.parseMonthKey(monthKey);
 
-    if (!y || !m || m < 1 || m > 12) {
-      throw new BadRequestException('Invalid monthKey');
-    }
-
-    const windowStart = new Date(Date.UTC(y, m - 1, 15, 0, 0, 0, 0));
-    const windowEnd = new Date(Date.UTC(y, m - 1, 30, 23, 59, 59, 999));
+    const windowStart = new Date(Date.UTC(year, month - 1, 15, 0, 0, 0, 0));
+    const windowEnd = this.monthEnd(monthKey);
 
     return { windowStart, windowEnd };
   }
@@ -118,29 +142,60 @@ export class LeadershipService {
   }
 
   /**
-   * Month-to-date pairing total:
-   * PairingAward.periodKey is YYYY-MM-DD, so include
-   * all awards from month start up to the asOf day.
+   * Get all genealogy downlines of this user.
+   * This assumes your GenealogyNode stores an `ancestors` array.
    */
-  private async computePairingTotalPhp(
+  private async getDownlineUserIds(userId: Types.ObjectId): Promise<Types.ObjectId[]> {
+    const rows = await this.genealogyNodeModel
+      .find({
+        ancestors: userId,
+      })
+      .select('userId')
+      .lean();
+
+    return rows.map((r: any) => r.userId as Types.ObjectId);
+  }
+
+  /**
+   * Leadership base:
+   * total pairing payout of all downlines for the month up to asOf.
+   */
+  private async computeDownlinePairingTotalPhp(
     userId: Types.ObjectId,
     monthKey: string,
     asOf: Date,
-  ): Promise<number> {
+  ): Promise<{
+    downlineCount: number;
+    totalPhp: number;
+  }> {
+    const downlineUserIds = await this.getDownlineUserIds(userId);
+
+    if (!downlineUserIds.length) {
+      return {
+        downlineCount: 0,
+        totalPhp: 0,
+      };
+    }
+
     const asOfDay = this.asOfDayKey(asOf);
 
     const rows = await this.pairingAwardModel
       .find({
-        userId,
+        userId: { $in: downlineUserIds },
         periodKey: {
           $gte: `${monthKey}-01`,
           $lte: asOfDay,
         },
       })
-      .select('payoutPhp periodKey')
+      .select('payoutPhp userId periodKey')
       .lean();
 
-    return rows.reduce((sum, r: any) => sum + (r.payoutPhp ?? 0), 0);
+    const totalPhp = rows.reduce((sum, r: any) => sum + (r.payoutPhp ?? 0), 0);
+
+    return {
+      downlineCount: downlineUserIds.length,
+      totalPhp: this.round2(totalPhp),
+    };
   }
 
   async evaluate(userIdStr: string, monthKey?: string, asOfDateIso?: string) {
@@ -208,15 +263,18 @@ export class LeadershipService {
       };
     }
 
-    const pairingTotalPhp = await this.computePairingTotalPhp(userId, mk, asOf);
-    const targetLeadershipPhp =
-      Math.round(pairingTotalPhp * this.RATE * 100) / 100;
+    const { downlineCount, totalPhp: downlinePairingTotalPhp } =
+      await this.computeDownlinePairingTotalPhp(userId, mk, asOf);
+
+    const targetLeadershipPhp = this.round2(
+      downlinePairingTotalPhp * this.RATE,
+    );
 
     const existingAward = await this.awardModel.findOne({ userId, monthKey: mk }).lean();
     const previouslyAwardedPhp = existingAward?.leadershipPhp ?? 0;
 
     const deltaLeadershipPhp = Math.max(
-      Math.round((targetLeadershipPhp - previouslyAwardedPhp) * 100) / 100,
+      this.round2(targetLeadershipPhp - previouslyAwardedPhp),
       0,
     );
 
@@ -224,7 +282,9 @@ export class LeadershipService {
       { userId, monthKey: mk },
       {
         $set: {
-          pairingTotalPhp,
+          // keep schema field name as pairingTotalPhp
+          // but this now represents total downline pairing for the month
+          pairingTotalPhp: downlinePairingTotalPhp,
           rate: this.RATE,
           leadershipPhp: targetLeadershipPhp,
           awardedAt: asOf,
@@ -250,7 +310,8 @@ export class LeadershipService {
           asOf,
           unilevelPoints,
           threshold: this.THRESHOLD,
-          pairingTotalPhp,
+          downlineCount,
+          downlinePairingTotalPhp,
           rate: this.RATE,
           previouslyAwardedPhp,
           targetLeadershipPhp,
@@ -269,7 +330,8 @@ export class LeadershipService {
       qualified: true,
       unilevelPoints,
       threshold: this.THRESHOLD,
-      pairingTotalPhp,
+      downlineCount,
+      downlinePairingTotalPhp,
       rate: this.RATE,
       previouslyAwardedPhp,
       targetLeadershipPhp,
@@ -301,7 +363,7 @@ export class LeadershipService {
         : null,
       award: award
         ? {
-            pairingTotalPhp: award.pairingTotalPhp,
+            downlinePairingTotalPhp: award.pairingTotalPhp,
             rate: award.rate,
             leadershipPhp: award.leadershipPhp,
             awardedAt: award.awardedAt,

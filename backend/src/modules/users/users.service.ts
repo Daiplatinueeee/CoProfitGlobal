@@ -17,6 +17,16 @@ import {
 export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
+  private async generateUniquePackagePin(prefix = 'CPG'): Promise<string> {
+    for (let i = 0; i < 20; i++) {
+      const pin = `${prefix}${Math.floor(100000 + Math.random() * 900000)}`;
+      const exists = await this.userModel.exists({ packagePin: pin });
+      if (!exists) return pin;
+    }
+
+    throw new ConflictException('Unable to generate unique package pin');
+  }
+
   private async createUserRecord(input: {
     name: string;
     username?: string;
@@ -35,6 +45,7 @@ export class UsersService {
     const email = input.email.toLowerCase().trim();
     const name = input.name.trim();
     const username = input.username?.trim() || name;
+    const packagePin = input.packagePin.trim();
 
     const createPayload = {
       name,
@@ -45,7 +56,7 @@ export class UsersService {
       membershipTier: input.membershipTier,
       sponsorId: input.sponsorId ?? null,
 
-      packagePin: input.packagePin,
+      packagePin,
       age: input.age ?? null,
       contact: input.contact ?? '',
       address: input.address ?? '',
@@ -62,6 +73,10 @@ export class UsersService {
           throw new ConflictException('Email already in use');
         }
 
+        if (err?.keyPattern?.packagePin) {
+          throw new ConflictException('Package pin already in use');
+        }
+
         if (err?.keyPattern?.referralCode) {
           try {
             const created = await this.userModel.create({
@@ -72,6 +87,9 @@ export class UsersService {
           } catch (e: any) {
             if (e?.code === 11000 && e?.keyPattern?.email) {
               throw new ConflictException('Email already in use');
+            }
+            if (e?.code === 11000 && e?.keyPattern?.packagePin) {
+              throw new ConflictException('Package pin already in use');
             }
             throw e;
           }
@@ -136,16 +154,38 @@ export class UsersService {
     username?: string;
     email: string;
     passwordHash: string;
+    packagePin?: string;
   }): Promise<User> {
-    return this.userModel.create({
-      name: input.name.trim(),
-      username: input.username?.trim() || input.name.trim(),
-      email: input.email.toLowerCase().trim(),
-      passwordHash: input.passwordHash,
-      role: SystemRole.ADMIN,
-      membershipTier: MembershipTier.BRONZE,
-      sponsorId: null,
-    });
+    const packagePin =
+      input.packagePin?.trim() ||
+      (await this.generateUniquePackagePin('ADM'));
+
+    try {
+      return await this.userModel.create({
+        name: input.name.trim(),
+        username: input.username?.trim() || input.name.trim(),
+        email: input.email.toLowerCase().trim(),
+        passwordHash: input.passwordHash,
+        role: SystemRole.ADMIN,
+        membershipTier: MembershipTier.BRONZE,
+        sponsorId: null,
+        packagePin,
+      });
+    } catch (err: any) {
+      if (err?.code === 11000) {
+        if (err?.keyPattern?.email) {
+          throw new ConflictException('Email already in use');
+        }
+
+        if (err?.keyPattern?.packagePin) {
+          throw new ConflictException('Package pin already in use');
+        }
+
+        throw new ConflictException('Duplicate field value');
+      }
+
+      throw err;
+    }
   }
 
   async updateMembershipTier(userId: string, membershipTier: MembershipTier) {
@@ -216,7 +256,7 @@ export class UsersService {
   }
 
   async findByReferralCode(code: string) {
-    return this.userModel.findOne({ referralCode: code }).exec();
+    return this.userModel.findOne({ referralCode: code.trim() }).exec();
   }
 
   async addRefreshSession(params: {
@@ -227,23 +267,30 @@ export class UsersService {
     userAgent?: string;
     ip?: string;
   }) {
-    const user = await this.userModel
-      .findById(params.userId)
-      .select('+refreshSessions')
-      .exec();
+    if (!Types.ObjectId.isValid(params.userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
 
-    if (!user) throw new NotFoundException('User not found');
+    const exists = await this.userModel.exists({ _id: params.userId });
+    if (!exists) {
+      throw new NotFoundException('User not found');
+    }
 
-    (user as any).refreshSessions.push({
-      sid: params.sid,
-      refreshTokenHash: params.refreshTokenHash,
-      createdAt: new Date(),
-      expiresAt: params.expiresAt,
-      userAgent: params.userAgent,
-      ip: params.ip,
-    });
-
-    await user.save();
+    await this.userModel.updateOne(
+      { _id: params.userId },
+      {
+        $push: {
+          refreshSessions: {
+            sid: params.sid,
+            refreshTokenHash: params.refreshTokenHash,
+            createdAt: new Date(),
+            expiresAt: params.expiresAt,
+            userAgent: params.userAgent,
+            ip: params.ip,
+          },
+        },
+      },
+    );
   }
 
   async replaceRefreshSession(params: {
@@ -254,54 +301,77 @@ export class UsersService {
     userAgent?: string;
     ip?: string;
   }) {
-    const user = await this.userModel
-      .findById(params.userId)
-      .select('+refreshSessions')
-      .exec();
+    if (!Types.ObjectId.isValid(params.userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
 
-    if (!user) throw new NotFoundException('User not found');
-
-    const sessions = (user as any).refreshSessions as any[];
-    const idx = sessions.findIndex((s) => s.sid === params.sid);
-
-    if (idx === -1) return false;
-
-    sessions[idx] = {
-      ...sessions[idx],
-      refreshTokenHash: params.newRefreshTokenHash,
-      expiresAt: params.newExpiresAt,
-      userAgent: params.userAgent ?? sessions[idx].userAgent,
-      ip: params.ip ?? sessions[idx].ip,
+    const setPayload: Record<string, any> = {
+      'refreshSessions.$.refreshTokenHash': params.newRefreshTokenHash,
+      'refreshSessions.$.expiresAt': params.newExpiresAt,
     };
 
-    await user.save();
+    if (params.userAgent !== undefined) {
+      setPayload['refreshSessions.$.userAgent'] = params.userAgent;
+    }
+
+    if (params.ip !== undefined) {
+      setPayload['refreshSessions.$.ip'] = params.ip;
+    }
+
+    const result = await this.userModel.updateOne(
+      {
+        _id: params.userId,
+        'refreshSessions.sid': params.sid,
+      },
+      {
+        $set: setPayload,
+      },
+    );
+
+    if (result.matchedCount === 0) {
+      const exists = await this.userModel.exists({ _id: params.userId });
+      if (!exists) {
+        throw new NotFoundException('User not found');
+      }
+      return false;
+    }
+
     return true;
   }
 
   async removeRefreshSession(userId: string, sid: string) {
-    const user = await this.userModel
-      .findById(userId)
-      .select('+refreshSessions')
-      .exec();
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
 
-    if (!user) return;
+    const exists = await this.userModel.exists({ _id: userId });
+    if (!exists) return;
 
-    (user as any).refreshSessions = ((user as any).refreshSessions as any[]).filter(
-      (s) => s.sid !== sid,
+    await this.userModel.updateOne(
+      { _id: userId },
+      {
+        $pull: {
+          refreshSessions: { sid },
+        },
+      },
     );
-
-    await user.save();
   }
 
   async removeAllRefreshSessions(userId: string) {
-    const user = await this.userModel
-      .findById(userId)
-      .select('+refreshSessions')
-      .exec();
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
 
-    if (!user) return;
+    const exists = await this.userModel.exists({ _id: userId });
+    if (!exists) return;
 
-    (user as any).refreshSessions = [];
-    await user.save();
+    await this.userModel.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          refreshSessions: [],
+        },
+      },
+    );
   }
 }
