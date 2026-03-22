@@ -285,6 +285,15 @@ function Genealogy() {
     attachMember(modal.parent, modal.leg, username)
   }
 
+  const handleReset = useCallback(() => {
+    setTreeRoot(originalRoot)
+    setPan({ x: 500, y: 150 })
+    setZoom(1)
+    setSearch('')
+    setSearchResults([])
+    setSelectedMember(null)
+  }, [originalRoot])
+
   const handleSearch = (value: string) => {
     setSearch(value)
 
@@ -566,14 +575,26 @@ function Genealogy() {
       style={{ userSelect: 'none' }}
     >
       <div className="flex-1 overflow-hidden relative">
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-96">
-          <input
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search member..."
-            className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-white shadow-lg focus:outline-none focus:border-indigo-500 transition"
-          />
-          {searchResults.length > 0 && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-md">
+          <div className="flex gap-2">
+            <input
+              value={search}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Search member..."
+              className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg bg-white shadow-lg focus:outline-none focus:border-indigo-500 transition"
+            />
+            <button
+              onClick={handleReset}
+              title="Reset view to root"
+              className="px-4 py-2 bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-semibold rounded-lg shadow-lg transition whitespace-nowrap flex items-center gap-1"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+              Reset
+            </button>
+          </div>          {searchResults.length > 0 && (
             <div className="bg-white shadow-lg rounded-lg mt-2 max-h-60 overflow-auto border border-gray-200">
               {searchResults.map((m) => (
                 <div
