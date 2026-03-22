@@ -36,6 +36,11 @@ export class AdminController {
   createUser(@Body() dto: AdminCreateUserDto) {
     return this.adminService.createUser(dto);
   }
+  // ara all users gaw 
+  @Get('users')
+  findAllUsers() {
+    return this.adminService.findAllUsers();
+  }
 
   @Patch('users/:id/membership-tier')
   updateMembershipTier(

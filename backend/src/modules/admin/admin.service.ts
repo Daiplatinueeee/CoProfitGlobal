@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import {
   MembershipTier,
   SystemRole,
+  UserDocument,
 } from '../users/schemas/user.schema';
 import { UsersService } from '../users/users.service';
 import {
@@ -27,6 +28,7 @@ export class AdminService {
   constructor(
     @InjectModel(ProductPin.name)
     private readonly pinModel: Model<ProductPinDocument>,
+    private readonly userModel: Model<UserDocument>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -74,6 +76,30 @@ export class AdminService {
     createdAt: (created as any).createdAt,
   };
 }
+  
+  async findAllUsers() {
+    const users = await this.userModel
+      .find()
+      .select(
+        '_id name username email role membershipTier referralCode sponsorId packagePin createdAt updatedAt',
+      )
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return users.map((user: any) => ({
+      id: user._id.toString(),
+      name: user.name ?? '',
+      username: user.username ?? '',
+      email: user.email,
+      role: user.role,
+      membershipTier: user.membershipTier,
+      referralCode: user.referralCode ?? null,
+      sponsorId: user.sponsorId ? user.sponsorId.toString() : null,
+      packagePin: user.packagePin ?? null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    }));
+  }
 
   async updateMembershipTier(userId: string, dto: AdminUpdateTierDto) {
     return this.usersService.updateMembershipTier(userId, dto.membershipTier);
