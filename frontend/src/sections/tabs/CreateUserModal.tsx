@@ -1,4 +1,4 @@
-import { X, AlertCircle, ShieldCheck } from "lucide-react";
+import { X, AlertCircle, ShieldCheck, Link2 } from "lucide-react";
 
 interface FormData {
   name: string;
@@ -10,7 +10,8 @@ interface FormData {
   beneficiary: string;
   bday: string;
   password: string;
-  pin: string;
+  packagePin: string;
+  sponsorReferralCode: string;
 }
 
 interface CreateUserModalProps {
@@ -72,7 +73,16 @@ const TIER_MAP: Record<string, AccountTier> = {
   },
 };
 
-/** Derives account tier from a PIN string (case-insensitive prefix match). */
+/**
+ * Validates that a package PIN matches the format: 2 uppercase letters + 4 digits (e.g. AB1234).
+ */
+const PACKAGE_PIN_REGEX = /^[A-Z]{2}\d{4}$/;
+
+function isValidPackagePin(pin: string): boolean {
+  return PACKAGE_PIN_REGEX.test(pin.trim().toUpperCase());
+}
+
+/** Derives account tier from the first 2 letters of the package PIN. */
 function getTierFromPin(pin: string): AccountTier | null {
   const upper = pin.trim().toUpperCase();
   if (upper.startsWith("BR")) return TIER_MAP.BRONZE;
@@ -80,6 +90,18 @@ function getTierFromPin(pin: string): AccountTier | null {
   if (upper.startsWith("GO")) return TIER_MAP.GOLD;
   if (upper.startsWith("PL")) return TIER_MAP.PLATINUM;
   return null;
+}
+
+/**
+ * Masks raw input into AB1234 format:
+ * - First 2 chars: letters only (uppercased)
+ * - Next 4 chars: digits only
+ */
+function maskPackagePin(raw: string): string {
+  const upper = raw.toUpperCase();
+  const letters = upper.slice(0, 2).replace(/[^A-Z]/g, "");
+  const digits = upper.slice(letters.length).replace(/[^0-9]/g, "").slice(0, 4);
+  return letters + digits;
 }
 
 function CreateUserModal({
@@ -93,7 +115,12 @@ function CreateUserModal({
 }: CreateUserModalProps) {
   if (!isOpen) return null;
 
-  const tier = getTierFromPin(formData.pin ?? "");
+  const pin = formData.packagePin ?? "";
+  const tier = isValidPackagePin(pin) ? getTierFromPin(pin) : null;
+
+  // Show a soft preview tier even while typing (before fully valid)
+  const previewTier = pin.length >= 2 ? getTierFromPin(pin) : null;
+  const displayTier = tier ?? previewTier;
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -321,59 +348,65 @@ function CreateUserModal({
             </div>
           </div>
 
-          {/* ── PIN / Account Tier ── full-width below the two columns */}
+          {/* ── Package PIN / Account Tier ── full-width below the two columns */}
           <div className="mt-6 pt-6 border-t border-gray-100">
             <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">
-              Account PIN &amp; Tier
+              Package PIN &amp; Tier
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-              {/* PIN input */}
+              {/* Package PIN input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Referral PIN *
+                  Package PIN *
                 </label>
                 <div className="relative">
                   <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   <input
                     type="text"
-                    value={formData.pin ?? ""}
+                    value={formData.packagePin ?? ""}
                     onChange={(e) =>
-                      setFormData({ ...formData, pin: e.target.value })
+                      setFormData({ ...formData, packagePin: maskPackagePin(e.target.value) })
                     }
                     className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-xl transition-all font-mono tracking-widest ${
-                      formErrors.pin
+                      formErrors.packagePin
                         ? "border-2 border-red-400 bg-red-50 focus:ring-red-100"
-                        : tier
-                        ? `border-2 ${tier.border} ${tier.bg} ${tier.ring}`
+                        : displayTier
+                        ? `border-2 ${displayTier.border} ${displayTier.bg} ${displayTier.ring}`
                         : "border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white"
                     } focus:outline-none focus:ring-1 uppercase`}
-                    placeholder="Enter PIN code"
-                    maxLength={20}
+                    placeholder="AB1234"
+                    maxLength={6}
                   />
                 </div>
-                {formErrors.pin && (
+                {formErrors.packagePin ? (
                   <div className="flex items-center gap-1 mt-2 text-red-600 text-xs">
-                    <AlertCircle className="w-4 h-4" /> {formErrors.pin}
+                    <AlertCircle className="w-4 h-4" /> {formErrors.packagePin}
                   </div>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Format: 2 letters + 4 digits (e.g.&nbsp;<span className="font-mono">BR1234</span>). Determines account tier automatically.
+                  </p>
                 )}
-                <p className="text-xs text-gray-400 mt-1.5">
-                  PIN determines the account tier automatically.
-                </p>
               </div>
 
               {/* Tier badge / legend */}
               <div>
-                {tier ? (
+                {displayTier ? (
                   <div
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 ${tier.border} ${tier.bg} transition-all`}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 ${displayTier.border} ${displayTier.bg} transition-all ${
+                      !tier ? "opacity-60" : ""
+                    }`}
                   >
-                    <span className={`w-3 h-3 rounded-full shrink-0 ${tier.dot}`} />
+                    <span className={`w-3 h-3 rounded-full shrink-0 ${displayTier.dot}`} />
                     <div>
-                      <p className={`text-sm font-semibold ${tier.color}`}>
-                        {tier.label} Account
+                      <p className={`text-sm font-semibold ${displayTier.color}`}>
+                        {displayTier.label} Account
                       </p>
-                      <p className="text-xs text-gray-500">{tier.description}</p>
+                      <p className="text-xs text-gray-500">{displayTier.description}</p>
+                      {!tier && (
+                        <p className="text-xs text-gray-400 italic">Complete PIN to confirm</p>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -392,6 +425,45 @@ function CreateUserModal({
               </div>
             </div>
           </div>
+
+          {/* ── Referral Link ── */}
+          <div className="mt-6 pt-6 border-t border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">
+              Referral
+            </h3>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Referral Link
+                <span className="ml-1.5 text-gray-400 font-normal text-xs">(optional)</span>
+              </label>
+              <div className="relative">
+                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <input
+                  type="url"
+                  value={formData.sponsorReferralCode ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, sponsorReferralCode: e.target.value })
+                  }
+                  className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-xl transition-all ${
+                    formErrors.sponsorReferralCode
+                      ? "border-2 border-red-400 bg-red-50 focus:ring-red-100"
+                      : "border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white"
+                  } focus:outline-none focus:ring-1`}
+                  placeholder="https://example.com/ref/ABC123"
+                />
+              </div>
+              {formErrors.sponsorReferralCode ? (
+                <div className="flex items-center gap-1 mt-2 text-red-600 text-xs">
+                  <AlertCircle className="w-4 h-4" /> {formErrors.sponsorReferralCode}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Paste the referral link of the person who referred this user.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Actions */}
@@ -404,7 +476,7 @@ function CreateUserModal({
           </button>
           <button
             onClick={onSubmit}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl transition-colors shadow-sm"
+            className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-sky-400 hover:bg-sky-500 active:bg-sky-600 rounded-xl transition-colors shadow-sm"
           >
             Create User
           </button>

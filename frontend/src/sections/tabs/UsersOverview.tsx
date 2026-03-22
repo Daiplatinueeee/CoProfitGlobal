@@ -42,6 +42,8 @@ function UsersOverview() {
     beneficiary: '',
     bday: '',
     password: '',
+    packagePin: '',
+    sponsorReferralCode: '',
   });
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -184,6 +186,8 @@ function UsersOverview() {
         beneficiary: '',
         bday: '',
         password: '',
+        packagePin: '',
+        sponsorReferralCode: '',
       });
       setFormErrors({});
       setShowCreateForm(false);
@@ -325,7 +329,7 @@ function UsersOverview() {
           </div>
           <button
             onClick={() => setShowCreateForm(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            className="bg-sky-400 hover:bg-sky-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
             + Add User
           </button>
