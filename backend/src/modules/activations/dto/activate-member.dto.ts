@@ -15,6 +15,10 @@ export class ActivateMemberDto {
   @IsNotEmpty()
   parentUserId: string
 
+  @IsString()
+  @IsNotEmpty()
+  placerUserId: string
+
   @IsEnum(GenealogySide)
   leg: GenealogySide
 

@@ -53,6 +53,7 @@ export class ActivationsService {
       parentUserId: dto.parentUserId,
       leg: dto.leg as GenealogySide,
       username: dto.username,
+      placerUserId: dto.placerUserId,
     })
 
     if (!result.membershipTier) {
