@@ -3,14 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   Home,
   Lock,
-  Network,
   Clock,
   LogOut,
   ChevronLeft,
   FileText,
 } from 'lucide-react';
 
-import Genealogy from '../tabs/Genealogy';
 import GeneratePin from '../tabs/GeneratePin';
 import UsersOverview from '../tabs/UsersOverview';
 
@@ -31,7 +29,6 @@ export default function adminDashboard() {
 
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
-    { id: 'genealogy', label: 'Genealogy', icon: Network },
     { id: 'generate-pin', label: 'Generate PIN', icon: Lock },
     { id: 'users', label: 'Users Overview', icon: FileText },
   ], []);
@@ -122,7 +119,6 @@ export default function adminDashboard() {
 
   const renderTabContent = () => {
     const contents: Record<string, React.ReactElement> = {
-      genealogy: <Genealogy />,
       'generate-pin': <GeneratePin />,
       'users': <UsersOverview />,
     };
