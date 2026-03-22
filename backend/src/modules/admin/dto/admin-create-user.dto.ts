@@ -1,9 +1,14 @@
+import { Type } from 'class-transformer';
 import {
   IsEmail,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
+  Min,
+  Max,
   MinLength,
+  IsDateString,
 } from 'class-validator';
 import {
   MembershipTier,
@@ -28,10 +33,30 @@ export class AdminCreateUserDto {
   password: string;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(150)
+  age?: number;
+
+  @IsString()
+  contact?: string;
+
+  @IsString()
+  address?: string;
+
+  @IsString()
+  beneficiary?: string;
+
+  @IsDateString()
+  birthday?: string;
+
+  @IsString()
+  packagePin: string;
+
   @IsEnum(MembershipTier)
   membershipTier?: MembershipTier;
 
-  @IsOptional()
   @IsEnum(SystemRole)
   role?: SystemRole;
 

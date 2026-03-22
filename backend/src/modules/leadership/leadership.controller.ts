@@ -8,7 +8,7 @@ import { EvaluateLeadershipDto } from './dto/evaluate-leadership.dto';
 @UseGuards(JwtAuthGuard)
 export class LeadershipController {
   constructor(private readonly leadershipService: LeadershipService) {}
-
+  // Every end of the month
   @Post('evaluate')
   evaluate(@Body() dto: EvaluateLeadershipDto) {
     return this.leadershipService.evaluate(dto.userId, dto.monthKey, dto.asOfDateIso);
