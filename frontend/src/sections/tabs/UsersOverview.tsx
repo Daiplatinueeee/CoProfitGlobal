@@ -93,12 +93,6 @@ function UsersOverview() {
     };
   };
 
-  // ─── API calls ────────────────────────────────────────────────────────────
-
-  /**
-   * GET /users  — fetches all users
-   * Fixed: was calling a non-existent route; now targets the correct endpoint.
-   */
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -111,7 +105,7 @@ function UsersOverview() {
         return;
       }
 
-      const response = await fetch(`${API_BASE}/admin/users`, {
+      const response = await fetch(`${API_BASE}/users`, {
         method: 'GET',
         headers: getAuthHeaders(),
       });
@@ -138,17 +132,13 @@ function UsersOverview() {
     }
   };
 
-  /**
-   * POST /admin/users — create a new user via the admin service.
-   * Sends all form fields including profile data.
-   */
   const handleCreateUser = async () => {
     if (!validateForm()) return;
 
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/admin/users`, {
+      const response = await fetch(`${API_BASE}/users`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -200,10 +190,6 @@ function UsersOverview() {
     }
   };
 
-  /**
-   * DELETE /users/:id  — hard-deletes a user
-   * Fixed: was not implemented / calling a non-existent endpoint.
-   */
   const handleDeleteUser = async (userId: string) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
 
@@ -227,10 +213,6 @@ function UsersOverview() {
     }
   };
 
-  /**
-   * PATCH /users/:id/status  — toggles isActive
-   * Fixed: was not implemented / calling a non-existent endpoint.
-   */
   const handleToggleStatus = async (userId: string) => {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
@@ -331,7 +313,7 @@ function UsersOverview() {
             onClick={() => setShowCreateForm(true)}
             className="bg-sky-400 hover:bg-sky-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
-            + Add User
+            Add User
           </button>
         </div>
 
