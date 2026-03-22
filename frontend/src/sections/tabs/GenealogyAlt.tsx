@@ -1,18 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import logo from './../../assets/refs/Logo.webp'
 import MemberDetailsPanel from './MembersDetailPanel'
 import AddMemberModal from './AddMemberModal'
 
 interface Member {
   id: string
+  userId?: string
   username: string
   email: string
   profileImage: string
   referralCode: string
+  membershipTier?: string | null
   leftLegPoints: number
   rightLegPoints: number
-  leftLegMembers?: Member[]
-  rightLegMembers?: Member[]
+  leftChild?: Member
+  rightChild?: Member
   directReferralBonus?: number
   indirectReferralBonus?: number
   spillOverBonus?: number
@@ -24,125 +26,6 @@ interface Member {
   address?: string
   beneficiary?: string
   birthday?: string
-  password?: string
-}
-
-const sampleData: Member = {
-  id: '1',
-  username: 'FOUNDER',
-  email: 'founder@company.com',
-  profileImage: logo,
-  referralCode: 'REF-FOUNDER',
-  leftLegPoints: 0,
-  rightLegPoints: 88,
-  directReferralBonus: 2500,
-  indirectReferralBonus: 1200,
-  spillOverBonus: 800,
-  sign5Bonus: 500,
-  leadershipBonus: 3000,
-  pairingBonus: 450,
-  leftLegMembers: [
-    {
-      id: '2',
-      username: 'COPROFITGLOBALCORP2',
-      email: 'member2@company.com',
-      profileImage: logo,
-      referralCode: 'REF-2',
-      leftLegPoints: 349,
-      rightLegPoints: 0,
-      directReferralBonus: 1200,
-      indirectReferralBonus: 600,
-      spillOverBonus: 400,
-      sign5Bonus: 250,
-      leadershipBonus: 1500,
-      pairingBonus: 350,
-      leftLegMembers: [
-        {
-          id: '4',
-          username: 'COPROFITGLOBALCORP04',
-          email: 'member4@company.com',
-          profileImage: logo,
-          referralCode: 'REF-4',
-          leftLegPoints: 0,
-          rightLegPoints: 41,
-          directReferralBonus: 600,
-          indirectReferralBonus: 300,
-          spillOverBonus: 200,
-          sign5Bonus: 100,
-          leadershipBonus: 750,
-          pairingBonus: 200,
-        },
-      ],
-      rightLegMembers: [
-        {
-          id: '5',
-          username: 'COPROFITGLOBALCORP05',
-          email: 'member5@company.com',
-          profileImage: logo,
-          referralCode: 'REF-5',
-          leftLegPoints: 0,
-          rightLegPoints: 0,
-          directReferralBonus: 400,
-          indirectReferralBonus: 150,
-          spillOverBonus: 100,
-          sign5Bonus: 50,
-          leadershipBonus: 400,
-          pairingBonus: 150,
-        },
-      ],
-    },
-  ],
-  rightLegMembers: [
-    {
-      id: '3',
-      username: 'COPROFITGLOBALCORP3',
-      email: 'member3@company.com',
-      profileImage: logo,
-      referralCode: 'REF-3',
-      leftLegPoints: 0,
-      rightLegPoints: 379,
-      directReferralBonus: 1500,
-      indirectReferralBonus: 800,
-      spillOverBonus: 500,
-      sign5Bonus: 300,
-      leadershipBonus: 2000,
-      pairingBonus: 420,
-      leftLegMembers: [
-        {
-          id: '6',
-          username: 'COPROFITGLOBALCORP06',
-          email: 'member6@company.com',
-          profileImage: logo,
-          referralCode: 'REF-6',
-          leftLegPoints: 0,
-          rightLegPoints: 0,
-          directReferralBonus: 500,
-          indirectReferralBonus: 250,
-          spillOverBonus: 150,
-          sign5Bonus: 75,
-          leadershipBonus: 600,
-          pairingBonus: 180,
-        },
-      ],
-      rightLegMembers: [
-        {
-          id: '7',
-          username: 'COPROFITGLOBALCORP07',
-          email: 'member7@company.com',
-          profileImage: logo,
-          referralCode: 'REF-7',
-          leftLegPoints: 0,
-          rightLegPoints: 379,
-          directReferralBonus: 800,
-          indirectReferralBonus: 400,
-          spillOverBonus: 250,
-          sign5Bonus: 150,
-          leadershipBonus: 1000,
-          pairingBonus: 300,
-        },
-      ],
-    },
-  ],
 }
 
 interface NodePosition {
@@ -150,15 +33,22 @@ interface NodePosition {
   y: number
 }
 
-function Genealogy() {
-  const svgRef = useRef<SVGSVGElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+interface AddMemberFormData {
+  username: string
+}
 
+const API_BASE_URL = 'http://localhost:3000'
+
+function Genealogy() {
   const ACTION_BTN_WIDTH = 110
   const ACTION_BTN_HEIGHT = 36
 
-  const [originalRoot] = useState<Member>(sampleData)
-  const [treeRoot, setTreeRoot] = useState<Member>(sampleData)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  const [originalRoot, setOriginalRoot] = useState<Member | null>(null)
+  const [treeRoot, setTreeRoot] = useState<Member | null>(null)
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
 
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -174,283 +64,320 @@ function Genealogy() {
     leg: 'left' | 'right'
   } | null>(null)
 
-  const [formData, setFormData] = useState({
-    name: '',
-    age: '',
-    contact: '',
-    address: '',
-    email: '',
-    beneficiary: '',
-    birthday: '',
-    password: '',
-    pin: '',
+  const [formData, setFormData] = useState<AddMemberFormData>({
+    username: '',
   })
   const [formError, setFormError] = useState('')
 
   const NODE_WIDTH = 190
   const NODE_HEIGHT = 240
-  const VERTICAL_SPACING = 380
-  const BETWEEN_MEMBER_SPACING = 300 
-  const LEFT_RIGHT_GAP = 500
+  const MIN_HORIZONTAL_SPACING = 280
+  const VERTICAL_SPACING = 320
 
-  const memberMap = new Map<string, Member>()
-  const registerMembers = (member: Member) => {
-    memberMap.set(member.referralCode, member)
-    if (member.leftLegMembers) {
-      member.leftLegMembers.forEach(child => registerMembers(child))
+  const resetModalState = useCallback(() => {
+    setModal(null)
+    setFormData({ username: '' })
+    setFormError('')
+  }, [])
+
+  const extractCurrentUserId = () => {
+    const storedUser = localStorage.getItem('user')
+
+    if (!storedUser) {
+      throw new Error('User not found. Please login first.')
     }
-    if (member.rightLegMembers) {
-      member.rightLegMembers.forEach(child => registerMembers(child))
+
+    try {
+      const userData = JSON.parse(storedUser)
+      return userData.id || userData._id || userData.userId
+    } catch {
+      return storedUser
     }
   }
-  registerMembers(originalRoot)
 
-  const getLeftLegWidth = (member: Member | undefined): number => {
-    if (!member) return 0
-    const leftMembers = member.leftLegMembers || []
-    if (leftMembers.length === 0) return 0
-    const childWidths = leftMembers.map(m => getSubtreeWidth(m))
-    return childWidths.reduce((sum, w) => sum + w, 0) + (leftMembers.length - 1) * BETWEEN_MEMBER_SPACING
-  }
+  const fetchRootTree = useCallback(async (userId: string) => {
+    const response = await fetch(`${API_BASE_URL}/genealogy/root/${userId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
 
-  const getRightLegWidth = (member: Member | undefined): number => {
-    if (!member) return 0
-    const rightMembers = member.rightLegMembers || []
-    if (rightMembers.length === 0) return 0
-    const childWidths = rightMembers.map(m => getSubtreeWidth(m))
-    return childWidths.reduce((sum, w) => sum + w, 0) + (rightMembers.length - 1) * BETWEEN_MEMBER_SPACING
-  }
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to load genealogy tree')
+    }
+
+    return data
+  }, [])
+
+  useEffect(() => {
+    const initializeTree = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const userId = extractCurrentUserId()
+
+        if (!userId) {
+          throw new Error('User ID not found in localStorage')
+        }
+
+        setCurrentUserId(userId)
+
+        const treeData = await fetchRootTree(userId)
+        setOriginalRoot(treeData)
+        setTreeRoot(treeData)
+      } catch (err: any) {
+        setError(err.message || 'Failed to load genealogy tree')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    initializeTree()
+  }, [fetchRootTree])
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        resetModalState()
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [resetModalState])
+
+  const memberMap = useMemo(() => {
+    const map = new Map<string, Member>()
+
+    const registerMembers = (member: Member | null | undefined) => {
+      if (!member) return
+
+      map.set(member.id, member)
+
+      if (member.leftChild) registerMembers(member.leftChild)
+      if (member.rightChild) registerMembers(member.rightChild)
+    }
+
+    registerMembers(originalRoot)
+    return map
+  }, [originalRoot])
+
+  const allMembers = useMemo(() => Array.from(memberMap.values()), [memberMap])
+
   const getSubtreeWidth = (member: Member | undefined): number => {
     if (!member) return NODE_WIDTH
 
-    const leftMembers = member.leftLegMembers || []
-    const rightMembers = member.rightLegMembers || []
+    const leftWidth = getSubtreeWidth(member.leftChild)
+    const rightWidth = getSubtreeWidth(member.rightChild)
 
-    if (leftMembers.length === 0 && rightMembers.length === 0) {
+    if (!member.leftChild && !member.rightChild) {
       return NODE_WIDTH
     }
 
-    const leftWidth = getLeftLegWidth(member)
-    const rightWidth = getRightLegWidth(member)
-    const totalChildrenWidth = leftWidth + rightWidth + (leftWidth > 0 && rightWidth > 0 ? LEFT_RIGHT_GAP : 0)
+    if (member.leftChild && member.rightChild) {
+      return leftWidth + rightWidth + MIN_HORIZONTAL_SPACING
+    }
 
-    return Math.max(NODE_WIDTH, totalChildrenWidth)
+    return Math.max(leftWidth, rightWidth) + MIN_HORIZONTAL_SPACING / 2
   }
 
   const calculatePositions = (
-    member: Member,
+    member: Member | null | undefined,
     x: number,
     y: number,
-    map: Map<string, NodePosition> = new Map()
+    map: Map<string, NodePosition> = new Map(),
   ) => {
+    if (!member) return map
+
     map.set(member.id, { x, y })
 
-    const leftMembers = member.leftLegMembers || []
-    const rightMembers = member.rightLegMembers || []
-
-    if (leftMembers.length === 0 && rightMembers.length === 0) {
+    if (!member.leftChild && !member.rightChild) {
       return map
     }
 
-    if (leftMembers.length > 0) {
-      const leftTotalWidth = getLeftLegWidth(member)
-      let leftStartX = x - leftTotalWidth / 2
+    const leftWidth = getSubtreeWidth(member.leftChild)
+    const rightWidth = getSubtreeWidth(member.rightChild)
 
-      leftMembers.forEach((leftMember) => {
-        const memberWidth = getSubtreeWidth(leftMember)
-        const memberCenterX = leftStartX + memberWidth / 2
-        calculatePositions(leftMember, memberCenterX, y + VERTICAL_SPACING, map)
-        leftStartX += memberWidth + BETWEEN_MEMBER_SPACING
-      })
-    }
+    if (member.leftChild && member.rightChild) {
+      const leftX = x - (rightWidth + MIN_HORIZONTAL_SPACING) / 2
+      const rightX = x + (leftWidth + MIN_HORIZONTAL_SPACING) / 2
 
-    if (rightMembers.length > 0) {
-      const leftWidth = getLeftLegWidth(member)
-      let rightStartX = x + (leftWidth > 0 ? (leftWidth / 2 + LEFT_RIGHT_GAP / 2) : 0)
-
-      rightMembers.forEach((rightMember) => {
-        const memberWidth = getSubtreeWidth(rightMember)
-        const memberCenterX = rightStartX + memberWidth / 2
-        calculatePositions(rightMember, memberCenterX, y + VERTICAL_SPACING, map)
-        rightStartX += memberWidth + BETWEEN_MEMBER_SPACING
-      })
+      calculatePositions(member.leftChild, leftX, y + VERTICAL_SPACING, map)
+      calculatePositions(member.rightChild, rightX, y + VERTICAL_SPACING, map)
+    } else if (member.leftChild) {
+      const leftX = x - MIN_HORIZONTAL_SPACING / 2
+      calculatePositions(member.leftChild, leftX, y + VERTICAL_SPACING, map)
+    } else if (member.rightChild) {
+      const rightX = x + MIN_HORIZONTAL_SPACING / 2
+      calculatePositions(member.rightChild, rightX, y + VERTICAL_SPACING, map)
     }
 
     return map
   }
 
-  const positions = calculatePositions(treeRoot, 0, 0)
+  const positions = useMemo(
+    () => calculatePositions(treeRoot, 0, 0),
+    [treeRoot],
+  )
 
-  const attachMember = (parent: Member, leg: 'left' | 'right', member: Member) => {
-    if (leg === 'left') {
-      if (!parent.leftLegMembers) {
-        parent.leftLegMembers = []
+  const attachMember = async (parent: Member, leg: 'left' | 'right', username: string) => {
+    try {
+      const payload = {
+        parentUserId: parent.userId || parent.id,
+        leg,
+        username: username.trim(),
       }
-      parent.leftLegMembers.push(member)
-    } else {
-      if (!parent.rightLegMembers) {
-        parent.rightLegMembers = []
+
+      const response = await fetch(`${API_BASE_URL}/genealogy/place`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setFormError(data.message || 'Failed to add member')
+        return
       }
-      parent.rightLegMembers.push(member)
+
+      if (currentUserId) {
+        const refreshedTree = await fetchRootTree(currentUserId)
+        setOriginalRoot(refreshedTree)
+        setTreeRoot(refreshedTree)
+      } else {
+        const newMember: Member = {
+          id: data.id || data.userId,
+          userId: data.userId,
+          username: data.username,
+          email: data.email,
+          profileImage: logo,
+          referralCode: data.referralCode,
+          membershipTier: data.membershipTier ?? null,
+          leftLegPoints: data.leftLegPoints || 0,
+          rightLegPoints: data.rightLegPoints || 0,
+          age: data.age,
+          contact: data.contact,
+          address: data.address,
+          beneficiary: data.beneficiary,
+          birthday: data.birthday,
+        }
+
+        if (leg === 'left') {
+          parent.leftChild = newMember
+        } else {
+          parent.rightChild = newMember
+        }
+
+        setTreeRoot(treeRoot ? { ...treeRoot } : null)
+        setOriginalRoot(originalRoot ? { ...originalRoot } : null)
+      }
+
+      resetModalState()
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to add member')
+      console.error('Error adding member:', err)
     }
-    memberMap.set(member.referralCode, member)
-    setTreeRoot({ ...originalRoot })
-    setModal(null)
-    setFormData({
-      name: '',
-      age: '',
-      contact: '',
-      address: '',
-      email: '',
-      beneficiary: '',
-      birthday: '',
-      password: '',
-      pin: '',
-    })
-    setFormError('')
   }
 
-  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleFormChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
     setFormError('')
   }
 
   const addNewMember = () => {
-    if (!formData.name || !formData.email || !formData.pin) {
-      setFormError('Name, Email, and PIN are required')
+    if (!modal) return
+
+    const username = formData.username.trim()
+
+    if (!username) {
+      setFormError('Username is required')
       return
     }
 
-    if (memberMap.has(formData.pin)) {
-      setFormError('This PIN is already registered')
-      return
-    }
-
-    const memberToAdd: Member = {
-      id: Date.now().toString(),
-      username: formData.name,
-      email: formData.email,
-      profileImage: logo,
-      referralCode: formData.pin,
-      leftLegPoints: 0,
-      rightLegPoints: 0,
-      age: formData.age ? parseInt(formData.age) : undefined,
-      contact: formData.contact,
-      address: formData.address,
-      beneficiary: formData.beneficiary,
-      birthday: formData.birthday,
-      password: formData.password,
-    }
-
-    attachMember(modal!.parent, modal!.leg, memberToAdd)
+    attachMember(modal.parent, modal.leg, username)
   }
+
+  const handleReset = useCallback(() => {
+    setTreeRoot(originalRoot)
+    setPan({ x: 500, y: 150 })
+    setZoom(1)
+    setSearch('')
+    setSearchResults([])
+  }, [originalRoot])
 
   const handleSearch = (value: string) => {
     setSearch(value)
-    if (!value) return setSearchResults([])
-    const res: Member[] = []
-    memberMap.forEach((m) => {
-      if (
-        m.username.toLowerCase().includes(value.toLowerCase()) ||
-        m.email.toLowerCase().includes(value.toLowerCase()) ||
-        m.referralCode.toLowerCase().includes(value.toLowerCase())
-      ) {
-        res.push(m)
-      }
+
+    if (!value.trim()) {
+      setSearchResults([])
+      return
+    }
+
+    const keyword = value.toLowerCase()
+
+    const results = allMembers.filter((m) => {
+      return (
+        m.username.toLowerCase().includes(keyword) ||
+        m.email.toLowerCase().includes(keyword) ||
+        m.referralCode.toLowerCase().includes(keyword)
+      )
     })
-    setSearchResults(res)
+
+    setSearchResults(results)
   }
 
-  useEffect(() => {
-    const close = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setModal(null)
-        setFormData({
-          name: '',
-          age: '',
-          contact: '',
-          address: '',
-          email: '',
-          beneficiary: '',
-          birthday: '',
-          password: '',
-          pin: '',
-        })
-        setFormError('')
-      }
-    }
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setModal(null)
-        setFormData({
-          name: '',
-          age: '',
-          contact: '',
-          address: '',
-          email: '',
-          beneficiary: '',
-          birthday: '',
-          password: '',
-          pin: '',
-        })
-        setFormError('')
-      }
-    }
-    window.addEventListener('mousedown', close)
-    window.addEventListener('keydown', handleEscape)
-    return () => {
-      window.removeEventListener('mousedown', close)
-      window.removeEventListener('keydown', handleEscape)
-    }
-  }, [])
+  const renderTree = (member: Member | null | undefined): React.ReactNode[] => {
+    if (!member) return []
 
-  const renderTree = (member: Member): React.ReactNode[] => {
     const pos = positions.get(member.id)
     if (!pos) return []
 
     const elements: React.ReactNode[] = []
 
-    // Render left leg members
-    if (member.leftLegMembers && member.leftLegMembers.length > 0) {
-      member.leftLegMembers.forEach((leftChild) => {
-        const childPos = positions.get(leftChild.id)
-        if (childPos) {
-          elements.push(
-            <line
-              key={`line-${member.id}-left-${leftChild.id}`}
-              x1={pos.x + NODE_WIDTH / 2}
-              y1={pos.y + NODE_HEIGHT}
-              x2={childPos.x + NODE_WIDTH / 2}
-              y2={childPos.y}
-              stroke="rgba(16,185,129,0.25)"
-              strokeWidth="2"
-            />
-          )
-        }
-        elements.push(...renderTree(leftChild))
-      })
+    if (member.leftChild) {
+      const childPos = positions.get(member.leftChild.id)
+      if (childPos) {
+        elements.push(
+          <line
+            key={`line-${member.id}-left`}
+            x1={pos.x + NODE_WIDTH / 2}
+            y1={pos.y + NODE_HEIGHT}
+            x2={childPos.x + NODE_WIDTH / 2}
+            y2={childPos.y}
+            stroke="rgba(16,185,129,0.25)"
+            strokeWidth="2"
+          />,
+        )
+      }
+      elements.push(...renderTree(member.leftChild))
     }
 
-    // Render right leg members
-    if (member.rightLegMembers && member.rightLegMembers.length > 0) {
-      member.rightLegMembers.forEach((rightChild) => {
-        const childPos = positions.get(rightChild.id)
-        if (childPos) {
-          elements.push(
-            <line
-              key={`line-${member.id}-right-${rightChild.id}`}
-              x1={pos.x + NODE_WIDTH / 2}
-              y1={pos.y + NODE_HEIGHT}
-              x2={childPos.x + NODE_WIDTH / 2}
-              y2={childPos.y}
-              stroke="rgba(245,158,11,0.25)"
-              strokeWidth="2"
-            />
-          )
-        }
-        elements.push(...renderTree(rightChild))
-      })
+    if (member.rightChild) {
+      const childPos = positions.get(member.rightChild.id)
+      if (childPos) {
+        elements.push(
+          <line
+            key={`line-${member.id}-right`}
+            x1={pos.x + NODE_WIDTH / 2}
+            y1={pos.y + NODE_HEIGHT}
+            x2={childPos.x + NODE_WIDTH / 2}
+            y2={childPos.y}
+            stroke="rgba(245,158,11,0.25)"
+            strokeWidth="2"
+          />,
+        )
+      }
+      elements.push(...renderTree(member.rightChild))
     }
 
     elements.push(
@@ -469,13 +396,10 @@ function Genealogy() {
           height={NODE_HEIGHT}
           rx="14"
           fill="white"
-          stroke={
-            selectedMember?.id === member.id ? '#7c3aed' : '#e5e7eb'
-          }
+          stroke={selectedMember?.id === member.id ? '#7c3aed' : '#e5e7eb'}
           strokeWidth="2"
         />
 
-        {/* Profile background */}
         <circle
           cx={pos.x + NODE_WIDTH / 2}
           cy={pos.y + 55}
@@ -484,9 +408,8 @@ function Genealogy() {
           stroke="#d1d5db"
         />
 
-        {/* Profile Image */}
         <image
-          href={member.profileImage}
+          href={logo}
           x={pos.x + NODE_WIDTH / 2 - 30}
           y={pos.y + 25}
           width="60"
@@ -527,96 +450,85 @@ function Genealogy() {
           Points ( L {member.leftLegPoints} • R {member.rightLegPoints} )
         </text>
 
-        {/* Bonus Indicators */}
         <g>
           <circle cx={pos.x + 15} cy={pos.y + 15} r="4" fill="#10b981" />
           <circle cx={pos.x + NODE_WIDTH - 15} cy={pos.y + 15} r="4" fill="#f59e0b" />
         </g>
 
-        {/* LEFT BUTTON - Always shown, allowing unlimited members */}
-        <g
-          onClick={(e) => {
-            e.stopPropagation()
-            setModal({ parent: member, leg: 'left' })
-            setFormData({
-              name: '',
-              age: '',
-              contact: '',
-              address: '',
-              email: '',
-              beneficiary: '',
-              birthday: '',
-              password: '',
-              pin: '',
-            })
-            setFormError('')
-          }}
-          style={{ cursor: 'pointer' }}
-        >
-          <rect
-            x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH - 6}
-            y={pos.y + NODE_HEIGHT + 10}
-            width={ACTION_BTN_WIDTH}
-            height={ACTION_BTN_HEIGHT}
-            rx="8"
-            fill="#10b981"
-          />
-
-          <text
-            x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6}
-            y={pos.y + NODE_HEIGHT + 26}
-            textAnchor="middle"
-            fontSize="11"
-            fill="white"
-            fontWeight="600"
+        {!member.leftChild && (
+          <g
+            onClick={(e) => {
+              e.stopPropagation()
+              setModal({ parent: member, leg: 'left' })
+              setFormData({ username: '' })
+              setFormError('')
+            }}
+            style={{ cursor: 'pointer' }}
           >
-            <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="0">Add Left</tspan>
-            <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="12">Member</tspan>
-          </text>
-        </g>
+            <rect
+              x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH - 6}
+              y={pos.y + NODE_HEIGHT + 10}
+              width={ACTION_BTN_WIDTH}
+              height={ACTION_BTN_HEIGHT}
+              rx="8"
+              fill="#10b981"
+            />
 
-        {/* RIGHT BUTTON - Always shown, allowing unlimited members */}
-        <g
-          onClick={(e) => {
-            e.stopPropagation()
-            setModal({ parent: member, leg: 'right' })
-            setFormData({
-              name: '',
-              age: '',
-              contact: '',
-              address: '',
-              email: '',
-              beneficiary: '',
-              birthday: '',
-              password: '',
-              pin: '',
-            })
-            setFormError('')
-          }}
-          style={{ cursor: 'pointer' }}
-        >
-          <rect
-            x={pos.x + NODE_WIDTH / 2 + 6}
-            y={pos.y + NODE_HEIGHT + 10}
-            width={ACTION_BTN_WIDTH}
-            height={ACTION_BTN_HEIGHT}
-            rx="8"
-            fill="#f59e0b"
-          />
+            <text
+              x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6}
+              y={pos.y + NODE_HEIGHT + 26}
+              textAnchor="middle"
+              fontSize="11"
+              fill="white"
+              fontWeight="600"
+            >
+              <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="0">
+                Add Left
+              </tspan>
+              <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="12">
+                Member
+              </tspan>
+            </text>
+          </g>
+        )}
 
-          <text
-            x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6}
-            y={pos.y + NODE_HEIGHT + 26}
-            textAnchor="middle"
-            fontSize="11"
-            fill="white"
-            fontWeight="600"
+        {!member.rightChild && (
+          <g
+            onClick={(e) => {
+              e.stopPropagation()
+              setModal({ parent: member, leg: 'right' })
+              setFormData({ username: '' })
+              setFormError('')
+            }}
+            style={{ cursor: 'pointer' }}
           >
-            <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="0">Add Right</tspan>
-            <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="12">Member</tspan>
-          </text>
-        </g>
-      </g>
+            <rect
+              x={pos.x + NODE_WIDTH / 2 + 6}
+              y={pos.y + NODE_HEIGHT + 10}
+              width={ACTION_BTN_WIDTH}
+              height={ACTION_BTN_HEIGHT}
+              rx="8"
+              fill="#f59e0b"
+            />
+
+            <text
+              x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6}
+              y={pos.y + NODE_HEIGHT + 26}
+              textAnchor="middle"
+              fontSize="11"
+              fill="white"
+              fontWeight="600"
+            >
+              <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="0">
+                Add Right
+              </tspan>
+              <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="12">
+                Member
+              </tspan>
+            </text>
+          </g>
+        )}
+      </g>,
     )
 
     return elements
@@ -644,21 +556,66 @@ function Genealogy() {
     setZoom(newZoom)
   }
 
+  if (loading) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading genealogy tree...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Error: {error}</p>
+          <p className="text-gray-600 text-sm">Please make sure:</p>
+          <ul className="text-gray-600 text-sm mt-2 text-left inline-block">
+            <li>• Your backend server is running on {API_BASE_URL}</li>
+            <li>• You have a valid logged-in user in localStorage</li>
+          </ul>
+        </div>
+      </div>
+    )
+  }
+
+  if (!treeRoot) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-white">
+        <p className="text-gray-600">No genealogy tree found</p>
+      </div>
+    )
+  }
+
   return (
     <div
       className="w-full h-screen overflow-hidden bg-white relative flex"
       style={{ userSelect: 'none' }}
     >
-      {/* MAIN CONTENT */}
       <div className="flex-1 overflow-hidden relative">
-        {/* SEARCH BAR - FIXED */}
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-96">
-          <input
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search member..."
-            className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-white shadow-lg focus:outline-none focus:border-indigo-500 transition"
-          />
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-md">
+          <div className="flex gap-2">
+            <input
+              value={search}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Search member..."
+              className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg bg-white shadow-lg focus:outline-none focus:border-indigo-500 transition"
+            />
+            <button
+              onClick={handleReset}
+              title="Reset view to root"
+              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white font-semibold rounded-lg shadow-lg transition whitespace-nowrap flex items-center gap-1"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+              Reset
+            </button>
+          </div>
           {searchResults.length > 0 && (
             <div className="bg-white shadow-lg rounded-lg mt-2 max-h-60 overflow-auto border border-gray-200">
               {searchResults.map((m) => (
@@ -685,25 +642,10 @@ function Genealogy() {
           formError={formError}
           onFormChange={handleFormChange}
           onAddMember={addNewMember}
-          onClose={() => {
-            setModal(null)
-            setFormData({
-              name: '',
-              age: '',
-              contact: '',
-              address: '',
-              email: '',
-              beneficiary: '',
-              birthday: '',
-              password: '',
-              pin: '',
-            })
-            setFormError('')
-          }}
+          onClose={resetModalState}
         />
 
         <svg
-          ref={svgRef}
           width="100%"
           height="100%"
           className="block cursor-grab active:cursor-grabbing"
