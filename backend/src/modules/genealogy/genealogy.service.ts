@@ -19,8 +19,10 @@ import {
 } from '../users/schemas/user.schema'
 
 import { VolumeService } from '../volume/volume.service'
-import { ProductPin, ProductPinDocument } from '../product-pins/schema/product-pins.schema'
-
+import {
+  ProductPin,
+  ProductPinDocument,
+} from '../product-pins/schema/product-pins.schema'
 
 @Injectable()
 export class GenealogyService {
@@ -46,12 +48,17 @@ export class GenealogyService {
   }
 
   /**
-   * This helper loads all users once, then builds a sponsor tree in memory.
-   * We use sponsorId because sponsorId = who referred the user.
+   * direct referral  = target.sponsorId === rootUserId
+   * indirect referral = rootUserId exists higher in sponsor chain at level 2+
    *
-   * direct referral  = user.sponsorId === rootUserId
-   * indirect referral = rootUserId exists somewhere higher in the sponsor chain
+   * spillover = target is inside root user's genealogy subtree,
+   *             but target was NOT directly sponsored by root user
+   *
+   * Important:
+   * - direct / indirect use sponsorId
+   * - spillover uses genealogy ancestors / placement tree
    */
+  
   private async buildReferralLists(rootUserId: string) {
     if (!this.isValidObjectId(rootUserId)) {
       throw new BadRequestException('Invalid userId')
@@ -64,28 +71,41 @@ export class GenealogyService {
       throw new NotFoundException('User not found')
     }
 
-    // Load users needed for referral traversal
-    const users = await this.userModel
-      .find({}, {
-        name: 1,
-        username: 1,
-        email: 1,
-        role: 1,
-        membershipTier: 1,
-        sponsorId: 1,
-        referralCode: 1,
-        profileImage: 1,
-        leftLegPoints: 1,
-        rightLegPoints: 1,
-        age: 1,
-        contact: 1,
-        address: 1,
-        beneficiary: 1,
-        birthday: 1,
-      })
-      .lean()
+    const [users, downlineNodes] = await Promise.all([
+      this.userModel
+        .find(
+          {},
+          {
+            name: 1,
+            username: 1,
+            email: 1,
+            role: 1,
+            membershipTier: 1,
+            sponsorId: 1,
+            referralCode: 1,
+            profileImage: 1,
+            leftLegPoints: 1,
+            rightLegPoints: 1,
+            age: 1,
+            contact: 1,
+            address: 1,
+            beneficiary: 1,
+            birthday: 1,
+          },
+        )
+        .lean(),
+      this.genealogyModel
+        .find({
+          ancestors: rootObjectId,
+        })
+        .lean(),
+    ])
 
-    // Group users by sponsorId
+    const userMap = new Map<string, any>(
+      users.map((user: any) => [user._id.toString(), user]),
+    )
+
+    // sponsor tree map: sponsorId -> direct sponsored users
     const sponsoredByMap = new Map<string, any[]>()
 
     for (const user of users) {
@@ -101,14 +121,16 @@ export class GenealogyService {
 
     const direct: any[] = []
     const indirect: any[] = []
+    const spillover: any[] = []
     const all: any[] = []
     const visited = new Set<string>()
 
     /**
-     * level = 1 -> direct referral
-     * level >= 2 -> indirect referral
+     * Walk sponsor network only.
+     * level 1 = direct
+     * level 2+ = indirect
      */
-    const walk = (sponsorUserId: string, level: number) => {
+    const walkSponsorTree = (sponsorUserId: string, level: number) => {
       const children = sponsoredByMap.get(sponsorUserId) ?? []
 
       for (const child of children) {
@@ -147,11 +169,61 @@ export class GenealogyService {
           indirect.push(item)
         }
 
-        walk(childId, level + 1)
+        walkSponsorTree(childId, level + 1)
       }
     }
 
-    walk(rootUserId, 1)
+    walkSponsorTree(rootUserId, 1)
+
+    /**
+     * Spillover uses genealogy downline.
+     * If a user is in my genealogy subtree but I did not directly sponsor them,
+     * they count as spillover for me.
+     *
+     * A member can be both:
+     * - indirect referral
+     * - spillover
+     *
+     * because sponsor chain and placement tree are separate concepts.
+     */
+    for (const node of downlineNodes) {
+      const downlineUserId = node.userId.toString()
+      if (downlineUserId === rootUserId) continue
+
+      const user: any = userMap.get(downlineUserId)
+      if (!user) continue
+
+      const sponsorId = user.sponsorId?.toString() ?? null
+
+      // Direct sponsored users are direct referrals, not spillover for root user
+      if (sponsorId === rootUserId) {
+        continue
+      }
+
+      spillover.push({
+        id: downlineUserId,
+        userId: downlineUserId,
+        name: user.name ?? '',
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        membershipTier: user.membershipTier,
+        sponsorId,
+        referralCode: user.referralCode ?? '',
+        profileImage: user.profileImage ?? '',
+        leftLegPoints: user.leftLegPoints ?? 0,
+        rightLegPoints: user.rightLegPoints ?? 0,
+        age: user.age ?? null,
+        contact: user.contact ?? '',
+        address: user.address ?? '',
+        beneficiary: user.beneficiary ?? '',
+        birthday: user.birthday ?? '',
+        parentUserId: node.parentUserId?.toString() ?? null,
+        position: node.position ?? null,
+        depth: node.depth ?? 0,
+        referralType: 'spillover',
+      })
+    }
 
     return {
       rootUser: {
@@ -168,31 +240,32 @@ export class GenealogyService {
       counts: {
         direct: direct.length,
         indirect: indirect.length,
-        total: all.length,
+        spillover: spillover.length,
+        total: all.length, // total sponsor-network referrals only (direct + indirect)
       },
       direct,
       indirect,
+      spillover,
       all,
     }
   }
 
   /**
-   * Get count + full list of referrals
+   * Get count + full list of direct / indirect / spillover
    */
   async getReferralCounts(userId: string) {
     return this.buildReferralLists(userId)
   }
 
   /**
-   * Validate relation between root user and target user.
+   * Relationship meaning:
+   * - direct: target.sponsorId === rootUserId
+   * - indirect: rootUserId found higher in sponsor chain at level 2+
+   * - spillover: target is in root genealogy subtree but target.sponsorId !== rootUserId
    *
-   * direct referral:
-   *   target.sponsorId === rootUserId
-   *
-   * indirect referral:
-   *   target.sponsorId !== rootUserId
-   *   BUT if we keep following sponsorId upward,
-   *   it eventually reaches rootUserId
+   * We return booleans because one user can be both:
+   * - indirect referral
+   * - spillover
    */
   async getReferralRelation(rootUserId: string, targetUserId: string) {
     if (!this.isValidObjectId(rootUserId)) {
@@ -208,59 +281,89 @@ export class GenealogyService {
         rootUserId,
         targetUserId,
         related: false,
-        type: null,
-        level: 0,
+        isDirectReferral: false,
+        isIndirectReferral: false,
+        isSpillover: false,
+        sponsorLevel: 0,
+        sponsorChain: [],
         message: 'A user is not their own referral',
       }
     }
 
-    let current = await this.userModel.findById(targetUserId).lean()
+    const [rootUser, targetUser, targetNode] = await Promise.all([
+      this.userModel.findById(rootUserId).lean(),
+      this.userModel.findById(targetUserId).lean(),
+      this.genealogyModel
+        .findOne({
+          userId: this.toObjectId(targetUserId),
+        })
+        .lean(),
+    ])
 
-    if (!current) {
+    if (!rootUser) {
+      throw new NotFoundException('Root user not found')
+    }
+
+    if (!targetUser) {
       throw new NotFoundException('Target user not found')
     }
 
-    let level = 0
-    const chain: string[] = []
+    let current: any = targetUser
+    let sponsorLevel = 0
+    const sponsorChain: string[] = []
+    let isDirectReferral = false
+    let isIndirectReferral = false
 
     /**
-     * We start from target user and keep moving upward:
-     *
-     * targetUser -> sponsorId -> sponsor's sponsorId -> ...
-     *
-     * If at any step sponsorId === rootUserId,
-     * then the target user belongs to root user's referral network.
-     *
-     * level 1 = direct
-     * level 2+ = indirect
+     * Walk upward through sponsor chain:
+     * target -> sponsor -> sponsor's sponsor -> ...
      */
     while (current?.sponsorId) {
-      level++
+      sponsorLevel++
 
       const sponsorId = current.sponsorId.toString()
-      chain.push(sponsorId)
+      sponsorChain.push(sponsorId)
 
       if (sponsorId === rootUserId) {
-        return {
-          rootUserId,
-          targetUserId,
-          related: true,
-          type: level === 1 ? 'direct' : 'indirect',
-          level,
-          chain,
+        if (sponsorLevel === 1) {
+          isDirectReferral = true
+        } else {
+          isIndirectReferral = true
         }
+        break
       }
 
       current = await this.userModel.findById(sponsorId).lean()
+      if (!current) break
     }
+
+    const isGenealogyDownline = !!targetNode?.ancestors?.some(
+      (ancestorId: any) => ancestorId.toString() === rootUserId,
+    )
+
+    /**
+     * spillover means:
+     * target is in my genealogy subtree,
+     * but I did not directly sponsor target.
+     */
+    const isSpillover =
+      isGenealogyDownline &&
+      targetUser.sponsorId?.toString() !== rootUserId
 
     return {
       rootUserId,
       targetUserId,
-      related: false,
-      type: null,
-      level: 0,
-      chain,
+      related: isDirectReferral || isIndirectReferral || isSpillover,
+      isDirectReferral,
+      isIndirectReferral,
+      isSpillover,
+      sponsorLevel: isDirectReferral || isIndirectReferral ? sponsorLevel : 0,
+      sponsorChain,
+      isGenealogyDownline,
+      sponsorId: targetUser.sponsorId?.toString() ?? null,
+      parentUserId: targetNode?.parentUserId?.toString() ?? null,
+      position: targetNode?.position ?? null,
+      depth: targetNode?.depth ?? 0,
     }
   }
 
@@ -364,97 +467,123 @@ export class GenealogyService {
   }
 
   async placeMember(dto: PlaceMemberDto) {
-  if (!this.isValidObjectId(dto.parentUserId)) {
-    throw new BadRequestException('Invalid parentUserId')
+    if (!this.isValidObjectId(dto.parentUserId)) {
+      throw new BadRequestException('Invalid parentUserId')
+    }
+
+    if (!this.isValidObjectId(dto.placerUserId)) {
+      throw new BadRequestException('Invalid placerUserId')
+    }
+
+    const parentNode = await this.genealogyModel.findOne({
+      userId: this.toObjectId(dto.parentUserId),
+    })
+
+    if (!parentNode) {
+      throw new NotFoundException('Parent genealogy node not found')
+    }
+
+    if (dto.leg === GenealogySide.LEFT && parentNode.leftChildUserId) {
+      throw new BadRequestException('Left leg already occupied')
+    }
+
+    if (dto.leg === GenealogySide.RIGHT && parentNode.rightChildUserId) {
+      throw new BadRequestException('Right leg already occupied')
+    }
+
+    const existingUser = await this.userModel.findOne({
+      username: dto.username.trim(),
+    })
+
+    if (!existingUser) {
+      throw new NotFoundException('User not found')
+    }
+
+    if (existingUser.role !== SystemRole.USER) {
+      throw new BadRequestException('Only normal users can be placed in genealogy')
+    }
+
+    if (!existingUser.membershipTier) {
+      throw new BadRequestException('User has no package tier yet')
+    }
+
+    if (existingUser._id.toString() === dto.parentUserId) {
+      throw new BadRequestException('You cannot place a user under themselves')
+    }
+
+    if (existingUser._id.toString() === dto.placerUserId) {
+      throw new BadRequestException('You cannot place yourself')
+    }
+
+    const placerUser = await this.userModel.findById(dto.placerUserId)
+    if (!placerUser) {
+      throw new NotFoundException('Placer user not found')
+    }
+
+    const existingNode = await this.genealogyModel.findOne({
+      userId: existingUser._id,
+    })
+
+    if (existingNode) {
+      throw new BadRequestException('User is already placed in genealogy')
+    }
+
+    /**
+     * IMPORTANT DISTINCTION
+     * parentUserId = genealogy placement parent
+     * sponsorId    = actual referrer / actual placer
+     *
+     * Example:
+     * Ryan places Illest under Tim
+     * - parentUserId = Tim
+     * - sponsorId    = Ryan
+     *
+     * Result:
+     * - Ryan gets direct referral
+     * - Tim gets spillover
+     */
+    existingUser.sponsorId = placerUser._id
+    await existingUser.save()
+
+    const childNode = await this.genealogyModel.create({
+      userId: existingUser._id,
+      parentUserId: parentNode.userId,
+      position: dto.leg,
+      leftChildUserId: null,
+      rightChildUserId: null,
+      depth: parentNode.depth + 1,
+      ancestors: [...(parentNode.ancestors ?? []), parentNode.userId],
+    })
+
+    if (dto.leg === GenealogySide.LEFT) {
+      parentNode.leftChildUserId = childNode.userId
+    } else {
+      parentNode.rightChildUserId = childNode.userId
+    }
+
+    await parentNode.save()
+    await this.volumeService.awardActivationVolume(existingUser._id.toString())
+
+    return {
+      id: existingUser._id.toString(),
+      userId: existingUser._id.toString(),
+      username: existingUser.username,
+      email: existingUser.email,
+      profileImage: existingUser.profileImage ?? '',
+      referralCode: existingUser.referralCode ?? '',
+      sponsorId: existingUser.sponsorId?.toString() ?? null,
+      membershipTier: existingUser.membershipTier,
+      leftLegPoints: existingUser.leftLegPoints ?? 0,
+      rightLegPoints: existingUser.rightLegPoints ?? 0,
+      age: existingUser.age,
+      contact: existingUser.contact,
+      address: existingUser.address,
+      beneficiary: existingUser.beneficiary,
+      birthday: existingUser.birthday,
+      parentUserId: parentNode.userId.toString(),
+      leg: dto.leg,
+    }
   }
-
-  const parentNode = await this.genealogyModel.findOne({
-    userId: this.toObjectId(dto.parentUserId),
-  })
-
-  if (!parentNode) {
-    throw new NotFoundException('Parent genealogy node not found')
-  }
-
-  if (dto.leg === GenealogySide.LEFT && parentNode.leftChildUserId) {
-    throw new BadRequestException('Left leg already occupied')
-  }
-
-  if (dto.leg === GenealogySide.RIGHT && parentNode.rightChildUserId) {
-    throw new BadRequestException('Right leg already occupied')
-  }
-
-  const existingUser = await this.userModel.findOne({
-    username: dto.username.trim(),
-  })
-
-  if (!existingUser) {
-    throw new NotFoundException('User not found')
-  }
-
-  if (existingUser.role !== SystemRole.USER) {
-    throw new BadRequestException('Only normal users can be placed in genealogy')
-  }
-
-  if (!existingUser.membershipTier) {
-    throw new BadRequestException('User has no package tier yet')
-  }
-
-  if (existingUser._id.toString() === dto.parentUserId) {
-    throw new BadRequestException('You cannot place a user under themselves')
-  }
-
-  const existingNode = await this.genealogyModel.findOne({
-    userId: existingUser._id,
-  })
-
-  if (existingNode) {
-    throw new BadRequestException('User is already placed in genealogy')
-  }
-
-  // set sponsor/referrer = placer
-  existingUser.sponsorId = parentNode.userId
-  await existingUser.save()
-
-  const childNode = await this.genealogyModel.create({
-    userId: existingUser._id,
-    parentUserId: parentNode.userId,
-    position: dto.leg,
-    leftChildUserId: null,
-    rightChildUserId: null,
-    depth: parentNode.depth + 1,
-    ancestors: [...(parentNode.ancestors ?? []), parentNode.userId],
-  })
-
-  if (dto.leg === GenealogySide.LEFT) {
-    parentNode.leftChildUserId = childNode.userId
-  } else {
-    parentNode.rightChildUserId = childNode.userId
-  }
-
-  await parentNode.save()
-  await this.volumeService.awardActivationVolume(existingUser._id.toString())
-
-  return {
-    id: existingUser._id.toString(),
-    userId: existingUser._id.toString(),
-    username: existingUser.username,
-    email: existingUser.email,
-    profileImage: existingUser.profileImage ?? '',
-    referralCode: existingUser.referralCode ?? '',
-    sponsorId: existingUser.sponsorId?.toString() ?? null,
-    membershipTier: existingUser.membershipTier,
-    leftLegPoints: existingUser.leftLegPoints ?? 0,
-    rightLegPoints: existingUser.rightLegPoints ?? 0,
-    age: existingUser.age,
-    contact: existingUser.contact,
-    address: existingUser.address,
-    beneficiary: existingUser.beneficiary,
-    birthday: existingUser.birthday,
-    parentUserId: parentNode.userId.toString(),
-    leg: dto.leg,
-  }
-}
 
   async getChildren(userId: string) {
     if (!this.isValidObjectId(userId)) {

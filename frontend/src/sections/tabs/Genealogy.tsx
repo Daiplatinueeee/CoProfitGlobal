@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import logo from './../../assets/refs/Logo.webp'
-import MemberDetailsPanel from './MembersDetailPanel'
+import MemberDetailsPanel from './membersDetailPanel'
 import AddMemberModal from './AddMemberModal'
 
 interface Member {
@@ -62,7 +62,6 @@ function Genealogy() {
   const [modal, setModal] = useState<{
     parent: Member
     leg: 'left' | 'right'
-    isDirectSlot?: boolean
   } | null>(null)
 
   const [formData, setFormData] = useState<AddMemberFormData>({
@@ -225,68 +224,45 @@ function Genealogy() {
     [treeRoot],
   )
 
-  const attachMember = async (parent: Member, leg: 'left' | 'right', username: string, isDirectSlot?: boolean) => {
-    try {
-      const payload = {
-        parentUserId: parent.userId || parent.id,
-        leg,
-        username: username.trim(),
-        ...(isDirectSlot ? { placementMode: 'directSlot' } : {}),
-      }
-
-      const response = await fetch(`${API_BASE_URL}/genealogy/place`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setFormError(data.message || 'Failed to add member')
-        return
-      }
-
-      if (currentUserId) {
-        const refreshedTree = await fetchRootTree(currentUserId)
-        setOriginalRoot(refreshedTree)
-        setTreeRoot(refreshedTree)
-      } else {
-        const newMember: Member = {
-          id: data.id || data.userId,
-          userId: data.userId,
-          username: data.username,
-          email: data.email,
-          profileImage: logo,
-          referralCode: data.referralCode,
-          membershipTier: data.membershipTier ?? null,
-          leftLegPoints: data.leftLegPoints || 0,
-          rightLegPoints: data.rightLegPoints || 0,
-          age: data.age,
-          contact: data.contact,
-          address: data.address,
-          beneficiary: data.beneficiary,
-          birthday: data.birthday,
-        }
-
-        if (leg === 'left') {
-          parent.leftChild = newMember
-        } else {
-          parent.rightChild = newMember
-        }
-
-        setTreeRoot(treeRoot ? { ...treeRoot } : null)
-        setOriginalRoot(originalRoot ? { ...originalRoot } : null)
-      }
-
-      resetModalState()
-    } catch (err: any) {
-      setFormError(err.message || 'Failed to add member')
-      console.error('Error adding member:', err)
+ const attachMember = async (parent: Member, leg: 'left' | 'right', username: string) => {
+  try {
+    if (!currentUserId) {
+      setFormError('Logged-in user not found')
+      return
     }
+
+    const payload = {
+      parentUserId: parent.userId || parent.id,
+      leg,
+      username: username.trim(),
+      placerUserId: currentUserId,
+    }
+
+    const response = await fetch(`${API_BASE_URL}/genealogy/place`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      setFormError(data.message || 'Failed to add member')
+      return
+    }
+
+    const refreshedTree = await fetchRootTree(currentUserId)
+    setOriginalRoot(refreshedTree)
+    setTreeRoot(refreshedTree)
+
+    resetModalState()
+  } catch (err: any) {
+    setFormError(err.message || 'Failed to add member')
+    console.error('Error adding member:', err)
   }
+}
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -306,16 +282,8 @@ function Genealogy() {
       return
     }
 
-    attachMember(modal.parent, modal.leg, username, modal.isDirectSlot)
+    attachMember(modal.parent, modal.leg, username)
   }
-
-  const handleReset = useCallback(() => {
-    setTreeRoot(originalRoot)
-    setPan({ x: 500, y: 150 })
-    setZoom(1)
-    setSearch('')
-    setSearchResults([])
-  }, [originalRoot])
 
   const handleSearch = (value: string) => {
     setSearch(value)
@@ -411,7 +379,7 @@ function Genealogy() {
         />
 
         <image
-          href={logo}
+          href={member.profileImage || logo}
           x={pos.x + NODE_WIDTH / 2 - 30}
           y={pos.y + 25}
           width="60"
@@ -457,12 +425,11 @@ function Genealogy() {
           <circle cx={pos.x + NODE_WIDTH - 15} cy={pos.y + 15} r="4" fill="#f59e0b" />
         </g>
 
-        {/* Add Left Member button — always visible on root, otherwise only when no left child */}
-        {(!member.leftChild || member.id === originalRoot?.id) && (
+        {!member.leftChild && (
           <g
             onClick={(e) => {
               e.stopPropagation()
-              setModal({ parent: member, leg: 'left', isDirectSlot: member.id === originalRoot?.id && !!member.leftChild })
+              setModal({ parent: member, leg: 'left' })
               setFormData({ username: '' })
               setFormError('')
             }}
@@ -486,21 +453,20 @@ function Genealogy() {
               fontWeight="600"
             >
               <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="0">
-                {member.id === originalRoot?.id && member.leftChild ? '+ Left Slot' : 'Add Left'}
+                Add Left
               </tspan>
               <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="12">
-                {member.id === originalRoot?.id && member.leftChild ? 'Member' : 'Member'}
+                Member
               </tspan>
             </text>
           </g>
         )}
 
-        {/* Add Right Member button — always visible on root, otherwise only when no right child */}
-        {(!member.rightChild || member.id === originalRoot?.id) && (
+        {!member.rightChild && (
           <g
             onClick={(e) => {
               e.stopPropagation()
-              setModal({ parent: member, leg: 'right', isDirectSlot: member.id === originalRoot?.id && !!member.rightChild })
+              setModal({ parent: member, leg: 'right' })
               setFormData({ username: '' })
               setFormError('')
             }}
@@ -524,10 +490,10 @@ function Genealogy() {
               fontWeight="600"
             >
               <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="0">
-                {member.id === originalRoot?.id && member.rightChild ? '+ Right Slot' : 'Add Right'}
+                Add Right
               </tspan>
               <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="12">
-                {member.id === originalRoot?.id && member.rightChild ? 'Member' : 'Member'}
+                Member
               </tspan>
             </text>
           </g>
@@ -600,26 +566,13 @@ function Genealogy() {
       style={{ userSelect: 'none' }}
     >
       <div className="flex-1 overflow-hidden relative">
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-md">
-          <div className="flex gap-2">
-            <input
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search member..."
-              className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg bg-white shadow-lg focus:outline-none focus:border-indigo-500 transition"
-            />
-            <button
-              onClick={handleReset}
-              title="Reset view to root"
-              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white font-semibold rounded-lg shadow-lg transition whitespace-nowrap flex items-center gap-1"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                <path d="M3 3v5h5" />
-              </svg>
-              Reset
-            </button>
-          </div>
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-96">
+          <input
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Search member..."
+            className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-white shadow-lg focus:outline-none focus:border-indigo-500 transition"
+          />
           {searchResults.length > 0 && (
             <div className="bg-white shadow-lg rounded-lg mt-2 max-h-60 overflow-auto border border-gray-200">
               {searchResults.map((m) => (

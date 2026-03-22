@@ -1,15 +1,17 @@
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator'
+import { IsEnum, IsMongoId, IsString } from 'class-validator'
 import { GenealogySide } from '../schema/genealogy-node.schema'
 
 export class PlaceMemberDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsMongoId()
   parentUserId: string
 
   @IsEnum(GenealogySide)
   leg: GenealogySide
 
   @IsString()
-  @IsNotEmpty()
   username: string
+
+  // actual logged-in user who clicked add/place member
+  @IsMongoId()
+  placerUserId: string
 }
