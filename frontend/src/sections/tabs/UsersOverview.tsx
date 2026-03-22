@@ -151,14 +151,14 @@ function UsersOverview() {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           name: formData.name,
-          username: formData.username,
+          username: formData.username || undefined,
           email: formData.email,
           password: formData.password,
-          age: formData.age ? parseInt(formData.age) : undefined,
-          contact: formData.contact,
-          address: formData.address,
-          beneficiary: formData.beneficiary,
-          birthday: formData.bday,
+          ...(formData.age ? { age: parseInt(formData.age, 10) } : {}),
+          ...(formData.contact ? { contact: formData.contact } : {}),
+          ...(formData.address ? { address: formData.address } : {}),
+          ...(formData.beneficiary ? { beneficiary: formData.beneficiary } : {}),
+          ...(formData.bday ? { birthday: formData.bday } : {}),
         }),
       });
 
