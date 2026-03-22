@@ -25,6 +25,12 @@ export class UsersService {
     role: SystemRole;
     membershipTier: MembershipTier;
     sponsorId?: Types.ObjectId | null;
+    packagePin: string;
+    age?: number;
+    contact?: string;
+    address?: string;
+    beneficiary?: string;
+    birthday?: string;
   }): Promise<User> {
     const email = input.email.toLowerCase().trim();
     const name = input.name.trim();
@@ -38,6 +44,13 @@ export class UsersService {
       role: input.role,
       membershipTier: input.membershipTier,
       sponsorId: input.sponsorId ?? null,
+
+      packagePin: input.packagePin,
+      age: input.age ?? null,
+      contact: input.contact ?? '',
+      address: input.address ?? '',
+      beneficiary: input.beneficiary ?? '',
+      birthday: input.birthday ?? '',
     };
 
     try {
@@ -79,6 +92,12 @@ export class UsersService {
     role?: SystemRole;
     membershipTier?: MembershipTier;
     sponsorReferralCode?: string;
+    packagePin: string;
+    age?: number;
+    contact?: string;
+    address?: string;
+    beneficiary?: string;
+    birthday?: string;
   }): Promise<User> {
     let sponsorId: Types.ObjectId | null = null;
 
@@ -102,6 +121,13 @@ export class UsersService {
       role: input.role ?? SystemRole.USER,
       membershipTier: input.membershipTier ?? MembershipTier.BRONZE,
       sponsorId,
+
+      packagePin: input.packagePin,
+      age: input.age,
+      contact: input.contact,
+      address: input.address,
+      beneficiary: input.beneficiary,
+      birthday: input.birthday,
     });
   }
 
@@ -111,10 +137,10 @@ export class UsersService {
     email: string;
     passwordHash: string;
   }): Promise<User> {
-    return this.createUserRecord({
-      name: input.name,
-      username: input.username,
-      email: input.email,
+    return this.userModel.create({
+      name: input.name.trim(),
+      username: input.username?.trim() || input.name.trim(),
+      email: input.email.toLowerCase().trim(),
       passwordHash: input.passwordHash,
       role: SystemRole.ADMIN,
       membershipTier: MembershipTier.BRONZE,
@@ -140,6 +166,12 @@ export class UsersService {
           membershipTier: 1,
           referralCode: 1,
           sponsorId: 1,
+          packagePin: 1,
+          age: 1,
+          contact: 1,
+          address: 1,
+          beneficiary: 1,
+          birthday: 1,
         },
       },
     );
@@ -157,6 +189,12 @@ export class UsersService {
       membershipTier: updated.membershipTier,
       referralCode: updated.referralCode,
       sponsorId: updated.sponsorId ? updated.sponsorId.toString() : null,
+      packagePin: (updated as any).packagePin,
+      age: (updated as any).age,
+      contact: (updated as any).contact,
+      address: (updated as any).address,
+      beneficiary: (updated as any).beneficiary,
+      birthday: (updated as any).birthday,
     };
   }
 
@@ -225,6 +263,7 @@ export class UsersService {
 
     const sessions = (user as any).refreshSessions as any[];
     const idx = sessions.findIndex((s) => s.sid === params.sid);
+
     if (idx === -1) return false;
 
     sessions[idx] = {

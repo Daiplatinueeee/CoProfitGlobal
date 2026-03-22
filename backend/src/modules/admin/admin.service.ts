@@ -35,30 +35,45 @@ export class AdminService {
   }
 
   async createUser(dto: AdminCreateUserDto) {
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+  const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    const created = await this.usersService.createUser({
-      name: dto.name,
-      username: dto.username,
-      email: dto.email,
-      passwordHash,
-      role: dto.role ?? SystemRole.USER,
-      membershipTier: dto.membershipTier ?? MembershipTier.BRONZE,
-      sponsorReferralCode: dto.sponsorReferralCode,
-    });
+  const created = await this.usersService.createUser({
+    name: dto.name,
+    username: dto.username,
+    email: dto.email,
+    passwordHash,
+    role: dto.role ?? SystemRole.USER,
+    membershipTier: dto.membershipTier ?? MembershipTier.BRONZE,
+    sponsorReferralCode: dto.sponsorReferralCode,
 
-    return {
-      id: (created as any)._id.toString(),
-      name: created.name,
-      username: created.username,
-      email: created.email,
-      role: created.role,
-      membershipTier: created.membershipTier,
-      referralCode: created.referralCode,
-      sponsorId: created.sponsorId ? created.sponsorId.toString() : null,
-      createdAt: (created as any).createdAt,
-    };
-  }
+    packagePin: dto.packagePin,
+    age: dto.age,
+    contact: dto.contact,
+    address: dto.address,
+    beneficiary: dto.beneficiary,
+    birthday: dto.birthday,
+  });
+
+  return {
+    id: (created as any)._id.toString(),
+    name: created.name,
+    username: created.username,
+    email: created.email,
+    role: created.role,
+    membershipTier: created.membershipTier,
+    referralCode: created.referralCode,
+    sponsorId: created.sponsorId ? created.sponsorId.toString() : null,
+
+    packagePin: created.packagePin,
+    age: created.age,
+    contact: created.contact,
+    address: created.address,
+    beneficiary: created.beneficiary,
+    birthday: created.birthday,
+
+    createdAt: (created as any).createdAt,
+  };
+}
 
   async updateMembershipTier(userId: string, dto: AdminUpdateTierDto) {
     return this.usersService.updateMembershipTier(userId, dto.membershipTier);

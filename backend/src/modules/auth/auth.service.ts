@@ -126,6 +126,7 @@ export class AuthService {
       name: input.name.trim(),
       email,
       passwordHash,
+      packagePin: ''
     });
 
     const { refresh_token } = await this.issueRefreshSession(user as any, meta);

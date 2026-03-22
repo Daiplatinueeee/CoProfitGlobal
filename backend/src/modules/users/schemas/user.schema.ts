@@ -88,6 +88,9 @@ export class User {
   @Prop({ type: Number, default: 0 })
   rightLegPoints: number;
 
+  @Prop({ required: true })
+  packagePin: string;
+  
   @Prop({ type: Number, default: null })
   age?: number | null;
 
