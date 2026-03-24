@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import {
   MembershipTier,
   SystemRole,
+  UserDocument,
 } from '../users/schemas/user.schema';
 import { UsersService } from '../users/users.service';
 import {
@@ -27,6 +28,7 @@ export class AdminService {
   constructor(
     @InjectModel(ProductPin.name)
     private readonly pinModel: Model<ProductPinDocument>,
+    private readonly userModel: Model<UserDocument>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -47,6 +49,7 @@ export class AdminService {
       sponsorReferralCode: dto.sponsorReferralCode,
     });
 
+<<<<<<< HEAD
     return {
       id: (created as any)._id.toString(),
       name: created.name,
@@ -58,6 +61,59 @@ export class AdminService {
       sponsorId: created.sponsorId ? created.sponsorId.toString() : null,
       createdAt: (created as any).createdAt,
     };
+=======
+    packagePin: dto.packagePin,
+    age: dto.age,
+    contact: dto.contact,
+    address: dto.address,
+    beneficiary: dto.beneficiary,
+    birthday: dto.birthday,
+  });
+
+  return {
+    id: (created as any)._id.toString(),
+    name: created.name,
+    username: created.username,
+    email: created.email,
+    role: created.role,
+    membershipTier: created.membershipTier,
+    referralCode: created.referralCode,
+    sponsorId: created.sponsorId ? created.sponsorId.toString() : null,
+
+    packagePin: created.packagePin,
+    age: created.age,
+    contact: created.contact,
+    address: created.address,
+    beneficiary: created.beneficiary,
+    birthday: created.birthday,
+
+    createdAt: (created as any).createdAt,
+  };
+}
+  
+  async findAllUsers() {
+    const users = await this.userModel
+      .find()
+      .select(
+        '_id name username email role membershipTier referralCode sponsorId packagePin createdAt updatedAt',
+      )
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return users.map((user: any) => ({
+      id: user._id.toString(),
+      name: user.name ?? '',
+      username: user.username ?? '',
+      email: user.email,
+      role: user.role,
+      membershipTier: user.membershipTier,
+      referralCode: user.referralCode ?? null,
+      sponsorId: user.sponsorId ? user.sponsorId.toString() : null,
+      packagePin: user.packagePin ?? null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    }));
+>>>>>>> 5fdb3a07b8ac46a7a28e8e827cc64d61aafc4b91
   }
 
   async updateMembershipTier(userId: string, dto: AdminUpdateTierDto) {
