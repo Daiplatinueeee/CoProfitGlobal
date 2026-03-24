@@ -10,7 +10,6 @@ import * as bcrypt from 'bcrypt';
 import {
   MembershipTier,
   SystemRole,
-  UserDocument,
 } from '../users/schemas/user.schema';
 import { UsersService } from '../users/users.service';
 import {
@@ -28,7 +27,6 @@ export class AdminService {
   constructor(
     @InjectModel(ProductPin.name)
     private readonly pinModel: Model<ProductPinDocument>,
-    private readonly userModel: Model<UserDocument>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -90,6 +88,7 @@ export class AdminService {
     createdAt: (created as any).createdAt,
   };
 }
+<<<<<<< HEAD
   
   async findAllUsers() {
     const users = await this.userModel
@@ -115,6 +114,8 @@ export class AdminService {
     }));
 >>>>>>> 5fdb3a07b8ac46a7a28e8e827cc64d61aafc4b91
   }
+=======
+>>>>>>> parent of 5fdb3a0 ([ backend ] added a function that will add all the users)
 
   async updateMembershipTier(userId: string, dto: AdminUpdateTierDto) {
     return this.usersService.updateMembershipTier(userId, dto.membershipTier);
