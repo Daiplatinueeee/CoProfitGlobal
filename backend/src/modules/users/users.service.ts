@@ -35,7 +35,7 @@ export class UsersService {
     role: SystemRole;
     membershipTier: MembershipTier;
     sponsorId?: Types.ObjectId | null;
-    packagePin: string;
+    packagePin?: string;
     age?: number;
     contact?: string;
     address?: string;
@@ -45,7 +45,7 @@ export class UsersService {
     const email = input.email.toLowerCase().trim();
     const name = input.name.trim();
     const username = input.username?.trim() || name;
-    const packagePin = input.packagePin.trim();
+    const packagePin = (input.packagePin ?? '').trim();
 
     const createPayload = {
       name,
@@ -110,7 +110,7 @@ export class UsersService {
     role?: SystemRole;
     membershipTier?: MembershipTier;
     sponsorReferralCode?: string;
-    packagePin: string;
+    packagePin?: string;  // optional — auto-generated if not supplied
     age?: number;
     contact?: string;
     address?: string;
@@ -140,7 +140,7 @@ export class UsersService {
       membershipTier: input.membershipTier ?? MembershipTier.BRONZE,
       sponsorId,
 
-      packagePin: input.packagePin,
+      packagePin: input.packagePin?.trim() || (await this.generateUniquePackagePin('CPG')),
       age: input.age,
       contact: input.contact,
       address: input.address,

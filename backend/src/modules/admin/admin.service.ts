@@ -39,46 +39,46 @@ export class AdminService {
   }
 
   async createUser(dto: AdminCreateUserDto) {
-  const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await bcrypt.hash(dto.password, 10);
 
-  const created = await this.usersService.createUser({
-    name: dto.name,
-    username: dto.username,
-    email: dto.email,
-    passwordHash,
-    role: dto.role ?? SystemRole.USER,
-    membershipTier: dto.membershipTier ?? MembershipTier.BRONZE,
-    sponsorReferralCode: dto.sponsorReferralCode,
+    const created = await this.usersService.createUser({
+      name: dto.name,
+      username: dto.username,
+      email: dto.email,
+      passwordHash,
+      role: dto.role ?? SystemRole.USER,
+      membershipTier: dto.membershipTier ?? MembershipTier.BRONZE,
+      sponsorReferralCode: dto.sponsorReferralCode,
 
-    packagePin: dto.packagePin,
-    age: dto.age,
-    contact: dto.contact,
-    address: dto.address,
-    beneficiary: dto.beneficiary,
-    birthday: dto.birthday,
-  });
+      packagePin: dto.packagePin,
+      age: dto.age,
+      contact: dto.contact,
+      address: dto.address,
+      beneficiary: dto.beneficiary,
+      birthday: dto.birthday,
+    });
 
-  return {
-    id: (created as any)._id.toString(),
-    name: created.name,
-    username: created.username,
-    email: created.email,
-    role: created.role,
-    membershipTier: created.membershipTier,
-    referralCode: created.referralCode,
-    sponsorId: created.sponsorId ? created.sponsorId.toString() : null,
+    return {
+      id: (created as any)._id.toString(),
+      name: created.name,
+      username: created.username,
+      email: created.email,
+      role: created.role,
+      membershipTier: created.membershipTier,
+      referralCode: created.referralCode,
+      sponsorId: created.sponsorId ? created.sponsorId.toString() : null,
 
-    packagePin: created.packagePin,
-    age: created.age,
-    contact: created.contact,
-    address: created.address,
-    beneficiary: created.beneficiary,
-    birthday: created.birthday,
+      packagePin: created.packagePin,
+      age: created.age,
+      contact: created.contact,
+      address: created.address,
+      beneficiary: created.beneficiary,
+      birthday: created.birthday,
 
-    createdAt: (created as any).createdAt,
-  };
-}
-  
+      createdAt: (created as any).createdAt,
+    };
+  }
+
   async findAllUsers() {
     const users = await this.userModel
       .find()
@@ -120,30 +120,46 @@ export class AdminService {
       throw new BadRequestException('Invalid adminId');
     }
 
+    const adminObjId = new Types.ObjectId(adminId);
     const pins: string[] = [];
 
     for (let i = 0; i < dto.quantity; i++) {
-      let attempts = 0;
+      let inserted = false;
 
-      while (attempts < 10) {
-        attempts++;
-
+      for (let attempt = 0; attempt < 10; attempt++) {
         const pin = this.generatePinRaw();
 
         try {
-          await this.pinModel.create({
+          // ✅ Use insertMany with { rawResult: false } — this writes directly
+          // to MongoDB and intentionally bypasses ALL Mongoose pre/post 'save'
+          // middleware (including any stale hooks in compiled dist/ files).
+          // This guarantees the pin is stored as plain text, e.g. "AB1234".
+          await this.pinModel.collection.insertOne({
             pin,
             tier: dto.tier,
             status: PinStatus.UNUSED,
-            createdByAdminId: new Types.ObjectId(adminId),
+            createdByAdminId: adminObjId,
+            note: '',
+            usedByUserId: null,
+            usedAt: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           });
 
           pins.push(pin);
+          inserted = true;
           break;
         } catch (e: any) {
+          // 11000 = duplicate key — try a new pin
           if (e?.code === 11000) continue;
           throw e;
         }
+      }
+
+      if (!inserted) {
+        throw new BadRequestException(
+          'Could not generate a unique PIN after 10 attempts',
+        );
       }
     }
 
@@ -194,12 +210,16 @@ export class AdminService {
       throw new BadRequestException('Cannot void a USED pin');
     }
 
-    pin.status = PinStatus.VOID;
-    await pin.save();
+    // ✅ Use updateOne instead of pin.save() to avoid triggering
+    // any pre('save') middleware that could tamper with field values.
+    await this.pinModel.updateOne(
+      { _id: pin._id },
+      { $set: { status: PinStatus.VOID, updatedAt: new Date() } },
+    );
 
     return {
       id: pin._id.toString(),
-      status: pin.status,
+      status: PinStatus.VOID,
     };
   }
 }

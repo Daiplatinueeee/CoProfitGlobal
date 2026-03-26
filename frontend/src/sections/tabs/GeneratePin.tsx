@@ -16,11 +16,26 @@ interface PIN {
 
 type Tier = 'bronze' | 'silver' | 'gold' | 'platinum';
 
+/**
+ * Map an API pin record to the local PIN shape.
+ *
+ * The backend stores pins as plain text in the `pin` field (e.g. "AB1234").
+ * Old documents that were accidentally saved with a `pinHash` field will show
+ * "[hashed]" so admins know those records need to be regenerated/voided.
+ */
 function mapApiPin(r: any): PIN {
   const createdDate = r.createdAt ? new Date(r.createdAt) : new Date();
+
+  // `r.pin` is the correct plain-text field from the schema.
+  // Guard against legacy records that may have only `pinHash` stored.
+  const resolvedPin: string =
+    r.pin && !r.pin.startsWith('$2') // bcrypt hashes always start with $2
+      ? r.pin
+      : '[hashed — void & regenerate]';
+
   return {
     id: r.id,
-    pin: r.pin ?? '••••',
+    pin: resolvedPin,
     tier: r.tier as Tier,
     createdAt: createdDate.toISOString().split('T')[0],
     createdTime: createdDate.toLocaleTimeString('en-US', {
@@ -44,8 +59,6 @@ function GeneratePin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [visiblePins, setVisiblePins] = useState<Set<string>>(new Set());
-  // Permanent store of raw pin values — never cleared by re-fetches
-  const rawPinStore = useState<Map<string, string>>(() => new Map())[0];
 
   const togglePinVisibility = (id: string) => {
     setVisiblePins((prev) => {
@@ -70,17 +83,11 @@ function GeneratePin() {
       });
       if (!res.ok) throw new Error(`Failed to load pins (${res.status})`);
       const data: any[] = await res.json();
-      setPins(
-        data.map((r) => ({
-          ...mapApiPin(r),
-          // Always prefer the raw value from our permanent store
-          pin: rawPinStore.get(r.id) ?? '••••',
-        }))
-      );
+      setPins(data.map((r) => mapApiPin(r)));
     } catch (err: any) {
       setError(err.message ?? 'Could not load pins');
     }
-  }, [rawPinStore]);
+  }, []);
 
   useEffect(() => {
     fetchPins();
@@ -106,13 +113,11 @@ function GeneratePin() {
         throw new Error(body?.message ?? `Server error (${res.status})`);
       }
 
+      // The API returns { tier, quantity, pins: ['AB1234'] }
       const data = await res.json();
-      const rawPin: string = data.pins?.[0] ?? '????';
+      const rawPin: string = data.pins?.[0] ?? 'N/A';
       const now = new Date();
       const tempId = `temp-${Date.now()}`;
-
-      // Store raw value under temp id immediately
-      rawPinStore.set(tempId, rawPin);
 
       const newPin: PIN = {
         id: tempId,
@@ -127,39 +132,35 @@ function GeneratePin() {
         status: 'UNUSED',
       };
 
-      // Auto-reveal the newly generated pin
+      // Auto-reveal the newly generated pin so admin can see it right away
       setVisiblePins((prev) => new Set(prev).add(tempId));
       setPins((prev) => [newPin, ...prev]);
       setShowModal(false);
       setSelectedTier(null);
 
-      // Re-fetch to get the real server ID, then migrate the raw value
+      // Re-fetch to replace temp entry with the real server record
       setTimeout(async () => {
-        const token = localStorage.getItem('accessToken');
+        const token2 = localStorage.getItem('accessToken');
         const res2 = await fetch(`${API_BASE}/admin/pins?limit=200`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token2}` },
         });
         if (!res2.ok) return;
         const list: any[] = await res2.json();
-        // The newest pin from the server is the one we just created
-        const newest = list[0];
-        if (newest?.id && newest.id !== tempId) {
-          // Migrate raw value from temp id to real id
-          rawPinStore.set(newest.id, rawPin);
-          rawPinStore.delete(tempId);
-          // Migrate visibility too
+        const mapped = list.map((r) => mapApiPin(r));
+
+        // Keep the newly generated pin visible after the refresh
+        const newest = mapped[0];
+        if (newest) {
           setVisiblePins((prev) => {
             const next = new Set(prev);
-            if (next.has(tempId)) { next.delete(tempId); next.add(newest.id); }
+            if (next.has(tempId)) {
+              next.delete(tempId);
+              next.add(newest.id);
+            }
             return next;
           });
         }
-        setPins(
-          list.map((r) => ({
-            ...mapApiPin(r),
-            pin: rawPinStore.get(r.id) ?? '••••',
-          }))
-        );
+        setPins(mapped);
       }, 600);
     } catch (err: any) {
       setError(err.message ?? 'Failed to generate PIN');
@@ -183,6 +184,8 @@ function GeneratePin() {
 
   const filteredPins = getFilteredPins();
   const displayedPins = filteredPins.slice(0, displayCount);
+
+  const isHashedPin = (pin: string) => pin.startsWith('[hashed');
 
   const statusLabel = (pin: PIN) => {
     if (pin.status === 'USED') return `Used${pin.usedAt ? ` (${pin.usedAt})` : ''}`;
@@ -336,6 +339,12 @@ function GeneratePin() {
                       <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold capitalize ${tierColors[pinItem.tier].bg} ${tierColors[pinItem.tier].text}`}>
                         {pinItem.tier}
                       </span>
+                      {/* Warn admin if this record was stored as a hash (legacy) */}
+                      {isHashedPin(pinItem.pin) && (
+                        <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+                          ⚠ Legacy hashed — void &amp; regenerate
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-start justify-between mb-4">
                       <div>
@@ -343,15 +352,15 @@ function GeneratePin() {
                           <h3 className="font-semibold text-gray-900 text-lg">
                             PIN:{' '}
                             <span className="font-mono tracking-widest">
-                              {pinItem.pin === '••••'
-                                ? '••••'
+                              {isHashedPin(pinItem.pin)
+                                ? pinItem.pin
                                 : visiblePins.has(pinItem.id)
                                 ? pinItem.pin
-                                : '••••'}
+                                : '••••••'}
                             </span>
                           </h3>
-                          {/* Toggle visibility — only for pins we know the raw value of */}
-                          {pinItem.pin !== '••••' && (
+                          {/* Only show toggle for non-hashed pins */}
+                          {!isHashedPin(pinItem.pin) && (
                             <button
                               onClick={() => togglePinVisibility(pinItem.id)}
                               className="text-gray-500 hover:text-gray-700 transition-colors"
@@ -362,8 +371,8 @@ function GeneratePin() {
                                 : <Eye className="w-4 h-4" />}
                             </button>
                           )}
-                          {/* Copy — only when visible and known */}
-                          {pinItem.pin !== '••••' && visiblePins.has(pinItem.id) && (
+                          {/* Copy — only when visible and not hashed */}
+                          {visiblePins.has(pinItem.id) && !isHashedPin(pinItem.pin) && (
                             <button
                               onClick={() => handleCopyPin(pinItem.pin)}
                               className="text-blue-600 hover:text-blue-700 transition-colors"
@@ -427,11 +436,6 @@ function GeneratePin() {
               <div className={`rounded-lg p-3 mb-4 ${tierColors[selectedTier].bg} ${tierColors[selectedTier].border} border`}>
                 <p className={`text-sm font-semibold capitalize ${tierColors[selectedTier].text}`}>
                   Tier: {selectedTier}
-                </p>
-              </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <p className="text-gray-700 text-sm">
-                  <span className="font-semibold">Note:</span> The raw PIN is only shown once after generation. Copy and save it immediately.
                 </p>
               </div>
               <p className="text-gray-600 mb-8">Are you sure you want to generate a new PIN?</p>

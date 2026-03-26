@@ -13,7 +13,7 @@ export enum PinStatus {
 @Schema({ timestamps: true })
 export class ProductPin {
   @Prop({ required: true, unique: true })
-  pin: string; // plain text pin, e.g. AB1234
+  pin: string; // plain-text pin, e.g. AB1234 — NEVER hashed
 
   @Prop({ type: String, enum: Object.values(MembershipTier), required: true })
   tier: MembershipTier;
@@ -30,9 +30,19 @@ export class ProductPin {
   @Prop({ type: Types.ObjectId, ref: 'User', default: null })
   createdByAdminId?: Types.ObjectId | null;
 
-  // Optional: internal admin notes
   @Prop({ type: String, default: '' })
   note?: string;
 }
 
 export const ProductPinSchema = SchemaFactory.createForClass(ProductPin);
+
+// ✅ Runtime guard: throws immediately if someone accidentally passes a bcrypt
+//    hash as the pin value, making the bug loud and obvious at save time.
+ProductPinSchema.pre('save', function (this: any) {
+  if (this.pin && this.pin.startsWith('$2')) {
+    throw new Error(
+      `ProductPin.pin must be plain text (e.g. "AB1234"), not a bcrypt hash. ` +
+      `Remove any bcrypt.hash() call on the pin value before saving.`,
+    );
+  }
+});
