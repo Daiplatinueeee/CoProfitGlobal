@@ -37,7 +37,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch('http://localhost:3000/auth/login', {
+            const response = await fetch('http://coprofitglobal-production.up.railway.app/auth/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -79,7 +79,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch('http://localhost:3000/auth/signup', {
+            const response = await fetch('http://coprofitglobal-production.up.railway.app/auth/signup', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
