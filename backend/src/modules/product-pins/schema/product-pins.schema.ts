@@ -5,15 +5,15 @@ import { MembershipTier } from '../../users/schemas/user.schema';
 export type ProductPinDocument = ProductPin & Document;
 
 export enum PinStatus {
-  UNUSED = 'unused',
-  USED = 'used',
-  VOID = 'void',
+  UNUSED = 'UNUSED',
+  USED = 'USED',
+  VOID = 'VOID',
 }
 
 @Schema({ timestamps: true })
 export class ProductPin {
   @Prop({ required: true, unique: true })
-  pinHash: string; // hash of 4-digit pin (never store raw pin)
+  pin: string; // plain text pin, e.g. AB1234
 
   @Prop({ type: String, enum: Object.values(MembershipTier), required: true })
   tier: MembershipTier;

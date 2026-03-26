@@ -10,6 +10,8 @@ import * as bcrypt from 'bcrypt';
 import {
   MembershipTier,
   SystemRole,
+  User,
+  UserDocument,
 } from '../users/schemas/user.schema';
 import { UsersService } from '../users/users.service';
 import {
@@ -27,6 +29,8 @@ export class AdminService {
   constructor(
     @InjectModel(ProductPin.name)
     private readonly pinModel: Model<ProductPinDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -35,38 +39,80 @@ export class AdminService {
   }
 
   async createUser(dto: AdminCreateUserDto) {
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+  const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    const created = await this.usersService.createUser({
-      name: dto.name,
-      username: dto.username,
-      email: dto.email,
-      passwordHash,
-      role: dto.role ?? SystemRole.USER,
-      membershipTier: dto.membershipTier ?? MembershipTier.BRONZE,
-      sponsorReferralCode: dto.sponsorReferralCode,
-    });
+  const created = await this.usersService.createUser({
+    name: dto.name,
+    username: dto.username,
+    email: dto.email,
+    passwordHash,
+    role: dto.role ?? SystemRole.USER,
+    membershipTier: dto.membershipTier ?? MembershipTier.BRONZE,
+    sponsorReferralCode: dto.sponsorReferralCode,
 
-    return {
-      id: (created as any)._id.toString(),
-      name: created.name,
-      username: created.username,
-      email: created.email,
-      role: created.role,
-      membershipTier: created.membershipTier,
-      referralCode: created.referralCode,
-      sponsorId: created.sponsorId ? created.sponsorId.toString() : null,
-      createdAt: (created as any).createdAt,
-    };
+    packagePin: dto.packagePin,
+    age: dto.age,
+    contact: dto.contact,
+    address: dto.address,
+    beneficiary: dto.beneficiary,
+    birthday: dto.birthday,
+  });
+
+  return {
+    id: (created as any)._id.toString(),
+    name: created.name,
+    username: created.username,
+    email: created.email,
+    role: created.role,
+    membershipTier: created.membershipTier,
+    referralCode: created.referralCode,
+    sponsorId: created.sponsorId ? created.sponsorId.toString() : null,
+
+    packagePin: created.packagePin,
+    age: created.age,
+    contact: created.contact,
+    address: created.address,
+    beneficiary: created.beneficiary,
+    birthday: created.birthday,
+
+    createdAt: (created as any).createdAt,
+  };
+}
+  
+  async findAllUsers() {
+    const users = await this.userModel
+      .find()
+      .select(
+        '_id name username email role membershipTier referralCode sponsorId packagePin createdAt updatedAt',
+      )
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return users.map((user: any) => ({
+      id: user._id.toString(),
+      name: user.name ?? '',
+      username: user.username ?? '',
+      email: user.email,
+      role: user.role,
+      membershipTier: user.membershipTier,
+      referralCode: user.referralCode ?? null,
+      sponsorId: user.sponsorId ? user.sponsorId.toString() : null,
+      packagePin: user.packagePin ?? null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    }));
   }
 
   async updateMembershipTier(userId: string, dto: AdminUpdateTierDto) {
     return this.usersService.updateMembershipTier(userId, dto.membershipTier);
   }
 
-  private generate4DigitPinRaw(): string {
-    const n = Math.floor(Math.random() * 10000);
-    return n.toString().padStart(4, '0');
+  private generatePinRaw(): string {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const l1 = letters[Math.floor(Math.random() * 26)];
+    const l2 = letters[Math.floor(Math.random() * 26)];
+    const digits = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    return `${l1}${l2}${digits}`;
   }
 
   async generatePins(adminId: string, dto: AdminGeneratePinsDto) {
@@ -74,7 +120,7 @@ export class AdminService {
       throw new BadRequestException('Invalid adminId');
     }
 
-    const pinsRaw: string[] = [];
+    const pins: string[] = [];
 
     for (let i = 0; i < dto.quantity; i++) {
       let attempts = 0;
@@ -82,18 +128,17 @@ export class AdminService {
       while (attempts < 10) {
         attempts++;
 
-        const raw = this.generate4DigitPinRaw();
-        const pinHash = await bcrypt.hash(raw, 10);
+        const pin = this.generatePinRaw();
 
         try {
           await this.pinModel.create({
-            pinHash,
+            pin,
             tier: dto.tier,
             status: PinStatus.UNUSED,
             createdByAdminId: new Types.ObjectId(adminId),
           });
 
-          pinsRaw.push(raw);
+          pins.push(pin);
           break;
         } catch (e: any) {
           if (e?.code === 11000) continue;
@@ -105,7 +150,7 @@ export class AdminService {
     return {
       tier: dto.tier,
       quantity: dto.quantity,
-      pins: pinsRaw,
+      pins,
     };
   }
 
@@ -118,11 +163,12 @@ export class AdminService {
       .find(q)
       .sort({ createdAt: -1 })
       .limit(Math.min(limit, 200))
-      .select('tier status usedByUserId usedAt createdByAdminId createdAt')
+      .select('pin tier status usedByUserId usedAt createdByAdminId createdAt')
       .lean();
 
     return rows.map((r) => ({
       id: r._id.toString(),
+      pin: (r as any).pin ?? null,
       tier: r.tier,
       status: r.status,
       usedByUserId: r.usedByUserId ? r.usedByUserId.toString() : null,

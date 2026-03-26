@@ -39,7 +39,8 @@ export class RefreshSession {
   ip?: string;
 }
 
-export const RefreshSessionSchema = SchemaFactory.createForClass(RefreshSession);
+export const RefreshSessionSchema =
+  SchemaFactory.createForClass(RefreshSession);
 
 @Schema({ timestamps: true })
 export class User {
@@ -50,7 +51,13 @@ export class User {
   @Prop({ required: true, trim: true, index: true })
   username: string;
 
-  @Prop({ required: true, lowercase: true, trim: true, unique: true, index: true })
+  @Prop({
+    required: true,
+    lowercase: true,
+    trim: true,
+    unique: true,
+    index: true,
+  })
   email: string;
 
   @Prop({ required: true, select: false })
@@ -74,6 +81,9 @@ export class User {
 
   @Prop({ required: true, unique: true, index: true, trim: true })
   referralCode: string;
+
+  @Prop({ required: true, unique: true, index: true, trim: true })
+  packagePin: string;
 
   @Prop({ type: Types.ObjectId, ref: 'User', default: null, index: true })
   sponsorId: Types.ObjectId | null;

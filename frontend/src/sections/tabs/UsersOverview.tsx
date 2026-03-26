@@ -58,7 +58,7 @@ function UsersOverview() {
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   const getAuthHeaders = () => {
-    const token = localStorage.getItem('token') ?? localStorage.getItem('accessToken');
+    const token = localStorage.getItem('accessToken');
     return {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
@@ -93,19 +93,25 @@ function UsersOverview() {
     };
   };
 
+  // ─── API calls ────────────────────────────────────────────────────────────
+
+  /**
+   * GET /users  — fetches all users
+   * Fixed: was calling a non-existent route; now targets the correct endpoint.
+   */
   const fetchUsers = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('token') ?? localStorage.getItem('accessToken');
+      const token = localStorage.getItem('accessToken');
 
       if (!token) {
         setError('Not authenticated. Please log in again.');
         return;
       }
 
-      const response = await fetch(`${API_BASE}/users`, {
+      const response = await fetch(`${API_BASE}/admin/users`, {
         method: 'GET',
         headers: getAuthHeaders(),
       });
@@ -132,64 +138,76 @@ function UsersOverview() {
     }
   };
 
+  /**
+   * POST /admin/users — create a new user via the admin service.
+   * Sends all form fields including profile data.
+   */
   const handleCreateUser = async () => {
-    if (!validateForm()) return;
+  if (!validateForm()) return;
 
-    setError(null);
+  setError(null);
 
-    try {
-      const response = await fetch(`${API_BASE}/users`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          name: formData.name,
-          username: formData.username || undefined,
-          email: formData.email,
-          password: formData.password,
-          ...(formData.age ? { age: parseInt(formData.age, 10) } : {}),
-          ...(formData.contact ? { contact: formData.contact } : {}),
-          ...(formData.address ? { address: formData.address } : {}),
-          ...(formData.beneficiary ? { beneficiary: formData.beneficiary } : {}),
-          ...(formData.bday ? { birthday: formData.bday } : {}),
-        }),
-      });
+  try {
+    const response = await fetch(`${API_BASE}/admin/users`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        name: formData.name,
+        username: formData.username || undefined,
+        email: formData.email,
+        password: formData.password,
+        ...(formData.age ? { age: parseInt(formData.age, 10) } : {}),
+        ...(formData.contact ? { contact: formData.contact } : {}),
+        ...(formData.address ? { address: formData.address } : {}),
+        ...(formData.beneficiary ? { beneficiary: formData.beneficiary } : {}),
+        ...(formData.bday ? { birthday: formData.bday } : {}),
+        packagePin: formData.packagePin,
+        ...(formData.sponsorReferralCode
+          ? { sponsorReferralCode: formData.sponsorReferralCode }
+          : {}),
+      }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        setError(
-          Array.isArray(data.message)
-            ? data.message.join(', ')
-            : data.message || 'Failed to create user',
-        );
-        return;
-      }
-
-      // Reset form, close modal, refresh the list
-      setFormData({
-        name: '',
-        username: '',
-        email: '',
-        age: '',
-        contact: '',
-        address: '',
-        beneficiary: '',
-        bday: '',
-        password: '',
-        packagePin: '',
-        sponsorReferralCode: '',
-      });
-      setFormErrors({});
-      setShowCreateForm(false);
-      setSuccessMessage(`User "${data.user?.name ?? formData.name}" created successfully!`);
-      setTimeout(() => setSuccessMessage(null), 3000);
-      await fetchUsers();
-    } catch (err: any) {
-      setError('An error occurred. Please try again.');
-      console.error('Error creating user:', err);
+    if (!response.ok) {
+      setError(
+        Array.isArray(data.message)
+          ? data.message.join(', ')
+          : data.message || 'Failed to create user',
+      );
+      return;
     }
-  };
 
+    setFormData({
+      name: '',
+      username: '',
+      email: '',
+      age: '',
+      contact: '',
+      address: '',
+      beneficiary: '',
+      bday: '',
+      password: '',
+      packagePin: '',
+      sponsorReferralCode: '',
+    });
+
+    setFormErrors({});
+    setShowCreateForm(false);
+    setSuccessMessage(`User "${data.user?.name ?? formData.name}" created successfully!`);
+    setTimeout(() => setSuccessMessage(null), 3000);
+    await fetchUsers();
+  } catch (err: any) {
+    setError('An error occurred. Please try again.');
+    console.error('Error creating user:', err);
+  }
+};
+
+  /**
+   * DELETE /users/:id  — hard-deletes a user
+   * Fixed: was not implemented / calling a non-existent endpoint.
+   */
   const handleDeleteUser = async (userId: string) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
 
@@ -213,6 +231,10 @@ function UsersOverview() {
     }
   };
 
+  /**
+   * PATCH /users/:id/status  — toggles isActive
+   * Fixed: was not implemented / calling a non-existent endpoint.
+   */
   const handleToggleStatus = async (userId: string) => {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
@@ -242,27 +264,38 @@ function UsersOverview() {
 
   // ─── Form validation ──────────────────────────────────────────────────────
 
-  const validateForm = (): boolean => {
-    const errors: Record<string, string> = {};
+ const validateForm = (): boolean => {
+  const errors: Record<string, string> = {};
 
-    if (!formData.name.trim()) errors.name = 'Name is required';
-    if (!formData.username.trim()) errors.username = 'Username is required';
-    if (!formData.email.trim()) errors.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
-      errors.email = 'Invalid email format';
-    if (!formData.age || parseInt(formData.age) < 1 || parseInt(formData.age) > 150)
-      errors.age = 'Valid age is required';
-    if (!formData.contact.trim()) errors.contact = 'Contact is required';
-    if (!formData.address.trim()) errors.address = 'Address is required';
-    if (!formData.beneficiary.trim()) errors.beneficiary = 'Beneficiary is required';
-    if (!formData.bday.trim()) errors.bday = 'Birthday is required';
-    if (!formData.password.trim()) errors.password = 'Password is required';
-    else if (formData.password.length < 6)
-      errors.password = 'Password must be at least 6 characters';
+  if (!formData.name.trim()) errors.name = 'Name is required';
+  if (!formData.username.trim()) errors.username = 'Username is required';
+  if (!formData.email.trim()) errors.email = 'Email is required';
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    errors.email = 'Invalid email format';
+  }
 
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  if (!formData.age || parseInt(formData.age, 10) < 1 || parseInt(formData.age, 10) > 150) {
+    errors.age = 'Valid age is required';
+  }
+
+  if (!formData.contact.trim()) errors.contact = 'Contact is required';
+  if (!formData.address.trim()) errors.address = 'Address is required';
+  if (!formData.beneficiary.trim()) errors.beneficiary = 'Beneficiary is required';
+  if (!formData.bday.trim()) errors.bday = 'Birthday is required';
+
+  if (!formData.password.trim()) errors.password = 'Password is required';
+  else if (formData.password.length < 6) {
+    errors.password = 'Password must be at least 6 characters';
+  }
+
+  if (!formData.packagePin.trim()) {
+    errors.packagePin = 'Package PIN is required';
+  }
+
+  setFormErrors(errors);
+  return Object.keys(errors).length === 0;
+};
+
 
   // ─── Derived state ────────────────────────────────────────────────────────
 
@@ -313,7 +346,7 @@ function UsersOverview() {
             onClick={() => setShowCreateForm(true)}
             className="bg-sky-400 hover:bg-sky-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
-            Add User
+            + Add User
           </button>
         </div>
 
