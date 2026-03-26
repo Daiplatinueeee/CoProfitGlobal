@@ -6,6 +6,8 @@ import { useNavigate } from "react-router-dom"
 
 import bg from "../assets/Gradient Loop Background - Dev Ashish Deval (1080p, h264).mp4";
 
+const BASE_URL = 'https://coprofitglobal-production.up.railway.app';
+
 export default function AuthPage() {
     const [isSignIn, setIsSignIn] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
@@ -37,7 +39,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch('http://coprofitglobal-production.up.railway.app/auth/login', {
+            const response = await fetch(`${BASE_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -79,7 +81,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch('http://coprofitglobal-production.up.railway.app/auth/signup', {
+            const response = await fetch(`${BASE_URL}/auth/signup`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
