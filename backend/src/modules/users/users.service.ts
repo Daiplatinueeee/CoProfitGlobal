@@ -27,6 +27,16 @@ export class UsersService {
     throw new ConflictException('Unable to generate unique package pin');
   }
 
+  private async generateUniquePackagePin(prefix = 'CPG'): Promise<string> {
+    for (let i = 0; i < 20; i++) {
+      const pin = `${prefix}${Math.floor(100000 + Math.random() * 900000)}`;
+      const exists = await this.userModel.exists({ packagePin: pin });
+      if (!exists) return pin;
+    }
+
+    throw new ConflictException('Unable to generate unique package pin');
+  }
+
   private async createUserRecord(input: {
     name: string;
     username?: string;
@@ -35,6 +45,12 @@ export class UsersService {
     role: SystemRole;
     membershipTier: MembershipTier;
     sponsorId?: Types.ObjectId | null;
+    packagePin?: string;
+    age?: number;
+    contact?: string;
+    address?: string;
+    beneficiary?: string;
+    birthday?: string;
   }): Promise<User> {
     const email = input.email.toLowerCase().trim();
     const name = input.name.trim();
@@ -74,6 +90,10 @@ export class UsersService {
           throw new ConflictException('Package pin already in use');
         }
 
+        if (err?.keyPattern?.packagePin) {
+          throw new ConflictException('Package pin already in use');
+        }
+
         if (err?.keyPattern?.referralCode) {
           try {
             const created = await this.userModel.create({
@@ -84,6 +104,9 @@ export class UsersService {
           } catch (e: any) {
             if (e?.code === 11000 && e?.keyPattern?.email) {
               throw new ConflictException('Email already in use');
+            }
+            if (e?.code === 11000 && e?.keyPattern?.packagePin) {
+              throw new ConflictException('Package pin already in use');
             }
             if (e?.code === 11000 && e?.keyPattern?.packagePin) {
               throw new ConflictException('Package pin already in use');
@@ -107,6 +130,12 @@ export class UsersService {
     role?: SystemRole;
     membershipTier?: MembershipTier;
     sponsorReferralCode?: string;
+    packagePin?: string;  // optional — auto-generated if not supplied
+    age?: number;
+    contact?: string;
+    address?: string;
+    beneficiary?: string;
+    birthday?: string;
   }): Promise<User> {
     let sponsorId: Types.ObjectId | null = null;
 
@@ -130,6 +159,13 @@ export class UsersService {
       role: input.role ?? SystemRole.USER,
       membershipTier: input.membershipTier ?? MembershipTier.BRONZE,
       sponsorId,
+
+      packagePin: input.packagePin?.trim() || (await this.generateUniquePackagePin('CPG')),
+      age: input.age,
+      contact: input.contact,
+      address: input.address,
+      beneficiary: input.beneficiary,
+      birthday: input.birthday,
     });
   }
 
@@ -138,6 +174,7 @@ export class UsersService {
     username?: string;
     email: string;
     passwordHash: string;
+    packagePin?: string;
     packagePin?: string;
   }): Promise<User> {
 <<<<<<< HEAD
@@ -202,6 +239,12 @@ export class UsersService {
           membershipTier: 1,
           referralCode: 1,
           sponsorId: 1,
+          packagePin: 1,
+          age: 1,
+          contact: 1,
+          address: 1,
+          beneficiary: 1,
+          birthday: 1,
         },
       },
     );
@@ -219,6 +262,12 @@ export class UsersService {
       membershipTier: updated.membershipTier,
       referralCode: updated.referralCode,
       sponsorId: updated.sponsorId ? updated.sponsorId.toString() : null,
+      packagePin: (updated as any).packagePin,
+      age: (updated as any).age,
+      contact: (updated as any).contact,
+      address: (updated as any).address,
+      beneficiary: (updated as any).beneficiary,
+      birthday: (updated as any).birthday,
     };
   }
 
@@ -259,7 +308,30 @@ export class UsersService {
     if (!exists) {
       throw new NotFoundException('User not found');
     }
+    if (!Types.ObjectId.isValid(params.userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
 
+    const exists = await this.userModel.exists({ _id: params.userId });
+    if (!exists) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.userModel.updateOne(
+      { _id: params.userId },
+      {
+        $push: {
+          refreshSessions: {
+            sid: params.sid,
+            refreshTokenHash: params.refreshTokenHash,
+            createdAt: new Date(),
+            expiresAt: params.expiresAt,
+            userAgent: params.userAgent,
+            ip: params.ip,
+          },
+        },
+      },
+    );
     await this.userModel.updateOne(
       { _id: params.userId },
       {
@@ -354,9 +426,39 @@ export class UsersService {
         },
       },
     );
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
+
+    const exists = await this.userModel.exists({ _id: userId });
+    if (!exists) return;
+
+    await this.userModel.updateOne(
+      { _id: userId },
+      {
+        $pull: {
+          refreshSessions: { sid },
+        },
+      },
+    );
   }
 
   async removeAllRefreshSessions(userId: string) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
+
+    const exists = await this.userModel.exists({ _id: userId });
+    if (!exists) return;
+
+    await this.userModel.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          refreshSessions: [],
+        },
+      },
+    );
     if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('Invalid userId');
     }

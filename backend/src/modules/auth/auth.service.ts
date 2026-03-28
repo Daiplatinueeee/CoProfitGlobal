@@ -118,7 +118,16 @@ export class AuthService {
     return { sid, refresh_token };
   }
 
-  async signup(input: { name: string; email: string; password: string }, meta?: { userAgent?: string; ip?: string }) {
+  async signup(
+    input: {
+      name: string;
+      email: string;
+      password: string;
+      packagePin?: string;          // optional - auto-generated if omitted
+      sponsorReferralCode?: string; // optional referral code
+    },
+    meta?: { userAgent?: string; ip?: string },
+  ) {
     const email = input.email.trim().toLowerCase();
     const passwordHash = await this.hashPassword(input.password);
 
@@ -126,6 +135,8 @@ export class AuthService {
       name: input.name.trim(),
       email,
       passwordHash,
+      packagePin: input.packagePin,
+      sponsorReferralCode: input.sponsorReferralCode,
     });
 
     const { refresh_token } = await this.issueRefreshSession(user as any, meta);

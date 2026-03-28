@@ -57,7 +57,7 @@ export default function AuthPage() {
             }
 
             // Save auth data
-            localStorage.setItem('token', data.access_token);
+            localStorage.setItem('accessToken', data.access_token);
             localStorage.setItem('user', JSON.stringify(data.user));
 
             // Navigate based on role

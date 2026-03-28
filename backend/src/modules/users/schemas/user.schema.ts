@@ -4,7 +4,6 @@ import * as crypto from 'crypto';
 
 export type UserDocument = HydratedDocument<User>;
 
-// Membership tiers (product/package tiers)
 export enum MembershipTier {
   BRONZE = 'bronze',
   SILVER = 'silver',
@@ -12,7 +11,6 @@ export enum MembershipTier {
   PLATINUM = 'platinum',
 }
 
-// System roles (authorization)
 export enum SystemRole {
   USER = 'user',
   ADMIN = 'admin',
@@ -46,11 +44,16 @@ export class User {
   @Prop({ required: true, trim: true })
   name: string;
 
-  // added for genealogy/frontend compatibility
   @Prop({ required: true, trim: true, index: true })
   username: string;
 
-  @Prop({ required: true, lowercase: true, trim: true, unique: true, index: true })
+  @Prop({
+    required: true,
+    lowercase: true,
+    trim: true,
+    unique: true,
+    index: true,
+  })
   email: string;
 
   @Prop({ required: true, select: false })
@@ -75,10 +78,14 @@ export class User {
   @Prop({ required: true, unique: true, index: true, trim: true })
   referralCode: string;
 
+  // ✅ packagePin is stored as plain text (e.g. "AB1234").
+  // It is a reference to a ProductPin document — never hash it.
+  @Prop({ required: true, unique: true, index: true, trim: true })
+  packagePin: string;
+
   @Prop({ type: Types.ObjectId, ref: 'User', default: null, index: true })
   sponsorId: Types.ObjectId | null;
 
-  // added for genealogy/frontend compatibility
   @Prop({ default: '' })
   profileImage: string;
 
@@ -109,7 +116,8 @@ export class User {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-// Auto-generate referralCode if missing
+// Auto-generate referralCode and username if missing.
+// ⚠️  Only referralCode uses crypto here — packagePin is NEVER touched/hashed.
 UserSchema.pre('validate', function (this: any) {
   if (!this.referralCode) {
     this.referralCode = crypto.randomBytes(6).toString('base64url').slice(0, 8);
@@ -117,5 +125,13 @@ UserSchema.pre('validate', function (this: any) {
 
   if (!this.username && this.name) {
     this.username = this.name;
+  }
+
+  // Safety guard: packagePin must be plain text (e.g. "AB1234"), never a bcrypt hash.
+  if (this.packagePin && this.packagePin.startsWith('$2')) {
+    throw new Error(
+      'packagePin must be a plain-text PIN (e.g. AB1234), not a bcrypt hash. ' +
+      'Do not hash packagePin before saving — store it as-is from the ProductPin record.',
+    );
   }
 });

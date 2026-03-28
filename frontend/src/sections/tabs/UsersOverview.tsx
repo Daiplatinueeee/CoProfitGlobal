@@ -5,6 +5,7 @@ import CreateUserModal from './CreateUserModal';
 
 const API_BASE = 'http://localhost:3000';
 
+
 interface User {
   id: string;
   name: string;
@@ -137,7 +138,6 @@ function UsersOverview() {
 
   setError(null);
 
-<<<<<<< HEAD
     try {
       const response = await fetch(`${API_BASE}/users`, {
         method: 'POST',
@@ -154,28 +154,6 @@ function UsersOverview() {
           ...(formData.bday ? { birthday: formData.bday } : {}),
         }),
       });
-=======
-  try {
-    const response = await fetch(`${API_BASE}/admin/users`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        name: formData.name,
-        username: formData.username || undefined,
-        email: formData.email,
-        password: formData.password,
-        ...(formData.age ? { age: parseInt(formData.age, 10) } : {}),
-        ...(formData.contact ? { contact: formData.contact } : {}),
-        ...(formData.address ? { address: formData.address } : {}),
-        ...(formData.beneficiary ? { beneficiary: formData.beneficiary } : {}),
-        ...(formData.bday ? { birthday: formData.bday } : {}),
-        packagePin: formData.packagePin,
-        ...(formData.sponsorReferralCode
-          ? { sponsorReferralCode: formData.sponsorReferralCode }
-          : {}),
-      }),
-    });
->>>>>>> 5fdb3a07b8ac46a7a28e8e827cc64d61aafc4b91
 
     const data = await response.json();
 
