@@ -106,7 +106,7 @@ function UsersOverview() {
         return;
       }
 
-      const response = await fetch(`${API_BASE}/users`, {
+      const response = await fetch(`${API_BASE}/admin/users`, {
         method: 'GET',
         headers: getAuthHeaders(),
       });
@@ -139,7 +139,7 @@ function UsersOverview() {
   setError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/users`, {
+      const response = await fetch(`${API_BASE}/admin/users`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -147,6 +147,8 @@ function UsersOverview() {
           username: formData.username || undefined,
           email: formData.email,
           password: formData.password,
+          packagePin: formData.packagePin,     
+          role: 'user',  
           ...(formData.age ? { age: parseInt(formData.age, 10) } : {}),
           ...(formData.contact ? { contact: formData.contact } : {}),
           ...(formData.address ? { address: formData.address } : {}),

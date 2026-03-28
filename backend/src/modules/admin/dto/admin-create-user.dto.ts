@@ -9,6 +9,7 @@ import {
   Max,
   MinLength,
   IsDateString,
+  IsNotEmpty,
 } from 'class-validator';
 import {
   MembershipTier,
@@ -52,8 +53,10 @@ export class AdminCreateUserDto {
   birthday?: string;
 
   @IsString()
+  @IsNotEmpty()
   packagePin: string;
 
+  @IsOptional()
   @IsEnum(MembershipTier)
   membershipTier?: MembershipTier;
 

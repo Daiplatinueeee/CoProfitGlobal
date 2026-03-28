@@ -17,7 +17,7 @@ import {
   UserDocument,
   SystemRole,
 } from '../users/schemas/user.schema'
-
+import { VolumeLedger, VolumeLedgerDocument } from '../volume/schemas/volume-ledger.schema'
 import { VolumeService } from '../volume/volume.service'
 import {
   ProductPin,
@@ -29,6 +29,9 @@ export class GenealogyService {
   constructor(
     @InjectModel(GenealogyNode.name)
     private readonly genealogyModel: Model<GenealogyNodeDocument>,
+
+    @InjectModel(VolumeLedger.name)
+    private readonly volumeLedgerModel: Model<VolumeLedgerDocument>,
 
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
@@ -674,4 +677,75 @@ export class GenealogyService {
       isDownline,
     }
   }
+
+  
+  //SPILLOVER BONUS NI GAW
+  async getSpilloverBonus(userId: string) {
+  if (!this.isValidObjectId(userId)) {
+    throw new BadRequestException('Invalid userId')
+  }
+
+  // Reuse existing logic to get spillover members
+  const { spillover, rootUser } = await this.buildReferralLists(userId)
+
+  if (spillover.length === 0) {
+    return {
+      userId,
+      rootUser,
+      spilloverCount: 0,
+      totalPoints: 0,
+      totalBonusPHP: 0,
+      pointsPerPHP: 400,
+      breakdown: [],
+    }
+  }
+
+  const spilloverUserIds = spillover.map((s) => this.toObjectId(s.userId))
+
+  // Sum all volume ledger entries where this user is owner
+  // and the source is one of their spillover members
+  const ledgerEntries = await this.volumeLedgerModel
+    .find({
+      ownerUserId: this.toObjectId(userId),
+      sourceUserId: { $in: spilloverUserIds },
+    })
+    .lean()
+
+  // Group points per spillover member for the breakdown
+  const pointsPerMember = new Map<string, number>()
+
+  for (const entry of ledgerEntries) {
+    const sourceId = entry.sourceUserId.toString()
+    const current = pointsPerMember.get(sourceId) ?? 0
+    pointsPerMember.set(sourceId, current + entry.points)
+  }
+
+  const RATE = 400 // 1 point = ₱400
+
+  const breakdown = spillover.map((member) => {
+    const points = pointsPerMember.get(member.userId) ?? 0
+    return {
+      userId: member.userId,
+      name: member.name,
+      username: member.username,
+      membershipTier: member.membershipTier,
+      leg: member.position,      // left or right from genealogy
+      depth: member.depth,
+      pointsContributed: points,
+      bonusEarnedPHP: points * RATE,
+    }
+  })
+
+  const totalPoints = breakdown.reduce((sum, b) => sum + b.pointsContributed, 0)
+
+  return {
+    userId,
+    rootUser,
+    spilloverCount: spillover.length,
+    totalPoints,
+    totalBonusPHP: totalPoints * RATE,
+    pointsPerPHP: RATE,
+    breakdown,
+  }
+}
 }

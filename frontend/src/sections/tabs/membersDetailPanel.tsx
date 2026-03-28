@@ -69,7 +69,7 @@ interface MemberDetailsPanelProps {
 // ─── Shared auth headers helper ───────────────────────────────────────────────
 
 function authHeaders(): HeadersInit {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('accessToken');
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -145,36 +145,33 @@ export default function MemberDetailsPanel({
 
   // ─── Fetch spill-over bonus (GET /spill/status/:userId) ──────────────────
   useEffect(() => {
-    if (!id) return;
-    const run = async () => {
-      setSpillOverLoading(true);
-      setSpillOverError(null);
-      setSpillOver(null);
-      try {
-        const monthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
-        const res = await fetch(`${BASE}/spill/status/${id}?monthKey=${monthKey}`, {
-          method: 'GET',
-          headers: authHeaders(),
-        });
-        if (!res.ok) throw new Error(`Failed to fetch spill-over bonus (${res.status})`);
-        const data = await res.json();
-        console.log('spill-over status response:', data);
+  if (!id) return;
+  const run = async () => {
+    setSpillOverLoading(true);
+    setSpillOverError(null);
+    setSpillOver(null);
+    try {
+      const res = await fetch(`${BASE}/genealogy/${id}/spillover-bonus`, {
+        method: 'GET',
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(`Failed to fetch spill-over bonus (${res.status})`);
+      const data = await res.json();
+      console.log('spill-over bonus response:', data);
 
-        // Expected shape: { userId, monthKey, status: { totalPhp, totalReceivedMembers, ... } }
-        // Falls back gracefully to flat shapes: { totalPhp } | { amount } | { bonus } | { value }
-        const src = data?.status ?? data;
-        setSpillOver({
-          totalPhp:            src?.totalPhp ?? src?.amount ?? src?.bonus ?? src?.value ?? 0,
-          totalReceivedMembers: src?.totalReceivedMembers ?? src?.memberCount ?? 0,
-        });
-      } catch (err: any) {
-        setSpillOverError(err.message ?? 'Failed to load spill-over bonus');
-      } finally {
-        setSpillOverLoading(false);
-      }
-    };
-    run();
-  }, [id]);
+      // Backend returns: { totalBonusPHP, spilloverCount, totalPoints, breakdown }
+      setSpillOver({
+        totalPhp: data?.totalBonusPHP ?? 0,
+        totalReceivedMembers: data?.spilloverCount ?? 0,
+      });
+    } catch (err: any) {
+      setSpillOverError(err.message ?? 'Failed to load spill-over bonus');
+    } finally {
+      setSpillOverLoading(false);
+    }
+  };
+  run();
+}, [id]);
 
   // ─── Fetch Sign-5 bonus (GET /sign5/status/:userId) ──────────────────────
   useEffect(() => {
@@ -199,9 +196,9 @@ export default function MemberDetailsPanel({
         const awards: Sign5TierAward[] = (data?.awards ?? []).map((a: any) => ({
           tier:           a.tier            ?? '',
           referralsCount: a.referralsCount  ?? 0,
-          setsOfFive:     a.setsOfFive      ?? 0,
-          cashSetsPaid:   a.cashSetsPaid    ?? 0,
-          gcSetsPaid:     a.gcSetsPaid      ?? 0,
+          setsOfFive:     a.cashSetPaid     ?? 0,   // was a.setsOfFive
+          cashSetsPaid:   a.cashSetPaid     ?? 0,   // was a.cashSetsPaid
+          gcSetsPaid:     a.gcReferralCountPaid ?? 0, // was a.gcSetsPaid
           cashAmountPhp:  a.cashAmountPhp   ?? 0,
           gcPointsAmount: a.gcPointsAmount  ?? 0,
         }));

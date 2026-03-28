@@ -12,6 +12,7 @@ import {
   ProductPinSchema,
 } from '../product-pins/schema/product-pins.schema'
 import { VolumeModule } from '../volume/volume.module'
+import { VolumeLedger, VolumeLedgerSchema } from '../volume/schemas/volume-ledger.schema'
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { VolumeModule } from '../volume/volume.module'
       { name: GenealogyNode.name, schema: GenealogyNodeSchema },
       { name: User.name, schema: UserSchema },
       { name: ProductPin.name, schema: ProductPinSchema },
+      { name: VolumeLedger.name, schema: VolumeLedgerSchema },
     ]),
     VolumeModule,
   ],

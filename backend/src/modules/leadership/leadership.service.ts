@@ -363,7 +363,7 @@ export class LeadershipService {
         : null,
       award: award
         ? {
-            downlinePairingTotalPhp: award.pairingTotalPhp,
+            pairingTotalPhp: award.pairingTotalPhp,
             rate: award.rate,
             leadershipPhp: award.leadershipPhp,
             awardedAt: award.awardedAt,
