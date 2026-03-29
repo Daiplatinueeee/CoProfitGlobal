@@ -1,5 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+import { MembershipTier } from '../../users/schemas/user.schema';
+import { PairingCycle } from '../enums/pairing-cycle.enum';
 
 export type PairingStateDocument = HydratedDocument<PairingState>;
 
@@ -8,46 +10,41 @@ export class PairingState {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
   userId: Types.ObjectId;
 
+  // Format: YYYY-MM-DD-AM or YYYY-MM-DD-PM
   @Prop({ required: true, index: true })
-  periodKey: string; // "YYYY-MM-DD" to match Volume module
+  periodKey: string;
 
-  // volume received this period (from VolumeBucket)
-  @Prop({ required: true, default: 0 })
-  leftEarned: number;
+  // Which cycle this state belongs to
+  @Prop({ type: String, required: true })
+  cycle: PairingCycle;
 
-  @Prop({ required: true, default: 0 })
-  rightEarned: number;
+  // User's membership tier at time of pairing
+  @Prop({ type: String, enum: Object.values(MembershipTier), required: true })
+  membershipTier: MembershipTier;
 
-  // carry from previous period
+  // Points available at the start of this cycle (includes carry from previous cycle)
   @Prop({ required: true, default: 0 })
-  leftCarryIn: number;
-
-  @Prop({ required: true, default: 0 })
-  rightCarryIn: number;
-
-  // totals used for pairing this period
-  @Prop({ required: true, default: 0 })
-  leftTotal: number;
+  leftAvailable: number;
 
   @Prop({ required: true, default: 0 })
-  rightTotal: number;
+  rightAvailable: number;
 
-  // pairing results
+  // Pairing results
   @Prop({ required: true, default: 0 })
   pairedPoints: number;
 
   @Prop({ required: true, default: 0 })
   payoutPhp: number;
 
-  // carry to next period
+  // Remainder after pairing — carries into next cycle
   @Prop({ required: true, default: 0 })
   leftCarryOut: number;
 
   @Prop({ required: true, default: 0 })
   rightCarryOut: number;
 
-  // cap tracking
-  @Prop({ required: true, default: 1200 })
+  // Cap tracking
+  @Prop({ required: true, default: 0 })
   capLimit: number;
 
   @Prop({ required: true, default: 0 })
@@ -56,5 +53,5 @@ export class PairingState {
 
 export const PairingStateSchema = SchemaFactory.createForClass(PairingState);
 
-// one pairing state per user per period
+// One pairing state per user per cycle
 PairingStateSchema.index({ userId: 1, periodKey: 1 }, { unique: true });

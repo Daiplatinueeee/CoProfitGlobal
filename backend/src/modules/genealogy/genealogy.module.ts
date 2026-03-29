@@ -13,6 +13,7 @@ import {
 } from '../product-pins/schema/product-pins.schema'
 import { VolumeModule } from '../volume/volume.module'
 import { VolumeLedger, VolumeLedgerSchema } from '../volume/schemas/volume-ledger.schema'
+import { VolumeBucket, VolumeBucketSchema } from '../volume/schemas/volume-bucket.schema'
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { VolumeLedger, VolumeLedgerSchema } from '../volume/schemas/volume-ledge
       { name: User.name, schema: UserSchema },
       { name: ProductPin.name, schema: ProductPinSchema },
       { name: VolumeLedger.name, schema: VolumeLedgerSchema },
+      { name: VolumeBucket.name, schema: VolumeBucketSchema },
     ]),
     VolumeModule,
   ],

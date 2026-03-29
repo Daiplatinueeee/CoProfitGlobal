@@ -1,11 +1,15 @@
-import { IsMongoId, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { PairingCycle } from '../pairing.service';
 
 export class RunPairingDto {
-  @IsMongoId()
+  @IsString()
   userId: string;
 
-  // optional: defaults to today "YYYY-MM-DD"
+  @IsOptional()
+  @IsEnum(PairingCycle)
+  cycle?: PairingCycle; // defaults to AM if not provided
+
   @IsOptional()
   @IsString()
-  periodKey?: string;
+  dateKey?: string; // YYYY-MM-DD, defaults to today
 }

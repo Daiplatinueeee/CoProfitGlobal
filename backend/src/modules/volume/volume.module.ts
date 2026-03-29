@@ -5,20 +5,11 @@ import { VolumeService } from './volume.service'
 import { VolumeController } from './volume.controller'
 
 import { User, UserSchema } from '../users/schemas/user.schema'
-import {
-  GenealogyNode,
-  GenealogyNodeSchema,
-} from '../genealogy/schema/genealogy-node.schema'
+import { GenealogyNode, GenealogyNodeSchema } from '../genealogy/schema/genealogy-node.schema'
+import { VolumeBucket, VolumeBucketSchema } from './schemas/volume-bucket.schema'
+import { VolumeLedger, VolumeLedgerSchema } from './schemas/volume-ledger.schema'
 
-import {
-  VolumeBucket,
-  VolumeBucketSchema,
-} from './schemas/volume-bucket.schema'
-
-import {
-  VolumeLedger,
-  VolumeLedgerSchema,
-} from './schemas/volume-ledger.schema'
+import { PairingModule } from '../pairing/pairing.module' // ← add
 
 @Module({
   imports: [
@@ -28,6 +19,7 @@ import {
       { name: VolumeBucket.name, schema: VolumeBucketSchema },
       { name: VolumeLedger.name, schema: VolumeLedgerSchema },
     ]),
+    PairingModule, // ← add
   ],
   controllers: [VolumeController],
   providers: [VolumeService],
