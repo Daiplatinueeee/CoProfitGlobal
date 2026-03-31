@@ -8,8 +8,8 @@ interface Member {
   email: string;
   profileImage: string;
   referralCode: string;
-  leftLegPoints: number;
-  rightLegPoints: number;
+  leftAvailablePoints: number;
+  rightAvailablePoints: number;
 }
 
 interface ReferralCounts {
@@ -113,7 +113,7 @@ export default function MemberDetailsPanel({
   const [leadershipLoading, setLeadershipLoading] = useState(false);
   const [leadershipError, setLeadershipError] = useState<string | null>(null);
 
-  
+
   // ─── Fetch referral counts ────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
@@ -131,7 +131,7 @@ export default function MemberDetailsPanel({
         console.log('referral counts response:', data);
 
         // Supports: { counts: { direct, indirect } } | { direct, indirect } | { directReferralCount, ... }
-        const direct   = data?.counts?.direct   ?? data?.direct   ?? data?.directReferralCount   ?? 0;
+        const direct = data?.counts?.direct ?? data?.direct ?? data?.directReferralCount ?? 0;
         const indirect = data?.counts?.indirect ?? data?.indirect ?? data?.indirectReferralCount ?? 0;
         setReferralCounts({
           direct,
@@ -148,34 +148,34 @@ export default function MemberDetailsPanel({
   }, [id]);
 
   // ─── Fetch spill-over bonus (GET /spill/status/:userId) ──────────────────
-  useEffect(() => { 
-  if (!id) return;
-  const run = async () => {
-    setSpillOverLoading(true);
-    setSpillOverError(null);
-    setSpillOver(null);
-    try {
-      const res = await fetch(`${BASE}/genealogy/${id}/spillover-bonus`, {
-        method: 'GET',
-        headers: authHeaders(),
-      });
-      if (!res.ok) throw new Error(`Failed to fetch spill-over bonus (${res.status})`);
-      const data = await res.json();
-      console.log('spill-over bonus response:', data);
+  useEffect(() => {
+    if (!id) return;
+    const run = async () => {
+      setSpillOverLoading(true);
+      setSpillOverError(null);
+      setSpillOver(null);
+      try {
+        const res = await fetch(`${BASE}/genealogy/${id}/spillover-bonus`, {
+          method: 'GET',
+          headers: authHeaders(),
+        });
+        if (!res.ok) throw new Error(`Failed to fetch spill-over bonus (${res.status})`);
+        const data = await res.json();
+        console.log('spill-over bonus response:', data);
 
-      // Backend returns: { totalBonusPHP, spilloverCount, totalPoints, breakdown }
-      setSpillOver({
-        totalPhp: data?.totalBonusPHP ?? 0,
-        totalReceivedMembers: data?.spilloverCount ?? 0,
-      });
-    } catch (err: any) {
-      setSpillOverError(err.message ?? 'Failed to load spill-over bonus');
-    } finally {
-      setSpillOverLoading(false);
-    }
-  };
-  run();
-}, [id]);
+        // Backend returns: { totalBonusPHP, spilloverCount, totalPoints, breakdown }
+        setSpillOver({
+          totalPhp: data?.totalBonusPHP ?? 0,
+          totalReceivedMembers: data?.spilloverCount ?? 0,
+        });
+      } catch (err: any) {
+        setSpillOverError(err.message ?? 'Failed to load spill-over bonus');
+      } finally {
+        setSpillOverLoading(false);
+      }
+    };
+    run();
+  }, [id]);
 
   // ─── Fetch Sign-5 bonus (GET /sign5/status/:userId) ──────────────────────
   useEffect(() => {
@@ -198,16 +198,16 @@ export default function MemberDetailsPanel({
         //             awards: [ { tier, referralsCount, setsOfFive, cashSetsPaid,
         //                         gcSetsPaid, cashAmountPhp, gcPointsAmount } ] }
         const awards: Sign5TierAward[] = (data?.awards ?? []).map((a: any) => ({
-          tier:           a.tier            ?? '',
-          referralsCount: a.referralsCount  ?? 0,
-          setsOfFive:     a.cashSetPaid     ?? 0,   // was a.setsOfFive
-          cashSetsPaid:   a.cashSetPaid     ?? 0,   // was a.cashSetsPaid
-          gcSetsPaid:     a.gcReferralCountPaid ?? 0, // was a.gcSetsPaid
-          cashAmountPhp:  a.cashAmountPhp   ?? 0,
-          gcPointsAmount: a.gcPointsAmount  ?? 0,
+          tier: a.tier ?? '',
+          referralsCount: a.referralsCount ?? 0,
+          setsOfFive: a.cashSetPaid ?? 0,   // was a.setsOfFive
+          cashSetsPaid: a.cashSetPaid ?? 0,   // was a.cashSetsPaid
+          gcSetsPaid: a.gcReferralCountPaid ?? 0, // was a.gcSetsPaid
+          cashAmountPhp: a.cashAmountPhp ?? 0,
+          gcPointsAmount: a.gcPointsAmount ?? 0,
         }));
         setSign5Bonus({
-          totalCashPhp:  awards.reduce((s, a) => s + a.cashAmountPhp,  0),
+          totalCashPhp: awards.reduce((s, a) => s + a.cashAmountPhp, 0),
           totalGcPoints: awards.reduce((s, a) => s + a.gcPointsAmount, 0),
           awards,
         });
@@ -222,33 +222,33 @@ export default function MemberDetailsPanel({
 
 
   // ─── Fetch wallet balances (GET /wallet/:userId/balances) ────────────────────
-useEffect(() => {
-  if (!id) return;
-  const run = async () => {
-    setPairingLoading(true);
-    setPairingError(null);
-    setPairingBonus(null);
-    try {
-      const res = await fetch(`${BASE}/wallet/${id}/transactions?limit=200`, {
-        headers: authHeaders(),
-      });
-      if (!res.ok) throw new Error(`Failed to fetch transactions (${res.status})`);
+  useEffect(() => {
+    if (!id) return;
+    const run = async () => {
+      setPairingLoading(true);
+      setPairingError(null);
+      setPairingBonus(null);
+      try {
+        const res = await fetch(`${BASE}/wallet/${id}/transactions?limit=200`, {
+          headers: authHeaders(),
+        });
+        if (!res.ok) throw new Error(`Failed to fetch transactions (${res.status})`);
 
-      const txns: WalletTransaction[] = await res.json();
+        const txns: WalletTransaction[] = await res.json();
 
-      const pairingPhp = txns
-        .filter(t => t.currency === 'php' && t.type === 'credit' && t.source === 'pairing')
-        .reduce((acc, t) => acc + t.amount, 0);
+        const pairingPhp = txns
+          .filter(t => t.currency === 'php' && t.type === 'credit' && t.source === 'pairing')
+          .reduce((acc, t) => acc + t.amount, 0);
 
-      setPairingBonus({ payoutPhp: pairingPhp });
-    } catch (err: any) {
-      setPairingError(err.message ?? 'Failed to load pairing bonus');
-    } finally {
-      setPairingLoading(false);
-    }
-  };
-  run();
-}, [id]);
+        setPairingBonus({ payoutPhp: pairingPhp });
+      } catch (err: any) {
+        setPairingError(err.message ?? 'Failed to load pairing bonus');
+      } finally {
+        setPairingLoading(false);
+      }
+    };
+    run();
+  }, [id]);
 
   // ─── Fetch leadership bonus (GET /leadership/status/:userId) ─────────────
   useEffect(() => {
@@ -271,17 +271,17 @@ useEffect(() => {
         // { userId, monthKey,
         //   qualification: { unilevelPoints, threshold, qualified, windowStart, windowEnd },
         //   award:         { pairingTotalPhp, rate, leadershipPhp } }
-        const qual  = data?.qualification ?? null;
-        const award = data?.award         ?? null;
+        const qual = data?.qualification ?? null;
+        const award = data?.award ?? null;
         setLeadershipBonus({
-          leadershipPhp:   award?.leadershipPhp   ?? 0,
+          leadershipPhp: award?.leadershipPhp ?? 0,
           pairingTotalPhp: award?.pairingTotalPhp ?? 0,
-          rate:            award?.rate            ?? 0.05,
-          qualified:       qual?.qualified        ?? false,
-          unilevelPoints:  qual?.unilevelPoints   ?? 0,
-          threshold:       qual?.threshold        ?? 1500,
-          windowStart:     qual?.windowStart      ?? null,
-          windowEnd:       qual?.windowEnd        ?? null,
+          rate: award?.rate ?? 0.05,
+          qualified: qual?.qualified ?? false,
+          unilevelPoints: qual?.unilevelPoints ?? 0,
+          threshold: qual?.threshold ?? 1500,
+          windowStart: qual?.windowStart ?? null,
+          windowEnd: qual?.windowEnd ?? null,
         });
       } catch (err: any) {
         setLeadershipError(err.message ?? 'Failed to load leadership bonus');
@@ -324,24 +324,19 @@ useEffect(() => {
               {selectedMember.username}
             </h4>
             <p className="text-sm text-gray-600 mb-4">{selectedMember.email}</p>
-            <div className="bg-white/60 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-blue-200">
-              <p className="text-xs text-gray-700 font-medium">
-                PIN: {selectedMember.referralCode}
-              </p>
-            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 mt-6 pt-5 border-t border-blue-200/50">
             <div className="bg-white/80 backdrop-blur-sm p-3 rounded-xl text-center border border-blue-100">
               <p className="text-xs text-gray-600 font-medium mb-1">Left Leg</p>
               <p className="text-2xl font-bold text-blue-600">
-                {selectedMember.leftLegPoints}
+                {selectedMember.leftAvailablePoints}
               </p>
             </div>
             <div className="bg-white/80 backdrop-blur-sm p-3 rounded-xl text-center border border-indigo-100">
               <p className="text-xs text-gray-600 font-medium mb-1">Right Leg</p>
               <p className="text-2xl font-bold text-indigo-600">
-                {selectedMember.rightLegPoints}
+                {selectedMember.rightAvailablePoints}
               </p>
             </div>
           </div>
@@ -425,27 +420,27 @@ useEffect(() => {
               </p>
               {!sign5Loading && !sign5Error && sign5Bonus &&
                 sign5Bonus.awards.filter((a) => a.setsOfFive > 0).length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {sign5Bonus.awards
-                    .filter((a) => a.setsOfFive > 0)
-                    .map((a) => (
-                      <div
-                        key={a.tier}
-                        className="flex items-center justify-between text-xs bg-white/70 px-2.5 py-1.5 rounded-lg border border-blue-100"
-                      >
-                        <span className="font-medium text-gray-700 capitalize">
-                          {a.tier.toLowerCase()}
-                        </span>
-                        <span className="text-gray-500">
-                          {a.referralsCount} ref{a.referralsCount !== 1 ? 's' : ''} · {a.setsOfFive} set{a.setsOfFive !== 1 ? 's' : ''}
-                        </span>
-                        <span className="font-semibold text-blue-600">
-                          ₱ {a.cashAmountPhp.toLocaleString()}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              )}
+                  <div className="mt-2 space-y-1">
+                    {sign5Bonus.awards
+                      .filter((a) => a.setsOfFive > 0)
+                      .map((a) => (
+                        <div
+                          key={a.tier}
+                          className="flex items-center justify-between text-xs bg-white/70 px-2.5 py-1.5 rounded-lg border border-blue-100"
+                        >
+                          <span className="font-medium text-gray-700 capitalize">
+                            {a.tier.toLowerCase()}
+                          </span>
+                          <span className="text-gray-500">
+                            {a.referralsCount} ref{a.referralsCount !== 1 ? 's' : ''} · {a.setsOfFive} set{a.setsOfFive !== 1 ? 's' : ''}
+                          </span>
+                          <span className="font-semibold text-blue-600">
+                            ₱ {a.cashAmountPhp.toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
             </div>
 
             {/* ── Pairing Bonus ──────────────────────────────────────────── */}
