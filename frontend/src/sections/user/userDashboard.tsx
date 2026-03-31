@@ -23,6 +23,7 @@ interface WalletTransaction {
   amount: number;
   source: 'pairing' | 'sign5' | 'leadership' | 'admin_adjustment' | 'withdrawal';
   note: string;
+  postedAt: string;
   createdAt: string;
 }
 
@@ -32,6 +33,7 @@ interface IncomeBreakdown {
   sign5Bonus:       number;
   leadershipBonus:  number;
   recentPayouts:    WalletTransaction[];
+  transactions:     WalletTransaction[];
 }
 
 const API_BASE_URL = 'http://localhost:3000';
@@ -39,47 +41,73 @@ const API_BASE_URL = 'http://localhost:3000';
 const formatPhp = (amount: number) =>
   amount.toLocaleString('en-PH', { minimumFractionDigits: 2 });
 
+// ── Period income helpers ─────────────────────────────────────────────────
+
+function sumCredits(transactions: WalletTransaction[], from: Date) {
+  return transactions
+    .filter(t => t.type === 'credit' && new Date(t.postedAt) >= from)
+    .reduce((acc, t) => acc + t.amount, 0);
+}
+
+function getPeriodIncome(transactions: WalletTransaction[]) {
+  const now = new Date();
+
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  return {
+    today:     sumCredits(transactions, startOfToday),
+    thisWeek:  sumCredits(transactions, startOfWeek),
+    thisMonth: sumCredits(transactions, startOfMonth),
+  };
+}
+
 // ── Component ─────────────────────────────────────────────────────────────
 
 export default function UserDashboard() {
-  const [sidebarOpen, setSidebarOpen]         = useState(true);
-  const [activeTab, setActiveTab]             = useState('dashboard');
-  const [, setProfileModalOpen]               = useState(false);
-  const [profilePicture]                      = useState('CP');
+  const [sidebarOpen, setSidebarOpen]           = useState(true);
+  const [activeTab, setActiveTab]               = useState('dashboard');
+  const [, setProfileModalOpen]                 = useState(false);
+  const [profilePicture]                        = useState('CP');
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const [dontShowAgain, setDontShowAgain]     = useState(false);
+  const [dontShowAgain, setDontShowAgain]       = useState(false);
   const navigate = useNavigate();
 
   // ── Wallet / income state ────────────────────────────────────────────
-  const [income, setIncome]           = useState<IncomeBreakdown | null>(null);
+  const [income, setIncome]               = useState<IncomeBreakdown | null>(null);
   const [incomeLoading, setIncomeLoading] = useState(true);
 
   useEffect(() => {
     const fetchIncome = async () => {
       try {
-        const token = localStorage.getItem('accessToken')
+        const token = localStorage.getItem('accessToken');
 
-      // Try 'userId' first, fall back to parsing 'user' object
-      let userId = localStorage.getItem('userId')
-      if (!userId) {
-        const userStr = localStorage.getItem('user')
-        if (userStr) {
-          const userObj = JSON.parse(userStr)
-          userId = userObj.id ?? userObj._id ?? userObj.userId
+        let userId = localStorage.getItem('userId');
+        if (!userId) {
+          const userStr = localStorage.getItem('user');
+          if (userStr) {
+            const userObj = JSON.parse(userStr);
+            userId = userObj.id ?? userObj._id ?? userObj.userId;
+          }
         }
-      }
 
-      console.log('resolved userId:', userId) // ← confirm this is not null
+        console.log('resolved userId:', userId);
 
-      if (!token || !userId) {
-        console.error('Missing token or userId — cannot fetch income')
-        return
-      }
+        if (!token || !userId) {
+          console.error('Missing token or userId — cannot fetch income');
+          return;
+        }
 
-      const res = await fetch(
-        `${API_BASE_URL}/wallet/${userId}/transactions?limit=200`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      )
+        const res = await fetch(
+          `${API_BASE_URL}/wallet/${userId}/transactions?limit=200`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
 
         if (!res.ok) throw new Error('Failed to fetch transactions');
 
@@ -100,10 +128,16 @@ export default function UserDashboard() {
         const leadershipBonus = sum('leadership');
         const totalIncome     = pairingBonus + sign5Bonus + leadershipBonus;
 
-        // Recent 4 payouts for the Recent Payouts card
         const recentPayouts = phpCredits.slice(0, 4);
 
-        setIncome({ totalIncome, pairingBonus, sign5Bonus, leadershipBonus, recentPayouts });
+        setIncome({
+          totalIncome,
+          pairingBonus,
+          sign5Bonus,
+          leadershipBonus,
+          recentPayouts,
+          transactions: phpCredits,
+        });
       } catch (err) {
         console.error('Income fetch error:', err);
       } finally {
@@ -113,6 +147,12 @@ export default function UserDashboard() {
 
     fetchIncome();
   }, []);
+
+  // ── Period income (Today / This Week / This Month) ───────────────────
+  const periodIncome = useMemo(
+    () => getPeriodIncome(income?.transactions ?? []),
+    [income],
+  );
 
   // ── Existing effects ─────────────────────────────────────────────────
   useEffect(() => {
@@ -142,15 +182,15 @@ export default function UserDashboard() {
   };
 
   const menuItems = useMemo(() => [
-    { id: 'dashboard',        label: 'Dashboard',        icon: Home },
-    { id: 'genealogy',        label: 'Genealogy',        icon: Network },
-    { id: 'referal-hierarchy',label: 'Referal Hierarchy',icon: Lock },
-    { id: 'pairing-history',  label: 'Pairing History',  icon: TrendingUp },
-    { id: 'payout-system',    label: 'Payout System',    icon: Wallet },
-    { id: 'subscription',     label: 'Subscription',     icon: ShoppingBag },
-    { id: 'unilevel-package', label: 'Unilevel Products',icon: Download },
-    { id: 'withdraw-gc',      label: 'Withdraw GC',      icon: Download },
-    { id: 'payout-history',   label: 'Payout History',   icon: Download },
+    { id: 'dashboard',          label: 'Dashboard',         icon: Home },
+    { id: 'genealogy',          label: 'Genealogy',         icon: Network },
+    { id: 'referal-hierarchy',  label: 'Referal Hierarchy', icon: Lock },
+    { id: 'pairing-history',    label: 'Pairing History',   icon: TrendingUp },
+    { id: 'payout-system',      label: 'Payout System',     icon: Wallet },
+    { id: 'subscription',       label: 'Subscription',      icon: ShoppingBag },
+    { id: 'unilevel-package',   label: 'Unilevel Products', icon: Download },
+    { id: 'withdraw-gc',        label: 'Withdraw GC',       icon: Download },
+    { id: 'payout-history',     label: 'Payout History',    icon: Download },
   ], []);
 
   // ── Skeleton helper ───────────────────────────────────────────────────
@@ -184,31 +224,31 @@ export default function UserDashboard() {
 
         <div className="flex items-center gap-6">
           <div className="flex flex-col">
-            <span className="text-xs text-gray-600 mb-1">Pairing Bonus</span>
+            <span className="text-xs text-gray-600 mb-1">Today</span>
             {incomeLoading
               ? <Skeleton className="h-7 w-28" />
               : <span className="text-2xl font-semibold text-gray-900">
-                  ₱{formatPhp(income?.pairingBonus ?? 0)}
+                  ₱{formatPhp(periodIncome.today)}
                 </span>
             }
           </div>
           <div className="w-px h-12 bg-blue-200" />
           <div className="flex flex-col">
-            <span className="text-xs text-gray-600 mb-1">Sign-5 Bonus</span>
+            <span className="text-xs text-gray-600 mb-1">This Week</span>
             {incomeLoading
               ? <Skeleton className="h-7 w-28" />
               : <span className="text-2xl font-semibold text-blue-600">
-                  ₱{formatPhp(income?.sign5Bonus ?? 0)}
+                  ₱{formatPhp(periodIncome.thisWeek)}
                 </span>
             }
           </div>
           <div className="w-px h-12 bg-blue-200" />
           <div className="flex flex-col">
-            <span className="text-xs text-gray-600 mb-1">Leadership Bonus</span>
+            <span className="text-xs text-gray-600 mb-1">This Month</span>
             {incomeLoading
               ? <Skeleton className="h-7 w-28" />
               : <span className="text-2xl font-semibold text-indigo-600">
-                  ₱{formatPhp(income?.leadershipBonus ?? 0)}
+                  ₱{formatPhp(periodIncome.thisMonth)}
                 </span>
             }
           </div>
@@ -399,9 +439,9 @@ export default function UserDashboard() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Sign-5 Progress (This Month)</h3>
           <div className="space-y-3">
             {[
-              { name: 'Bronze 0', progress: 100 },
-              { name: 'Silver 0', progress: 75 },
-              { name: 'Gold 0',   progress: 40 },
+              { name: 'Bronze 0',   progress: 100 },
+              { name: 'Silver 0',   progress: 75 },
+              { name: 'Gold 0',     progress: 40 },
               { name: 'Platinum 0', progress: 10 },
             ].map((tier, idx) => (
               <div key={idx}>
@@ -503,14 +543,14 @@ export default function UserDashboard() {
 
   const renderTabContent = () => {
     const contents: Record<string, React.ReactElement> = {
-      genealogy:          <Genealogy />,
-      'pairing-history':  <Pairing />,
-      'payout-system':    <Payout />,
-      'referal-hierarchy':<ReferalsHierarchy />,
-      'withdraw-gc':      <WithdrawGC />,
-      subscription:       <Subscription />,
-      'unilevel-package': <UnilevelProducts />,
-      'payout-history':   <PayoutHistory />,
+      genealogy:           <Genealogy />,
+      'pairing-history':   <Pairing />,
+      'payout-system':     <Payout />,
+      'referal-hierarchy': <ReferalsHierarchy />,
+      'withdraw-gc':       <WithdrawGC />,
+      subscription:        <Subscription />,
+      'unilevel-package':  <UnilevelProducts />,
+      'payout-history':    <PayoutHistory />,
     };
     return contents[activeTab] || <div />;
   };
