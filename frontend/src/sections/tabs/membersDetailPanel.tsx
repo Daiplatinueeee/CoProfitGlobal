@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import logo from './../../assets/refs/Logo.webp';
 
 // ─── Domain interfaces ────────────────────────────────────────────────────────
 
@@ -316,9 +317,10 @@ export default function MemberDetailsPanel({
         <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100/50">
           <div className="flex flex-col items-center">
             <img
-              src={selectedMember.profileImage}
+              src={selectedMember.profileImage || logo}
               alt={selectedMember.username}
               className="w-20 h-20 rounded-full border-4 border-white object-cover shadow-md mb-4"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = logo; }}
             />
             <h4 className="font-semibold text-xl text-gray-900 mb-1">
               {selectedMember.username}
