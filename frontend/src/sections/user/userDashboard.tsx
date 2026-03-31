@@ -36,7 +36,7 @@ interface IncomeBreakdown {
   transactions: WalletTransaction[];
 }
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'https://coprofitglobal-production.up.railway.app';
 
 const formatPhp = (amount: number) =>
   amount.toLocaleString('en-PH', { minimumFractionDigits: 2 });

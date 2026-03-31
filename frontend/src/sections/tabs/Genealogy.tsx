@@ -39,7 +39,7 @@ interface AddMemberFormData {
   username: string
 }
 
-const API_BASE_URL = 'http://localhost:3000'
+const API_BASE_URL = 'https://coprofitglobal-production.up.railway.app'
 
 function Genealogy() {
   const ACTION_BTN_WIDTH = 110
