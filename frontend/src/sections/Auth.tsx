@@ -7,8 +7,6 @@ import { useNavigate } from "react-router-dom"
 import bg from "../assets/Gradient Loop Background - Dev Ashish Deval (1080p, h264).mp4";
 import ForgotPasswordModal from './tabs/ForgotPassword';
 
-const BASE_URL = 'https://coprofitglobal-production.up.railway.app';
-
 export default function AuthPage() {
     const [isSignIn, ] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
