@@ -18,7 +18,7 @@ async function bootstrap() {
   );
   
   app.enableCors({
-  origin: ['https://co-profit-global.vercel.app', 'http://localhost:5173'],
+  origin: ['https://coprofitglobal-production.up.railway.app', 'http://localhost:5173'],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true, // keep true if you use cookies for refresh token; otherwise you can set false
