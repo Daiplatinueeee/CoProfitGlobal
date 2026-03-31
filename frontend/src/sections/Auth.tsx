@@ -1,17 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Mail, Eye, EyeOff, ArrowRight, CircleUserRound, Asterisk } from 'lucide-react';
 import { useNavigate } from "react-router-dom"
 
 import bg from "../assets/Gradient Loop Background - Dev Ashish Deval (1080p, h264).mp4";
+import ForgotPasswordModal from './tabs/ForgotPassword';
 
 const BASE_URL = 'https://coprofitglobal-production.up.railway.app';
 
 export default function AuthPage() {
-    const [isSignIn, setIsSignIn] = useState(true);
+    const [isSignIn, ] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [, setUserEmail] = useState('');
@@ -22,6 +24,16 @@ export default function AuthPage() {
         password: '',
         referralCode: '',
     });
+
+    // On mount: restore saved credentials if Remember Me was previously checked
+    useEffect(() => {
+        const savedEmail    = localStorage.getItem('rememberedEmail');
+        const savedPassword = localStorage.getItem('rememberedPassword');
+        if (savedEmail && savedPassword) {
+            setRememberMe(true);
+            setFormData((prev) => ({ ...prev, email: savedEmail, password: savedPassword }));
+        }
+    }, []);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -61,6 +73,15 @@ export default function AuthPage() {
             // Save auth data
             localStorage.setItem('accessToken', data.access_token);
             localStorage.setItem('user', JSON.stringify(data.user));
+
+            // Remember Me — save or clear credentials
+            if (rememberMe) {
+                localStorage.setItem('rememberedEmail',    formData.email);
+                localStorage.setItem('rememberedPassword', formData.password);
+            } else {
+                localStorage.removeItem('rememberedEmail');
+                localStorage.removeItem('rememberedPassword');
+            }
 
             // Navigate based on role
             if (data.user.role === 'admin') {
@@ -137,46 +158,6 @@ export default function AuthPage() {
                         <p className="text-base text-gray-300">
                             {isSignIn ? 'Sign in to your account' : 'Join us to get started'}
                         </p>
-                    </div>
-
-                    {/* Tab Toggle */}
-                    <div className="flex gap-2 mb-8 bg-transparent p-1.5 rounded-full animate-fade-in-delay">
-                        <button
-                            onClick={() => {
-                                setIsSignIn(true);
-                                setFormData({
-                                    username: '',
-                                    email: '',
-                                    password: '',
-                                    referralCode: '',
-                                });
-                            }}
-
-                            className={`flex-1 py-2.5 rounded-full font-medium text-sm transition-all duration-300 ${isSignIn
-                                ? 'bg-gray-700 text-white shadow-md'
-                                : 'text-gray-600 hover:text-white'
-                                }`}
-                        >
-                            Sign In
-                        </button>
-                        <button
-                            onClick={() => {
-                                setIsSignIn(false);
-                                setFormData({
-                                    username: '',
-                                    email: '',
-                                    password: '',
-                                    referralCode: '',
-                                });
-                                setError('');
-                            }}
-                            className={`flex-1 py-2.5 rounded-full font-medium text-sm transition-all duration-300 ${!isSignIn
-                                ? 'bg-gray-700 text-white shadow-md'
-                                : 'text-gray-600 hover:text-white'
-                                }`}
-                        >
-                            Sign Up
-                        </button>
                     </div>
 
                     {/* Form */}
@@ -273,6 +254,7 @@ export default function AuthPage() {
                                 </label>
                                 <a
                                     href="#"
+                                    onClick={(e) => { e.preventDefault(); setShowForgotPassword(true); }}
                                     className="text-sm text-gray-500 hover:text-yellow-500 font-medium transition-colors duration-300"
                                 >
                                     Forgot Password?
@@ -299,7 +281,7 @@ export default function AuthPage() {
 
                     {/* Footer Text */}
                     <p className="text-center text-xs text-gray-300 mt-8">
-                        © 2025 CoProfitGlobal. All rights reserved.
+                        © 2026 CoProfitGlobal. All rights reserved.
                     </p>
                 </div>
             </div>
@@ -327,6 +309,11 @@ export default function AuthPage() {
                     </p>
                 </div>
             </div>
+            {/* Forgot Password Modal */}
+            <ForgotPasswordModal
+                isOpen={showForgotPassword}
+                onClose={() => setShowForgotPassword(false)}
+            />
         </div>
     );
 }

@@ -5,6 +5,7 @@ import CreateUserModal from './CreateUserModal';
 
 const API_BASE = 'http://localhost:3000';
 
+
 interface User {
   id: string;
   name: string;
@@ -58,7 +59,7 @@ function UsersOverview() {
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   const getAuthHeaders = () => {
-    const token = localStorage.getItem('accessToken');
+    const token = localStorage.getItem('token') ?? localStorage.getItem('accessToken');
     return {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
@@ -93,18 +94,12 @@ function UsersOverview() {
     };
   };
 
-  // ─── API calls ────────────────────────────────────────────────────────────
-
-  /**
-   * GET /users  — fetches all users
-   * Fixed: was calling a non-existent route; now targets the correct endpoint.
-   */
   const fetchUsers = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('accessToken');
+      const token = localStorage.getItem('token') ?? localStorage.getItem('accessToken');
 
       if (!token) {
         setError('Not authenticated. Please log in again.');
@@ -138,35 +133,29 @@ function UsersOverview() {
     }
   };
 
-  /**
-   * POST /admin/users — create a new user via the admin service.
-   * Sends all form fields including profile data.
-   */
   const handleCreateUser = async () => {
   if (!validateForm()) return;
 
   setError(null);
 
-  try {
-    const response = await fetch(`${API_BASE}/admin/users`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        name: formData.name,
-        username: formData.username || undefined,
-        email: formData.email,
-        password: formData.password,
-        ...(formData.age ? { age: parseInt(formData.age, 10) } : {}),
-        ...(formData.contact ? { contact: formData.contact } : {}),
-        ...(formData.address ? { address: formData.address } : {}),
-        ...(formData.beneficiary ? { beneficiary: formData.beneficiary } : {}),
-        ...(formData.bday ? { birthday: formData.bday } : {}),
-        packagePin: formData.packagePin,
-        ...(formData.sponsorReferralCode
-          ? { sponsorReferralCode: formData.sponsorReferralCode }
-          : {}),
-      }),
-    });
+    try {
+      const response = await fetch(`${API_BASE}/admin/users`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          name: formData.name,
+          username: formData.username || undefined,
+          email: formData.email,
+          password: formData.password,
+          packagePin: formData.packagePin,     
+          role: 'user',  
+          ...(formData.age ? { age: parseInt(formData.age, 10) } : {}),
+          ...(formData.contact ? { contact: formData.contact } : {}),
+          ...(formData.address ? { address: formData.address } : {}),
+          ...(formData.beneficiary ? { beneficiary: formData.beneficiary } : {}),
+          ...(formData.bday ? { birthday: formData.bday } : {}),
+        }),
+      });
 
     const data = await response.json();
 
@@ -204,10 +193,6 @@ function UsersOverview() {
   }
 };
 
-  /**
-   * DELETE /users/:id  — hard-deletes a user
-   * Fixed: was not implemented / calling a non-existent endpoint.
-   */
   const handleDeleteUser = async (userId: string) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
 
@@ -231,10 +216,6 @@ function UsersOverview() {
     }
   };
 
-  /**
-   * PATCH /users/:id/status  — toggles isActive
-   * Fixed: was not implemented / calling a non-existent endpoint.
-   */
   const handleToggleStatus = async (userId: string) => {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
@@ -346,7 +327,7 @@ function UsersOverview() {
             onClick={() => setShowCreateForm(true)}
             className="bg-sky-400 hover:bg-sky-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
-            + Add User
+            Add User
           </button>
         </div>
 

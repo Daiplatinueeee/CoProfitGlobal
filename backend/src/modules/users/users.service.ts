@@ -17,16 +17,17 @@ import {
 export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
+  // ✅ Generate unique package pin
   private async generateUniquePackagePin(prefix = 'CPG'): Promise<string> {
     for (let i = 0; i < 20; i++) {
       const pin = `${prefix}${Math.floor(100000 + Math.random() * 900000)}`;
       const exists = await this.userModel.exists({ packagePin: pin });
       if (!exists) return pin;
     }
-
     throw new ConflictException('Unable to generate unique package pin');
   }
 
+  // ✅ Core user creation (single source of truth)
   private async createUserRecord(input: {
     name: string;
     username?: string;
@@ -35,28 +36,23 @@ export class UsersService {
     role: SystemRole;
     membershipTier: MembershipTier;
     sponsorId?: Types.ObjectId | null;
-    packagePin?: string;
+    packagePin: string;
     age?: number;
     contact?: string;
     address?: string;
     beneficiary?: string;
     birthday?: string;
   }): Promise<User> {
-    const email = input.email.toLowerCase().trim();
-    const name = input.name.trim();
-    const username = input.username?.trim() || name;
-    const packagePin = (input.packagePin ?? '').trim();
-
-    const createPayload = {
-      name,
-      username,
-      email,
+    const payload = {
+      name: input.name.trim(),
+      username: input.username?.trim() || input.name.trim(),
+      email: input.email.toLowerCase().trim(),
       passwordHash: input.passwordHash,
       role: input.role,
       membershipTier: input.membershipTier,
       sponsorId: input.sponsorId ?? null,
 
-      packagePin,
+      packagePin: input.packagePin,
       age: input.age ?? null,
       contact: input.contact ?? '',
       address: input.address ?? '',
@@ -65,43 +61,28 @@ export class UsersService {
     };
 
     try {
-      const created = await this.userModel.create(createPayload);
-      return created;
+      return await this.userModel.create(payload);
     } catch (err: any) {
       if (err?.code === 11000) {
         if (err?.keyPattern?.email) {
           throw new ConflictException('Email already in use');
         }
-
         if (err?.keyPattern?.packagePin) {
           throw new ConflictException('Package pin already in use');
         }
-
         if (err?.keyPattern?.referralCode) {
-          try {
-            const created = await this.userModel.create({
-              ...createPayload,
-              referralCode: undefined,
-            });
-            return created;
-          } catch (e: any) {
-            if (e?.code === 11000 && e?.keyPattern?.email) {
-              throw new ConflictException('Email already in use');
-            }
-            if (e?.code === 11000 && e?.keyPattern?.packagePin) {
-              throw new ConflictException('Package pin already in use');
-            }
-            throw e;
-          }
+          return this.userModel.create({
+            ...payload,
+            referralCode: undefined,
+          });
         }
-
         throw new ConflictException('Duplicate field value');
       }
-
       throw err;
     }
   }
 
+  // ✅ Create USER
   async createUser(input: {
     name: string;
     username?: string;
@@ -110,7 +91,7 @@ export class UsersService {
     role?: SystemRole;
     membershipTier?: MembershipTier;
     sponsorReferralCode?: string;
-    packagePin?: string;  // optional — auto-generated if not supplied
+    packagePin?: string;
     age?: number;
     contact?: string;
     address?: string;
@@ -120,9 +101,9 @@ export class UsersService {
     let sponsorId: Types.ObjectId | null = null;
 
     if (input.sponsorReferralCode) {
-      const sponsor = await this.userModel
-        .findOne({ referralCode: input.sponsorReferralCode.trim() })
-        .exec();
+      const sponsor = await this.userModel.findOne({
+        referralCode: input.sponsorReferralCode.trim(),
+      });
 
       if (!sponsor) {
         throw new BadRequestException('Invalid referral code');
@@ -130,6 +111,10 @@ export class UsersService {
 
       sponsorId = sponsor._id as Types.ObjectId;
     }
+
+    const packagePin =
+      input.packagePin?.trim() ||
+      (await this.generateUniquePackagePin('CPG'));
 
     return this.createUserRecord({
       name: input.name,
@@ -139,8 +124,7 @@ export class UsersService {
       role: input.role ?? SystemRole.USER,
       membershipTier: input.membershipTier ?? MembershipTier.BRONZE,
       sponsorId,
-
-      packagePin: input.packagePin?.trim() || (await this.generateUniquePackagePin('CPG')),
+      packagePin,
       age: input.age,
       contact: input.contact,
       address: input.address,
@@ -149,6 +133,7 @@ export class UsersService {
     });
   }
 
+  // ✅ Create ADMIN
   async createAdmin(input: {
     name: string;
     username?: string;
@@ -160,34 +145,19 @@ export class UsersService {
       input.packagePin?.trim() ||
       (await this.generateUniquePackagePin('ADM'));
 
-    try {
-      return await this.userModel.create({
-        name: input.name.trim(),
-        username: input.username?.trim() || input.name.trim(),
-        email: input.email.toLowerCase().trim(),
-        passwordHash: input.passwordHash,
-        role: SystemRole.ADMIN,
-        membershipTier: MembershipTier.BRONZE,
-        sponsorId: null,
-        packagePin,
-      });
-    } catch (err: any) {
-      if (err?.code === 11000) {
-        if (err?.keyPattern?.email) {
-          throw new ConflictException('Email already in use');
-        }
-
-        if (err?.keyPattern?.packagePin) {
-          throw new ConflictException('Package pin already in use');
-        }
-
-        throw new ConflictException('Duplicate field value');
-      }
-
-      throw err;
-    }
+    return this.createUserRecord({
+      name: input.name,
+      username: input.username,
+      email: input.email,
+      passwordHash: input.passwordHash,
+      role: SystemRole.ADMIN,
+      membershipTier: MembershipTier.BRONZE,
+      sponsorId: null,
+      packagePin,
+    });
   }
 
+  // ✅ Update membership
   async updateMembershipTier(userId: string, membershipTier: MembershipTier) {
     if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('Invalid userId');
@@ -196,69 +166,36 @@ export class UsersService {
     const updated = await this.userModel.findByIdAndUpdate(
       userId,
       { $set: { membershipTier } },
-      {
-        new: true,
-        projection: {
-          name: 1,
-          username: 1,
-          email: 1,
-          role: 1,
-          membershipTier: 1,
-          referralCode: 1,
-          sponsorId: 1,
-          packagePin: 1,
-          age: 1,
-          contact: 1,
-          address: 1,
-          beneficiary: 1,
-          birthday: 1,
-        },
-      },
+      { new: true },
     );
 
     if (!updated) {
       throw new NotFoundException('User not found');
     }
 
-    return {
-      id: updated._id.toString(),
-      name: updated.name,
-      username: updated.username,
-      email: updated.email,
-      role: updated.role,
-      membershipTier: updated.membershipTier,
-      referralCode: updated.referralCode,
-      sponsorId: updated.sponsorId ? updated.sponsorId.toString() : null,
-      packagePin: (updated as any).packagePin,
-      age: (updated as any).age,
-      contact: (updated as any).contact,
-      address: (updated as any).address,
-      beneficiary: (updated as any).beneficiary,
-      birthday: (updated as any).birthday,
-    };
+    return updated;
   }
 
-  async findByEmailWithPassword(
-    email: string,
-  ): Promise<(User & { passwordHash: string }) | null> {
+  // ✅ Finders
+  async findByEmailWithPassword(email: string) {
     return this.userModel
       .findOne({ email: email.toLowerCase().trim() })
-      .select('+passwordHash')
-      .exec() as any;
+      .select('+passwordHash');
   }
 
-  async findById(id: string): Promise<User | null> {
-    return this.userModel.findById(id).exec();
+  async findById(id: string) {
+    return this.userModel.findById(id);
   }
 
   async findByIdWithRefreshSessions(userId: string) {
-    return this.userModel.findById(userId).select('+refreshSessions').exec();
+    return this.userModel.findById(userId).select('+refreshSessions');
   }
 
   async findByReferralCode(code: string) {
-    return this.userModel.findOne({ referralCode: code.trim() }).exec();
+    return this.userModel.findOne({ referralCode: code.trim() });
   }
 
+  // ✅ Refresh Sessions
   async addRefreshSession(params: {
     userId: string;
     sid: string;
@@ -267,15 +204,6 @@ export class UsersService {
     userAgent?: string;
     ip?: string;
   }) {
-    if (!Types.ObjectId.isValid(params.userId)) {
-      throw new BadRequestException('Invalid userId');
-    }
-
-    const exists = await this.userModel.exists({ _id: params.userId });
-    if (!exists) {
-      throw new NotFoundException('User not found');
-    }
-
     await this.userModel.updateOne(
       { _id: params.userId },
       {
@@ -301,77 +229,37 @@ export class UsersService {
     userAgent?: string;
     ip?: string;
   }) {
-    if (!Types.ObjectId.isValid(params.userId)) {
-      throw new BadRequestException('Invalid userId');
-    }
-
-    const setPayload: Record<string, any> = {
-      'refreshSessions.$.refreshTokenHash': params.newRefreshTokenHash,
-      'refreshSessions.$.expiresAt': params.newExpiresAt,
-    };
-
-    if (params.userAgent !== undefined) {
-      setPayload['refreshSessions.$.userAgent'] = params.userAgent;
-    }
-
-    if (params.ip !== undefined) {
-      setPayload['refreshSessions.$.ip'] = params.ip;
-    }
-
     const result = await this.userModel.updateOne(
+      { _id: params.userId, 'refreshSessions.sid': params.sid },
       {
-        _id: params.userId,
-        'refreshSessions.sid': params.sid,
-      },
-      {
-        $set: setPayload,
+        $set: {
+          'refreshSessions.$.refreshTokenHash':
+            params.newRefreshTokenHash,
+          'refreshSessions.$.expiresAt': params.newExpiresAt,
+          ...(params.userAgent && {
+            'refreshSessions.$.userAgent': params.userAgent,
+          }),
+          ...(params.ip && {
+            'refreshSessions.$.ip': params.ip,
+          }),
+        },
       },
     );
 
-    if (result.matchedCount === 0) {
-      const exists = await this.userModel.exists({ _id: params.userId });
-      if (!exists) {
-        throw new NotFoundException('User not found');
-      }
-      return false;
-    }
-
-    return true;
+    return result.matchedCount > 0;
   }
 
   async removeRefreshSession(userId: string, sid: string) {
-    if (!Types.ObjectId.isValid(userId)) {
-      throw new BadRequestException('Invalid userId');
-    }
-
-    const exists = await this.userModel.exists({ _id: userId });
-    if (!exists) return;
-
     await this.userModel.updateOne(
       { _id: userId },
-      {
-        $pull: {
-          refreshSessions: { sid },
-        },
-      },
+      { $pull: { refreshSessions: { sid } } },
     );
   }
 
   async removeAllRefreshSessions(userId: string) {
-    if (!Types.ObjectId.isValid(userId)) {
-      throw new BadRequestException('Invalid userId');
-    }
-
-    const exists = await this.userModel.exists({ _id: userId });
-    if (!exists) return;
-
     await this.userModel.updateOne(
       { _id: userId },
-      {
-        $set: {
-          refreshSessions: [],
-        },
-      },
+      { $set: { refreshSessions: [] } },
     );
   }
 }

@@ -372,7 +372,7 @@ export default function LandingPage() {
                                 ref={videoRef}
                                 width="100%"
                                 height="100%"
-                                src=""
+                                src={undefined}
                                 frameBorder="0"
                                 allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share;"
                                 allowFullScreen

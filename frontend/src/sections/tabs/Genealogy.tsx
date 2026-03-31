@@ -13,6 +13,8 @@ interface Member {
   membershipTier?: string | null
   leftLegPoints: number
   rightLegPoints: number
+  leftAvailablePoints: number   
+  rightAvailablePoints: number 
   leftChild?: Member
   rightChild?: Member
   directReferralBonus?: number
@@ -426,7 +428,7 @@ function Genealogy() {
           fontWeight="600"
           fill="#6b7280"
         >
-          Points ( L {member.leftLegPoints} • R {member.rightLegPoints} )
+          Points ( L {member.leftAvailablePoints ?? 0} • R {member.rightAvailablePoints ?? 0} )
         </text>
 
         <g>

@@ -41,15 +41,30 @@ export class AdminService {
   async createUser(dto: AdminCreateUserDto) {
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
+    // ── Step 1: Validate the PIN exists and is UNUSED ──────────────────────
+    const pinDoc = await this.pinModel.findOne({ pin: dto.packagePin });
+
+    if (!pinDoc) {
+      throw new BadRequestException('Invalid package PIN — PIN does not exist');
+    }
+    if (pinDoc.status !== PinStatus.UNUSED) {
+      throw new BadRequestException(
+        `PIN is already ${pinDoc.status.toLowerCase()} and cannot be used`,
+      );
+    }
+
+    // ── Step 2: Derive membershipTier from the PIN ─────────────────────────
+    const membershipTier = pinDoc.tier;
+
+    // ── Step 3: Create the user ────────────────────────────────────────────
     const created = await this.usersService.createUser({
       name: dto.name,
       username: dto.username,
       email: dto.email,
       passwordHash,
       role: dto.role ?? SystemRole.USER,
-      membershipTier: dto.membershipTier ?? MembershipTier.BRONZE,
+      membershipTier,
       sponsorReferralCode: dto.sponsorReferralCode,
-
       packagePin: dto.packagePin,
       age: dto.age,
       contact: dto.contact,
@@ -58,24 +73,48 @@ export class AdminService {
       birthday: dto.birthday,
     });
 
+    console.log('User created successfully:', (created as any)._id.toString());
+    console.log('Now marking PIN as USED...');
+
+    // ── Step 4: Mark PIN as USED — rollback user if this fails ─────────────
+    try {
+      const updateResult = await this.pinModel.updateOne(
+        { _id: pinDoc._id },
+        {
+          $set: {
+            status: PinStatus.USED,
+            usedByUserId: (created as any)._id,
+            usedAt: new Date(),
+          },
+        },
+      );
+
+      if (updateResult.matchedCount === 0) {
+        throw new Error('PIN document not found during update');
+      }
+
+      console.log('PIN marked as USED successfully:', dto.packagePin);
+    } catch (err: any) {
+      // Rollback: delete the user we just created so data stays consistent
+      console.error('Failed to mark PIN as USED — rolling back user creation:', err.message);
+      await this.userModel.deleteOne({ _id: (created as any)._id });
+      throw new BadRequestException(
+        'Failed to mark PIN as used — user creation has been rolled back. Please try again.',
+      );
+    }
+
     return {
-      id: (created as any)._id.toString(),
-      name: created.name,
-      username: created.username,
-      email: created.email,
-      role: created.role,
-      membershipTier: created.membershipTier,
-      referralCode: created.referralCode,
-      sponsorId: created.sponsorId ? created.sponsorId.toString() : null,
-
-      packagePin: created.packagePin,
-      age: created.age,
-      contact: created.contact,
-      address: created.address,
-      beneficiary: created.beneficiary,
-      birthday: created.birthday,
-
-      createdAt: (created as any).createdAt,
+      user: {
+        id: (created as any)._id.toString(),
+        name: created.name,
+        username: created.username,
+        email: created.email,
+        role: created.role,
+        membershipTier: created.membershipTier,
+        referralCode: created.referralCode,
+        packagePin: dto.packagePin,
+        createdAt: (created as any).createdAt,
+      },
     };
   }
 
@@ -111,7 +150,9 @@ export class AdminService {
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const l1 = letters[Math.floor(Math.random() * 26)];
     const l2 = letters[Math.floor(Math.random() * 26)];
-    const digits = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    const digits = Math.floor(Math.random() * 10000)
+      .toString()
+      .padStart(4, '0');
     return `${l1}${l2}${digits}`;
   }
 
@@ -130,29 +171,44 @@ export class AdminService {
         const pin = this.generatePinRaw();
 
         try {
-          // ✅ Use insertMany with { rawResult: false } — this writes directly
-          // to MongoDB and intentionally bypasses ALL Mongoose pre/post 'save'
-          // middleware (including any stale hooks in compiled dist/ files).
-          // This guarantees the pin is stored as plain text, e.g. "AB1234".
-          await this.pinModel.collection.insertOne({
+          const doc = new this.pinModel({
             pin,
             tier: dto.tier,
             status: PinStatus.UNUSED,
             createdByAdminId: adminObjId,
-            note: '',
             usedByUserId: null,
             usedAt: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
           });
+
+          await doc.save();
 
           pins.push(pin);
           inserted = true;
           break;
         } catch (e: any) {
-          // 11000 = duplicate key — try a new pin
-          if (e?.code === 11000) continue;
-          throw e;
+          if (e?.code === 11000) {
+            // Only retry on duplicate pin — any other 11000 is a schema bug
+            if (e?.keyPattern?.pin) {
+              console.warn(`PIN "${pin}" already exists, retrying...`);
+              continue;
+            }
+            // Different field caused 11000 — log and throw immediately
+            console.error('Unexpected duplicate key on field:', {
+              keyPattern: e?.keyPattern,
+              keyValue: e?.keyValue,
+            });
+            throw new BadRequestException(
+              `Duplicate key error on field: ${JSON.stringify(e?.keyPattern)}`,
+            );
+          }
+
+          console.error('PIN save failed:', {
+            message: e?.message,
+            code: e?.code,
+            name: e?.name,
+          });
+
+          throw new BadRequestException(e?.message ?? 'Failed to save PIN');
         }
       }
 
@@ -182,9 +238,9 @@ export class AdminService {
       .select('pin tier status usedByUserId usedAt createdByAdminId createdAt')
       .lean();
 
-    return rows.map((r) => ({
+    return rows.map((r: any) => ({
       id: r._id.toString(),
-      pin: (r as any).pin ?? null,
+      pin: r.pin ?? null,
       tier: r.tier,
       status: r.status,
       usedByUserId: r.usedByUserId ? r.usedByUserId.toString() : null,
@@ -192,7 +248,7 @@ export class AdminService {
       createdByAdminId: r.createdByAdminId
         ? r.createdByAdminId.toString()
         : null,
-      createdAt: (r as any).createdAt,
+      createdAt: r.createdAt,
     }));
   }
 
@@ -210,8 +266,6 @@ export class AdminService {
       throw new BadRequestException('Cannot void a USED pin');
     }
 
-    // ✅ Use updateOne instead of pin.save() to avoid triggering
-    // any pre('save') middleware that could tamper with field values.
     await this.pinModel.updateOne(
       { _id: pin._id },
       { $set: { status: PinStatus.VOID, updatedAt: new Date() } },
@@ -222,4 +276,4 @@ export class AdminService {
       status: PinStatus.VOID,
     };
   }
-}
+} 

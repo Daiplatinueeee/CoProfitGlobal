@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
@@ -29,9 +30,12 @@ import {
 } from './schemas/volume-ledger.schema'
 
 import { MEMBERSHIP_TIER_POINTS } from './volume-points'
+import { PairingService } from '../pairing/pairing.service'
 
 @Injectable()
 export class VolumeService {
+  private readonly logger = new Logger(VolumeService.name)
+
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
@@ -44,13 +48,17 @@ export class VolumeService {
 
     @InjectModel(VolumeLedger.name)
     private readonly volumeLedgerModel: Model<VolumeLedgerDocument>,
+
+    private readonly pairingService: PairingService,
   ) {}
 
-  private isValidObjectId(id: string) {
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  private isValidObjectId(id: string): boolean {
     return Types.ObjectId.isValid(id)
   }
 
-  private toObjectId(id: string) {
+  private toObjectId(id: string): Types.ObjectId {
     return new Types.ObjectId(id)
   }
 
@@ -67,6 +75,8 @@ export class VolumeService {
     return !!existing
   }
 
+  // ── Core ─────────────────────────────────────────────────────────────────
+
   private async creditVolumeToUplines(params: {
     sourceUserId: string
     points: number
@@ -76,11 +86,16 @@ export class VolumeService {
   }) {
     const { sourceUserId, points, membershipTier, reason, eventKey } = params
 
+    this.logger.log(
+      `[volume] creditVolumeToUplines — sourceUserId=${sourceUserId} points=${points} eventKey=${eventKey}`,
+    )
+
     if (!this.isValidObjectId(sourceUserId)) {
       throw new BadRequestException('Invalid sourceUserId')
     }
 
     if (points <= 0) {
+      this.logger.warn(`[volume] Skipping — points=${points} is not positive`)
       return {
         sourceUserId,
         points,
@@ -91,8 +106,10 @@ export class VolumeService {
       }
     }
 
+    // ── Idempotency guard ─────────────────────────────────────────────
     const alreadyProcessed = await this.hasEventBeenProcessed(eventKey)
     if (alreadyProcessed) {
+      this.logger.warn(`[volume] Skipping — event already processed: ${eventKey}`)
       return {
         sourceUserId,
         points,
@@ -103,15 +120,22 @@ export class VolumeService {
       }
     }
 
-    const sourceNode = await this.genealogyModel.findOne({
-      userId: this.toObjectId(sourceUserId),
-    }).lean()
+    // ── Resolve source genealogy node ─────────────────────────────────
+    const sourceNode = await this.genealogyModel
+      .findOne({ userId: this.toObjectId(sourceUserId) })
+      .lean()
 
     if (!sourceNode) {
       throw new NotFoundException('Source genealogy node not found')
     }
 
-    const ancestorIds = (sourceNode.ancestors ?? []).map((id: any) => id.toString())
+    const ancestorIds = (sourceNode.ancestors ?? []).map((id: any) =>
+      id.toString(),
+    )
+
+    this.logger.log(
+      `[volume] Found ${ancestorIds.length} ancestor(s) for source=${sourceUserId}`,
+    )
 
     if (ancestorIds.length === 0) {
       return {
@@ -124,24 +148,37 @@ export class VolumeService {
       }
     }
 
-    const ancestorNodes = await this.genealogyModel.find({
-      userId: { $in: ancestorIds.map((id) => this.toObjectId(id)) },
-    }).lean()
+    // ── Fetch all ancestor genealogy nodes in one query ───────────────
+    const ancestorNodes = await this.genealogyModel
+      .find({
+        userId: { $in: ancestorIds.map((id) => this.toObjectId(id)) },
+      })
+      .lean()
 
     const ancestorNodeMap = new Map(
       ancestorNodes.map((node: any) => [node.userId.toString(), node]),
     )
 
+    // fullPath = [root → ... → parent → sourceUser]
     const fullPath = [...ancestorIds, sourceUserId]
-    const awardedTo: Array<{ ownerUserId: string; leg: VolumeLeg; points: number }> = []
+    const awardedTo: Array<{
+      ownerUserId: string
+      leg: VolumeLeg
+      points: number
+    }> = []
 
+    // ── Walk path and credit each ancestor's bucket ───────────────────
     for (let i = 0; i < fullPath.length - 1; i++) {
-      const ancestorUserId = fullPath[i]
+      const ancestorUserId   = fullPath[i]
       const nextUserIdInPath = fullPath[i + 1]
 
       const ancestorNode: any = ancestorNodeMap.get(ancestorUserId)
-      if (!ancestorNode) continue
+      if (!ancestorNode) {
+        this.logger.warn(`[volume] Ancestor node not found for userId=${ancestorUserId}, skipping`)
+        continue
+      }
 
+      // Determine which leg the next node sits on
       let leg: VolumeLeg | null = null
 
       if (
@@ -162,20 +199,31 @@ export class VolumeService {
         )
       }
 
-      await this.volumeBucketModel.updateOne(
+      this.logger.log(
+        `[volume] Crediting ancestor=${ancestorUserId} leg=${leg} +${points}pts`,
+      )
+
+      // ── Credit VolumeBucket ─────────────────────────────────────────
+      const bucketUpdate = await this.volumeBucketModel.updateOne(
         {
           ownerUserId: this.toObjectId(ancestorUserId),
           leg,
         },
         {
           $inc: {
-            totalPoints: points,
+            totalPoints:     points,
             availablePoints: points,
           },
         },
         { upsert: true },
       )
 
+      this.logger.log(
+        `[volume] Bucket update — matched=${bucketUpdate.matchedCount} ` +
+        `modified=${bucketUpdate.modifiedCount} upserted=${bucketUpdate.upsertedCount}`,
+      )
+
+      // ── Update user leg point fields ────────────────────────────────
       await this.userModel.updateOne(
         { _id: this.toObjectId(ancestorUserId) },
         leg === VolumeLeg.LEFT
@@ -183,9 +231,10 @@ export class VolumeService {
           : { $inc: { rightLegPoints: points } },
       )
 
+      // ── Write ledger entry ──────────────────────────────────────────
       await this.volumeLedgerModel.create({
         eventKey,
-        ownerUserId: this.toObjectId(ancestorUserId),
+        ownerUserId:  this.toObjectId(ancestorUserId),
         sourceUserId: this.toObjectId(sourceUserId),
         leg,
         membershipTier,
@@ -193,12 +242,38 @@ export class VolumeService {
         reason,
       })
 
-      awardedTo.push({
-        ownerUserId: ancestorUserId,
-        leg,
-        points,
-      })
+      awardedTo.push({ ownerUserId: ancestorUserId, leg, points })
+
+      // ── 🔥 Trigger auto-pairing immediately ─────────────────────────
+      // Fire-and-forget: pairing failure must never block the volume credit.
+      this.logger.log(
+        `[volume] Triggering auto-pair for ancestor=${ancestorUserId} after crediting ${leg} leg`,
+      )
+
+      this.pairingService
+        .tryPairIfPossible(ancestorUserId)
+        .then((result) => {
+          if (result.skipped) {
+            this.logger.debug(
+              `[volume] Auto-pair skipped for ${ancestorUserId} — ${result.reason}`,
+            )
+          } else {
+            this.logger.log(
+              `[volume] Auto-pair SUCCESS for ${ancestorUserId} — ` +
+              `pairings=${result.pairingsMade} pts=${result.totalPairedPoints} php=${result.totalPayoutPhp}`,
+            )
+          }
+        })
+        .catch((err) => {
+          this.logger.error(
+            `[volume] Auto-pair FAILED for ${ancestorUserId}: ${err.message}`,
+          )
+        })
     }
+
+    this.logger.log(
+      `[volume] creditVolumeToUplines complete — awardedTo=${awardedTo.length} ancestor(s)`,
+    )
 
     return {
       sourceUserId,
@@ -210,18 +285,22 @@ export class VolumeService {
     }
   }
 
+  // ── Public methods ────────────────────────────────────────────────────────
+
   async awardActivationVolume(memberUserId: string) {
     if (!this.isValidObjectId(memberUserId)) {
       throw new BadRequestException('Invalid memberUserId')
     }
 
     const user = await this.userModel.findById(memberUserId).lean()
-    if (!user) {
-      throw new NotFoundException('User not found')
-    }
+    if (!user) throw new NotFoundException('User not found')
 
-    const points = this.getTierPoints(user.membershipTier)
+    const points   = this.getTierPoints(user.membershipTier)
     const eventKey = `activation:${memberUserId}`
+
+    this.logger.log(
+      `[volume] awardActivationVolume — userId=${memberUserId} tier=${user.membershipTier} points=${points}`,
+    )
 
     return this.creditVolumeToUplines({
       sourceUserId: memberUserId,
@@ -243,7 +322,11 @@ export class VolumeService {
 
     const oldPoints = this.getTierPoints(oldTier)
     const newPoints = this.getTierPoints(newTier)
-    const delta = newPoints - oldPoints
+    const delta     = newPoints - oldPoints
+
+    this.logger.log(
+      `[volume] awardUpgradeVolume — userId=${userId} ${oldTier}(${oldPoints}pts) → ${newTier}(${newPoints}pts) delta=${delta}`,
+    )
 
     if (delta <= 0) {
       return {
@@ -285,31 +368,29 @@ export class VolumeService {
         .lean(),
     ])
 
-    if (!user) {
-      throw new NotFoundException('User not found')
-    }
+    if (!user) throw new NotFoundException('User not found')
 
-    const leftBucket = buckets.find((b) => b.leg === VolumeLeg.LEFT)
+    const leftBucket  = buckets.find((b) => b.leg === VolumeLeg.LEFT)
     const rightBucket = buckets.find((b) => b.leg === VolumeLeg.RIGHT)
 
     return {
       user: {
-        id: user._id.toString(),
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        role: user.role,
+        id:             user._id.toString(),
+        name:           user.name,
+        username:       user.username,
+        email:          user.email,
+        role:           user.role,
         membershipTier: user.membershipTier,
       },
       legs: {
         left: {
-          userFieldPoints: user.leftLegPoints ?? 0,
-          totalPoints: leftBucket?.totalPoints ?? 0,
+          userFieldPoints: user.leftLegPoints  ?? 0,
+          totalPoints:     leftBucket?.totalPoints     ?? 0,
           availablePoints: leftBucket?.availablePoints ?? 0,
         },
         right: {
           userFieldPoints: user.rightLegPoints ?? 0,
-          totalPoints: rightBucket?.totalPoints ?? 0,
+          totalPoints:     rightBucket?.totalPoints     ?? 0,
           availablePoints: rightBucket?.availablePoints ?? 0,
         },
       },
