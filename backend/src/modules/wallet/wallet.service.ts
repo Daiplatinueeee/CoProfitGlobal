@@ -52,7 +52,6 @@ export class WalletService {
       .limit(Math.min(limit, 200))
       .lean();
 
-    console.log(`[wallet:getTransactions] userId=${userId} count=${rows.length}`);
 
     return rows.map((t) => ({
       id:        t._id.toString(),

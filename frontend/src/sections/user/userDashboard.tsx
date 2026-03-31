@@ -82,6 +82,40 @@ export default function UserDashboard() {
   // ── Wallet / income state ────────────────────────────────────────────
   const [income, setIncome]               = useState<IncomeBreakdown | null>(null);
   const [incomeLoading, setIncomeLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+  const fetchCurrentUser = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      let userId = localStorage.getItem('userId');
+      if (!userId) {
+        const str = localStorage.getItem('user');
+        if (str) {
+          const obj = JSON.parse(str);
+          userId = obj.id ?? obj._id ?? obj.userId;
+        }
+      }
+      if (!token || !userId) return;
+
+      const res = await fetch(`${API_BASE_URL}/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to fetch user');
+      const data = await res.json();
+      console.log('current user:', data);
+      setCurrentUser(data);
+    } catch (err) {
+      console.error('User fetch error:', err);
+      // fallback to localStorage
+      try {
+        const str = localStorage.getItem('user');
+        if (str) setCurrentUser(JSON.parse(str));
+      } catch {}
+    }
+  };
+  fetchCurrentUser();
+}, []);
 
   useEffect(() => {
     const fetchIncome = async () => {
@@ -180,6 +214,16 @@ export default function UserDashboard() {
     if (dontShowAgain) localStorage.setItem('disableWelcomeModal', 'true');
     setShowWelcomeModal(false);
   };
+
+  const TIER_META: Record<string, { label: string; price: string; gradient: string }> = {
+  bronze:   { label: 'Bronze',   price: '₱3,498.00',  gradient: 'from-amber-700 via-amber-500 to-amber-400' },
+  silver:   { label: 'Silver',   price: '₱6,998.00',  gradient: 'from-gray-500 via-gray-400 to-gray-300' },
+  gold:     { label: 'Gold',     price: '₱9,998.00',  gradient: 'from-yellow-600 via-yellow-400 to-yellow-300' },
+  platinum: { label: 'Platinum', price: '₱12,998.00', gradient: 'from-gray-600 via-gray-400 to-gray-300' },
+};
+
+
+const tier = TIER_META[currentUser?.membershipTier?.toLowerCase() ?? ''] ?? TIER_META.bronze;
 
   const menuItems = useMemo(() => [
     { id: 'dashboard',          label: 'Dashboard',         icon: Home },
@@ -326,23 +370,24 @@ export default function UserDashboard() {
       </div>
 
       {/* ── Current Package ───────────────────────────────────────────── */}
-      <div className="bg-linear-to-r from-gray-600 via-gray-400 to-gray-300 rounded-3xl p-8 border border-gray-200">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-white/95 mb-2">Current Package</p>
-            <p className="text-3xl sm:text-4xl font-bold mb-2 bg-linear-to-r from-gray-200 via-gray-100 to-gray-300 bg-clip-text text-transparent">
-              Platinum
-            </p>
-            <p className="text-lg sm:text-xl font-semibold text-white/95">₱12,998.00</p>
-          </div>
-          <button
-            onClick={() => setActiveTab('subscription')}
-            className="px-6 py-3 rounded-full bg-white text-black font-semibold hover:bg-white/90 transition-all active:scale-95"
-          >
-            Upgrade Subscription
-          </button>
-        </div>
-      </div>
+      <div className={`bg-linear-to-r ${tier.gradient} rounded-3xl p-8 border border-gray-200`}>
+  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <p className="text-sm font-medium text-white/95 mb-2">Current Package</p>
+      <p className="text-3xl sm:text-4xl font-bold mb-2 bg-linear-to-r from-gray-200 via-gray-100 to-gray-300 bg-clip-text text-transparent">
+        {tier.label}
+      </p>
+      
+      {/* <p className="text-lg sm:text-xl font-semibold text-white/95">{tier.price}</p> */}
+    </div>
+    <button
+      onClick={() => setActiveTab('subscription')}
+      className="px-6 py-3 rounded-full bg-white text-black font-semibold hover:bg-white/90 transition-all active:scale-95"
+    >
+      Upgrade Subscription
+    </button>
+  </div>
+</div>
 
       {/* ── Referral Stats & Genealogy ────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
