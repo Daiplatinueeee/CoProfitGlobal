@@ -39,14 +39,6 @@ interface Sign5Bonus {
   awards: Sign5TierAward[];
 }
 
-interface PairingBonus {
-  payoutPhp: number;
-  pairedPoints: number;
-  capLimit: number;
-  capUsed: number;
-  leftCarryOut: number;
-  rightCarryOut: number;
-}
 
 interface LeadershipBonus {
   leadershipPhp: number;
@@ -57,6 +49,17 @@ interface LeadershipBonus {
   threshold: number;
   windowStart: string | null;
   windowEnd: string | null;
+}
+
+interface WalletTransaction {
+  id: string;
+  currency: string;
+  type: 'credit' | 'debit';
+  amount: number;
+  source: 'pairing' | 'sign5' | 'leadership' | 'admin_adjustment' | 'withdrawal';
+  note: string;
+  postedAt: string;
+  createdAt: string;
 }
 
 // ─── Component props ──────────────────────────────────────────────────────────
@@ -101,7 +104,7 @@ export default function MemberDetailsPanel({
   const [sign5Error, setSign5Error] = useState<string | null>(null);
 
   // Pairing bonus
-  const [pairingBonus, setPairingBonus] = useState<PairingBonus | null>(null);
+  const [pairingBonus, setPairingBonus] = useState<{ payoutPhp: number } | null>(null);
   const [pairingLoading, setPairingLoading] = useState(false);
   const [pairingError, setPairingError] = useState<string | null>(null);
 
@@ -110,6 +113,7 @@ export default function MemberDetailsPanel({
   const [leadershipLoading, setLeadershipLoading] = useState(false);
   const [leadershipError, setLeadershipError] = useState<string | null>(null);
 
+  
   // ─── Fetch referral counts ────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
@@ -144,7 +148,7 @@ export default function MemberDetailsPanel({
   }, [id]);
 
   // ─── Fetch spill-over bonus (GET /spill/status/:userId) ──────────────────
-  useEffect(() => {
+  useEffect(() => { 
   if (!id) return;
   const run = async () => {
     setSpillOverLoading(true);
@@ -216,44 +220,35 @@ export default function MemberDetailsPanel({
     run();
   }, [id]);
 
-  // ─── Fetch pairing bonus (GET /pairing/state/:userId) ────────────────────
-  useEffect(() => {
-    if (!id) return;
-    const run = async () => {
-      setPairingLoading(true);
-      setPairingError(null);
-      setPairingBonus(null);
-      try {
-        const periodKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-        const res = await fetch(`${BASE}/pairing/state/${id}?periodKey=${periodKey}`, {
-          method: 'GET',
-          headers: authHeaders(),
-        });
-        if (!res.ok) throw new Error(`Failed to fetch pairing bonus (${res.status})`);
-        const data = await res.json();
-        console.log('pairing state response:', data);
 
-        // Response: { periodKey,
-        //   state:  { pairedPoints, payoutPhp, capLimit, capUsed, leftCarryOut, rightCarryOut },
-        //   award:  { payoutPhp, pairedPoints, capLimit } }
-        // Prefer award.payoutPhp (confirmed payout), fall back to state.
-        const src = data?.award ?? data?.state ?? null;
-        setPairingBonus({
-          payoutPhp:     src?.payoutPhp              ?? 0,
-          pairedPoints:  src?.pairedPoints           ?? data?.state?.pairedPoints  ?? 0,
-          capLimit:      src?.capLimit               ?? data?.state?.capLimit      ?? 1200,
-          capUsed:       data?.state?.capUsed        ?? src?.pairedPoints          ?? 0,
-          leftCarryOut:  data?.state?.leftCarryOut   ?? 0,
-          rightCarryOut: data?.state?.rightCarryOut  ?? 0,
-        });
-      } catch (err: any) {
-        setPairingError(err.message ?? 'Failed to load pairing bonus');
-      } finally {
-        setPairingLoading(false);
-      }
-    };
-    run();
-  }, [id]);
+  // ─── Fetch wallet balances (GET /wallet/:userId/balances) ────────────────────
+useEffect(() => {
+  if (!id) return;
+  const run = async () => {
+    setPairingLoading(true);
+    setPairingError(null);
+    setPairingBonus(null);
+    try {
+      const res = await fetch(`${BASE}/wallet/${id}/transactions?limit=200`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(`Failed to fetch transactions (${res.status})`);
+
+      const txns: WalletTransaction[] = await res.json();
+
+      const pairingPhp = txns
+        .filter(t => t.currency === 'php' && t.type === 'credit' && t.source === 'pairing')
+        .reduce((acc, t) => acc + t.amount, 0);
+
+      setPairingBonus({ payoutPhp: pairingPhp });
+    } catch (err: any) {
+      setPairingError(err.message ?? 'Failed to load pairing bonus');
+    } finally {
+      setPairingLoading(false);
+    }
+  };
+  run();
+}, [id]);
 
   // ─── Fetch leadership bonus (GET /leadership/status/:userId) ─────────────
   useEffect(() => {
@@ -464,26 +459,7 @@ export default function MemberDetailsPanel({
                   : `₱ ${(pairingBonus?.payoutPhp ?? 0).toLocaleString()}`}
               </p>
               <p className="text-xs text-gray-600 group-hover:text-gray-700">
-                L {selectedMember.leftLegPoints} • R {selectedMember.rightLegPoints}
               </p>
-              {!pairingLoading && !pairingError && pairingBonus && (
-                <>
-                  <div className="text-xs text-amber-700 mt-2 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
-                    Paired: {pairingBonus.pairedPoints.toLocaleString()} pts / cap {pairingBonus.capLimit.toLocaleString()}
-                  </div>
-                  {(pairingBonus.leftCarryOut > 0 || pairingBonus.rightCarryOut > 0) && (
-                    <div className="text-xs text-gray-500 mt-1.5 px-2.5 py-1.5 bg-gray-100 rounded-lg border border-gray-200">
-                      Carry out — L: {pairingBonus.leftCarryOut.toLocaleString()} • R: {pairingBonus.rightCarryOut.toLocaleString()}
-                    </div>
-                  )}
-                </>
-              )}
-              {!pairingLoading && !pairingError && !pairingBonus && (
-                <div className="text-xs text-amber-700 mt-2 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
-                  Lowest pair:{' '}
-                  {Math.min(selectedMember.leftLegPoints, selectedMember.rightLegPoints).toLocaleString()}
-                </div>
-              )}
             </div>
 
             {/* ── Leadership Bonus ───────────────────────────────────────── */}
