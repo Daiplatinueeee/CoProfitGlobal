@@ -318,7 +318,7 @@ function UsersOverview() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Users Overview</h1>
+            <h1 className="text-2xl text-gray-900">Users Overview</h1>
             <p className="text-gray-500 text-sm mt-1">
               {users.length} total user{users.length !== 1 ? 's' : ''}
             </p>

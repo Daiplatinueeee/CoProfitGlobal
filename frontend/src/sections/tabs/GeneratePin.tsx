@@ -56,6 +56,7 @@ function GeneratePin() {
   const [displayCount, setDisplayCount] = useState(5);
   const [filterStatus, setFilterStatus] = useState<'all' | 'USED' | 'UNUSED' | 'VOID'>('all');
   const [filterTier, setFilterTier] = useState<Tier | 'all'>('all');
+  const [quantity, setQuantity] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [visiblePins, setVisiblePins] = useState<Set<string>>(new Set());
@@ -105,7 +106,7 @@ function GeneratePin() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ tier: selectedTier, quantity: 1 }),
+        body: JSON.stringify({ tier: selectedTier, quantity }),
       });
 
       if (!res.ok) {
@@ -113,15 +114,16 @@ function GeneratePin() {
         throw new Error(body?.message ?? `Server error (${res.status})`);
       }
 
-      // The API returns { tier, quantity, pins: ['AB1234'] }
+      // The API returns { tier, quantity, pins: ['AB1234', ...] }
       const data = await res.json();
-      const rawPin: string = data.pins?.[0] ?? 'N/A';
+      const rawPins: string[] = data.pins ?? [];
       const now = new Date();
-      const tempId = `temp-${Date.now()}`;
 
-      const newPin: PIN = {
-        id: tempId,
-        pin: rawPin,
+      const tempIds: string[] = rawPins.map((_, i) => `temp-${Date.now()}-${i}`);
+
+      const newPins: PIN[] = rawPins.map((rawPin, i) => ({
+        id: tempIds[i],
+        pin: rawPin ?? 'N/A',
         tier: selectedTier,
         createdAt: now.toISOString().split('T')[0],
         createdTime: now.toLocaleTimeString('en-US', {
@@ -130,15 +132,20 @@ function GeneratePin() {
           hour12: true,
         }),
         status: 'UNUSED',
-      };
+      }));
 
-      // Auto-reveal the newly generated pin so admin can see it right away
-      setVisiblePins((prev) => new Set(prev).add(tempId));
-      setPins((prev) => [newPin, ...prev]);
+      // Auto-reveal all newly generated pins so admin can see them right away
+      setVisiblePins((prev) => {
+        const next = new Set(prev);
+        tempIds.forEach((id) => next.add(id));
+        return next;
+      });
+      setPins((prev) => [...newPins, ...prev]);
       setShowModal(false);
       setSelectedTier(null);
+      setQuantity(1);
 
-      // Re-fetch to replace temp entry with the real server record
+      // Re-fetch to replace temp entries with real server records
       setTimeout(async () => {
         const token2 = localStorage.getItem('accessToken');
         const res2 = await fetch(`${API_BASE}/admin/pins?limit=200`, {
@@ -148,18 +155,13 @@ function GeneratePin() {
         const list: any[] = await res2.json();
         const mapped = list.map((r) => mapApiPin(r));
 
-        // Keep the newly generated pin visible after the refresh
-        const newest = mapped[0];
-        if (newest) {
-          setVisiblePins((prev) => {
-            const next = new Set(prev);
-            if (next.has(tempId)) {
-              next.delete(tempId);
-              next.add(newest.id);
-            }
-            return next;
-          });
-        }
+        // Keep all newly generated pins visible after the refresh
+        setVisiblePins((prev) => {
+          const next = new Set(prev);
+          tempIds.forEach((id) => next.delete(id));
+          mapped.slice(0, rawPins.length).forEach((p) => next.add(p.id));
+          return next;
+        });
         setPins(mapped);
       }, 600);
     } catch (err: any) {
@@ -245,6 +247,7 @@ function GeneratePin() {
               </button>
             ))}
           </div>
+
         </div>
 
         {/* Generate Button */}
@@ -431,17 +434,55 @@ function GeneratePin() {
           <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-8">
               <h2 className="text-2xl text-gray-900 mb-4">
-                Generate {selectedTier.charAt(0).toUpperCase() + selectedTier.slice(1)} PIN
+                Generate {selectedTier.charAt(0).toUpperCase() + selectedTier.slice(1)} PIN{quantity > 1 ? 's' : ''}
               </h2>
-              <div className={`rounded-lg p-3 mb-4 ${tierColors[selectedTier].bg} ${tierColors[selectedTier].border} border`}>
+              <div className={`rounded-lg p-3 mb-6 ${tierColors[selectedTier].bg} ${tierColors[selectedTier].border} border`}>
                 <p className={`text-sm font-semibold capitalize ${tierColors[selectedTier].text}`}>
                   Tier: {selectedTier}
                 </p>
               </div>
-              <p className="text-gray-600 mb-8">Are you sure you want to generate a new PIN?</p>
+
+              {/* Quantity Input */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Quantity of PINs
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    disabled={quantity <= 1}
+                    className="w-9 h-9 rounded-lg bg-gray-200 hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-gray-700 transition-colors"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={quantity}
+                    onChange={(e) => {
+                      const val = Math.min(50, Math.max(1, Number(e.target.value) || 1));
+                      setQuantity(val);
+                    }}
+                    className="w-16 text-center border border-gray-300 rounded-lg py-1.5 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={() => setQuantity((q) => Math.min(50, q + 1))}
+                    disabled={quantity >= 50}
+                    className="w-9 h-9 rounded-lg bg-gray-200 hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-gray-700 transition-colors"
+                  >
+                    +
+                  </button>
+                  <span className="text-xs text-gray-500 ml-1">(max 50)</span>
+                </div>
+              </div>
+
+              <p className="text-gray-600 mb-8">
+                Are you sure you want to generate {quantity > 1 ? `${quantity} new PINs` : 'a new PIN'}?
+              </p>
               <div className="flex gap-3">
                 <button
-                  onClick={() => { setShowModal(false); setSelectedTier(null); }}
+                  onClick={() => { setShowModal(false); setSelectedTier(null); setQuantity(1); }}
                   disabled={loading}
                   className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors"
                 >
