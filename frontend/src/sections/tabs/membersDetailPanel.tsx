@@ -19,9 +19,13 @@ interface ReferralCounts {
   total: number;
 }
 
-interface SpillOverBonus {
-  totalPhp: number;
-  totalReceivedMembers: number;
+interface WalletAmounts {
+  pairingPhp: number;
+  spilloverPhp: number;
+  spilloverCount: number;
+  sign5CashPhp: number;
+  sign5GcPoints: number;
+  leadershipPhp: number;
 }
 
 interface Sign5TierAward {
@@ -57,7 +61,7 @@ interface WalletTransaction {
   currency: string;
   type: 'credit' | 'debit';
   amount: number;
-  source: 'pairing' | 'sign5' | 'leadership' | 'admin_adjustment' | 'withdrawal';
+  source: 'pairing' | 'sign5' | 'leadership' | 'spillover' | 'admin_adjustment' | 'withdrawal';
   note: string;
   postedAt: string;
   createdAt: string;
@@ -94,22 +98,17 @@ export default function MemberDetailsPanel({
   const [referralLoading, setReferralLoading] = useState(false);
   const [referralError, setReferralError] = useState<string | null>(null);
 
-  // Spill-over bonus
-  const [spillOver, setSpillOver] = useState<SpillOverBonus | null>(null);
-  const [spillOverLoading, setSpillOverLoading] = useState(false);
-  const [spillOverError, setSpillOverError] = useState<string | null>(null);
+  // Wallet-derived amounts (single fetch for all bonus PHP totals)
+  const [walletAmounts, setWalletAmounts] = useState<WalletAmounts | null>(null);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
 
-  // Sign-5 bonus
+  // Sign-5 bonus (awards breakdown only — PHP total comes from wallet)
   const [sign5Bonus, setSign5Bonus] = useState<Sign5Bonus | null>(null);
   const [sign5Loading, setSign5Loading] = useState(false);
   const [sign5Error, setSign5Error] = useState<string | null>(null);
 
-  // Pairing bonus
-  const [pairingBonus, setPairingBonus] = useState<{ payoutPhp: number } | null>(null);
-  const [pairingLoading, setPairingLoading] = useState(false);
-  const [pairingError, setPairingError] = useState<string | null>(null);
-
-  // Leadership bonus
+  // Leadership bonus (qualification info only — PHP total comes from wallet)
   const [leadershipBonus, setLeadershipBonus] = useState<LeadershipBonus | null>(null);
   const [leadershipLoading, setLeadershipLoading] = useState(false);
   const [leadershipError, setLeadershipError] = useState<string | null>(null);
@@ -148,37 +147,53 @@ export default function MemberDetailsPanel({
     run();
   }, [id]);
 
-  // ─── Fetch spill-over bonus (GET /spill/status/:userId) ──────────────────
+  // ─── Single wallet fetch — derives all four bonus PHP totals ─────────────
   useEffect(() => {
     if (!id) return;
     const run = async () => {
-      setSpillOverLoading(true);
-      setSpillOverError(null);
-      setSpillOver(null);
+      setWalletLoading(true);
+      setWalletError(null);
+      setWalletAmounts(null);
       try {
-        const res = await fetch(`${BASE}/genealogy/${id}/spillover-bonus`, {
-          method: 'GET',
+        const res = await fetch(`${BASE}/wallet/${id}/transactions?limit=200`, {
           headers: authHeaders(),
         });
-        if (!res.ok) throw new Error(`Failed to fetch spill-over bonus (${res.status})`);
-        const data = await res.json();
-        console.log('spill-over bonus response:', data);
+        if (!res.ok) throw new Error(`Failed to fetch wallet transactions (${res.status})`);
 
-        // Backend returns: { totalBonusPHP, spilloverCount, totalPoints, breakdown }
-        setSpillOver({
-          totalPhp: data?.totalBonusPHP ?? 0,
-          totalReceivedMembers: data?.spilloverCount ?? 0,
+        const txns: WalletTransaction[] = await res.json();
+
+        const phpCredits = (source: WalletTransaction['source']) =>
+          txns
+            .filter(t => t.currency === 'php' && t.type === 'credit' && t.source === source)
+            .reduce((acc, t) => acc + t.amount, 0);
+
+        const gcCredits = (source: WalletTransaction['source']) =>
+          txns
+            .filter(t => t.currency === 'gc_points' && t.type === 'credit' && t.source === source)
+            .reduce((acc, t) => acc + t.amount, 0);
+
+        const spilloverTxns = txns.filter(
+          t => t.currency === 'php' && t.type === 'credit' && t.source === 'spillover'
+        );
+
+        setWalletAmounts({
+          pairingPhp:    phpCredits('pairing'),
+          spilloverPhp:  spilloverTxns.reduce((acc, t) => acc + t.amount, 0),
+          spilloverCount: spilloverTxns.length,
+          sign5CashPhp:  phpCredits('sign5'),
+          sign5GcPoints: gcCredits('sign5'),
+          leadershipPhp: phpCredits('leadership'),
         });
       } catch (err: any) {
-        setSpillOverError(err.message ?? 'Failed to load spill-over bonus');
+        setWalletError(err.message ?? 'Failed to load wallet transactions');
       } finally {
-        setSpillOverLoading(false);
+        setWalletLoading(false);
       }
     };
     run();
   }, [id]);
 
-  // ─── Fetch Sign-5 bonus (GET /sign5/status/:userId) ──────────────────────
+  // ─── Fetch Sign-5 bonus (awards breakdown only) ───────────────────────────
   useEffect(() => {
     if (!id) return;
     const run = async () => {
@@ -186,66 +201,28 @@ export default function MemberDetailsPanel({
       setSign5Error(null);
       setSign5Bonus(null);
       try {
-        const monthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
+        const monthKey = new Date().toISOString().slice(0, 7);
         const res = await fetch(`${BASE}/sign5/status/${id}?monthKey=${monthKey}`, {
           method: 'GET',
           headers: authHeaders(),
         });
         if (!res.ok) throw new Error(`Failed to fetch Sign-5 bonus (${res.status})`);
         const data = await res.json();
-        console.log('sign5 status response:', data);
 
-        // Response: { userId, monthKey, status: { bronzeCount, ... },
-        //             awards: [ { tier, referralsCount, setsOfFive, cashSetsPaid,
-        //                         gcSetsPaid, cashAmountPhp, gcPointsAmount } ] }
         const awards: Sign5TierAward[] = (data?.awards ?? []).map((a: any) => ({
           tier: a.tier ?? '',
           referralsCount: a.referralsCount ?? 0,
-          setsOfFive: a.cashSetPaid ?? 0,   // was a.setsOfFive
-          cashSetsPaid: a.cashSetPaid ?? 0,   // was a.cashSetsPaid
-          gcSetsPaid: a.gcReferralCountPaid ?? 0, // was a.gcSetsPaid
+          setsOfFive: a.cashSetPaid ?? 0,
+          cashSetsPaid: a.cashSetPaid ?? 0,
+          gcSetsPaid: a.gcReferralCountPaid ?? 0,
           cashAmountPhp: a.cashAmountPhp ?? 0,
           gcPointsAmount: a.gcPointsAmount ?? 0,
         }));
-        setSign5Bonus({
-          totalCashPhp: awards.reduce((s, a) => s + a.cashAmountPhp, 0),
-          totalGcPoints: awards.reduce((s, a) => s + a.gcPointsAmount, 0),
-          awards,
-        });
+        setSign5Bonus({ totalCashPhp: 0, totalGcPoints: 0, awards });
       } catch (err: any) {
         setSign5Error(err.message ?? 'Failed to load Sign-5 bonus');
       } finally {
         setSign5Loading(false);
-      }
-    };
-    run();
-  }, [id]);
-
-
-  // ─── Fetch wallet balances (GET /wallet/:userId/balances) ────────────────────
-  useEffect(() => {
-    if (!id) return;
-    const run = async () => {
-      setPairingLoading(true);
-      setPairingError(null);
-      setPairingBonus(null);
-      try {
-        const res = await fetch(`${BASE}/wallet/${id}/transactions?limit=200`, {
-          headers: authHeaders(),
-        });
-        if (!res.ok) throw new Error(`Failed to fetch transactions (${res.status})`);
-
-        const txns: WalletTransaction[] = await res.json();
-
-        const pairingPhp = txns
-          .filter(t => t.currency === 'php' && t.type === 'credit' && t.source === 'pairing')
-          .reduce((acc, t) => acc + t.amount, 0);
-
-        setPairingBonus({ payoutPhp: pairingPhp });
-      } catch (err: any) {
-        setPairingError(err.message ?? 'Failed to load pairing bonus');
-      } finally {
-        setPairingLoading(false);
       }
     };
     run();
@@ -388,16 +365,16 @@ export default function MemberDetailsPanel({
                 <span className="w-1.5 h-1.5 bg-orange-500 rounded-full mt-1" />
               </div>
               <p className="text-lg font-semibold text-orange-600 mb-1">
-                {spillOverLoading ? 'Loading...' : spillOverError ? '—'
-                  : `₱ ${(spillOver?.totalPhp ?? 0).toLocaleString()}`}
+                {walletLoading ? 'Loading...' : walletError ? '—'
+                  : `₱ ${(walletAmounts?.spilloverPhp ?? 0).toLocaleString()}`}
               </p>
               <p className="text-xs text-gray-600 group-hover:text-gray-700">
                 When downline is given by another leader
               </p>
-              {!spillOverLoading && !spillOverError && spillOver && spillOver.totalReceivedMembers > 0 && (
+              {!walletLoading && !walletError && walletAmounts && walletAmounts.spilloverCount > 0 && (
                 <div className="text-xs text-orange-700 mt-2 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-200">
-                  {spillOver.totalReceivedMembers.toLocaleString()} spill-over member
-                  {spillOver.totalReceivedMembers !== 1 ? 's' : ''} this month
+                  {walletAmounts.spilloverCount.toLocaleString()} spill-over member
+                  {walletAmounts.spilloverCount !== 1 ? 's' : ''} credited
                 </div>
               )}
             </div>
@@ -409,12 +386,12 @@ export default function MemberDetailsPanel({
                 <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1" />
               </div>
               <p className="text-lg font-semibold text-blue-600 mb-1">
-                {sign5Loading ? 'Loading...' : sign5Error ? '—'
-                  : `₱ ${(sign5Bonus?.totalCashPhp ?? 0).toLocaleString()}`}
+                {walletLoading ? 'Loading...' : walletError ? '—'
+                  : `₱ ${(walletAmounts?.sign5CashPhp ?? 0).toLocaleString()}`}
               </p>
-              {!sign5Loading && !sign5Error && sign5Bonus && sign5Bonus.totalGcPoints > 0 && (
+              {!walletLoading && !walletError && walletAmounts && walletAmounts.sign5GcPoints > 0 && (
                 <p className="text-xs text-blue-500 mb-1">
-                  + {sign5Bonus.totalGcPoints.toLocaleString()} GC pts
+                  + {walletAmounts.sign5GcPoints.toLocaleString()} GC pts
                 </p>
               )}
               <p className="text-xs text-gray-600 group-hover:text-gray-700">
@@ -452,8 +429,8 @@ export default function MemberDetailsPanel({
                 <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full mt-1" />
               </div>
               <p className="text-lg font-semibold text-cyan-600 mb-1">
-                {pairingLoading ? 'Loading...' : pairingError ? '—'
-                  : `₱ ${(pairingBonus?.payoutPhp ?? 0).toLocaleString()}`}
+                {walletLoading ? 'Loading...' : walletError ? '—'
+                  : `₱ ${(walletAmounts?.pairingPhp ?? 0).toLocaleString()}`}
               </p>
               <p className="text-xs text-gray-600 group-hover:text-gray-700">
               </p>
@@ -466,8 +443,8 @@ export default function MemberDetailsPanel({
                 <span className="w-1.5 h-1.5 bg-rose-500 rounded-full mt-1" />
               </div>
               <p className="text-lg font-semibold text-rose-600 mb-1">
-                {leadershipLoading ? 'Loading...' : leadershipError ? '—'
-                  : `₱ ${(leadershipBonus?.leadershipPhp ?? 0).toLocaleString()}`}
+                {walletLoading ? 'Loading...' : walletError ? '—'
+                  : `₱ ${(walletAmounts?.leadershipPhp ?? 0).toLocaleString()}`}
               </p>
               <p className="text-xs text-gray-600 group-hover:text-gray-700">
                 Monthly bonus for leaders

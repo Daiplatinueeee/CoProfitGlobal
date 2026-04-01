@@ -12,6 +12,7 @@ import {
   ProductPinSchema,
 } from '../product-pins/schema/product-pins.schema'
 import { VolumeModule } from '../volume/volume.module'
+import { WalletModule } from '../wallet/wallet.module'
 import { VolumeLedger, VolumeLedgerSchema } from '../volume/schemas/volume-ledger.schema'
 import { VolumeBucket, VolumeBucketSchema } from '../volume/schemas/volume-bucket.schema'
 
@@ -25,6 +26,7 @@ import { VolumeBucket, VolumeBucketSchema } from '../volume/schemas/volume-bucke
       { name: VolumeBucket.name, schema: VolumeBucketSchema },
     ]),
     VolumeModule,
+    WalletModule,
   ],
   controllers: [GenealogyController],
   providers: [GenealogyService],

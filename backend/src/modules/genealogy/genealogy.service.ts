@@ -28,6 +28,8 @@ import {
   ProductPin,
   ProductPinDocument,
 } from '../product-pins/schema/product-pins.schema'
+import { WalletService } from '../wallet/wallet.service'
+import { WalletCurrency, WalletTxnSource } from '../wallet/schemas/wallet-transaction.schema'
 
 @Injectable()
 export class GenealogyService {
@@ -48,6 +50,7 @@ export class GenealogyService {
     private readonly productPinModel: Model<ProductPinDocument>,
 
     private readonly volumeService: VolumeService,
+    private readonly walletService: WalletService,
   ) {}
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -169,6 +172,7 @@ export class GenealogyService {
             membershipTier: 1, sponsorId: 1, referralCode: 1,
             profileImage: 1, leftLegPoints: 1, rightLegPoints: 1,
             age: 1, contact: 1, address: 1, beneficiary: 1, birthday: 1,
+            createdAt: 1,
           },
         )
         .lean(),
@@ -218,6 +222,7 @@ export class GenealogyService {
         address:              child.address    ?? '',
         beneficiary:          child.beneficiary ?? '',
         birthday:             child.birthday   ?? '',
+        createdAt:            child.createdAt ?? null,
         referralLevel:        level,
         referralType:         level === 1 ? 'direct' : 'indirect',
       }
@@ -279,6 +284,7 @@ export class GenealogyService {
         address:              user.address    ?? '',
         beneficiary:          user.beneficiary ?? '',
         birthday:             user.birthday   ?? '',
+        createdAt:            user.createdAt ?? null,
         parentUserId:         node.parentUserId?.toString() ?? null,
         position:             node.position ?? null,
         depth:                node.depth ?? 0,
@@ -654,22 +660,44 @@ export class GenealogyService {
     }
 
     const RATE = 400
+    const monthKey = new Date().toISOString().slice(0, 7) // YYYY-MM
 
     const breakdown = spillover.map((member) => {
       const points = pointsPerMember.get(member.userId) ?? 0
       return {
-        userId:           member.userId,
-        name:             member.name,
-        username:         member.username,
-        membershipTier:   member.membershipTier,
-        leg:              member.position,
-        depth:            member.depth,
+        userId:            member.userId,
+        name:              member.name,
+        username:          member.username,
+        membershipTier:    member.membershipTier,
+        leg:               member.position,
+        depth:             member.depth,
         pointsContributed: points,
-        bonusEarnedPHP:   points * RATE,
+        bonusEarnedPHP:    points * RATE,
       }
     })
 
     const totalPoints = breakdown.reduce((sum, b) => sum + b.pointsContributed, 0)
+
+    // ── Credit wallet for each spillover member (idempotent per member per month) ──
+    for (const entry of breakdown) {
+      if (entry.bonusEarnedPHP <= 0) continue
+      await this.walletService.credit({
+        userId,
+        currency: WalletCurrency.PHP,
+        amount:   entry.bonusEarnedPHP,
+        source:   WalletTxnSource.SPILLOVER,
+        refKey:   `spillover:${userId}:${entry.userId}:${monthKey}`,
+        note:     `Spill-over bonus — ${entry.username} (${monthKey}) | ${entry.pointsContributed} pts × ₱${RATE}`,
+        meta: {
+          monthKey,
+          memberUserId:   entry.userId,
+          memberUsername: entry.username,
+          membershipTier: entry.membershipTier,
+          pointsContributed: entry.pointsContributed,
+          rate: RATE,
+        },
+      })
+    }
 
     return {
       userId,

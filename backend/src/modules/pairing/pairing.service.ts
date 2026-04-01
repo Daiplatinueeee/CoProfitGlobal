@@ -6,6 +6,7 @@ import { PairingState, PairingStateDocument } from './schemas/pairing-state.sche
 import { PairingAward, PairingAwardDocument } from './schemas/pairing-award.schema';
 import { VolumeBucket, VolumeBucketDocument, VolumeLeg } from '../volume/schemas/volume-bucket.schema';
 import { User, UserDocument, MembershipTier } from '../users/schemas/user.schema';
+import { GenealogyNode, GenealogyNodeDocument } from '../genealogy/schema/genealogy-node.schema';
 import { WalletService } from '../wallet/wallet.service';
 import { WalletCurrency, WalletTxnSource } from '../wallet/schemas/wallet-transaction.schema';
 
@@ -49,6 +50,9 @@ export class PairingService {
 
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+
+    @InjectModel(GenealogyNode.name)
+    private readonly genealogyNodeModel: Model<GenealogyNodeDocument>,
 
     private readonly walletService: WalletService,
   ) {}
@@ -328,6 +332,90 @@ export class PairingService {
       totalPairedPoints: totalPaired,
       totalPayoutPhp,
     };
+  }
+
+  // ── Downline History ─────────────────────────────────────────────────────
+
+  async getDownlineHistory(rootUserIdStr: string, limit = 100) {
+    const rootUserId = this.toObjectId(rootUserIdStr);
+
+    const downlineNodes = await this.genealogyNodeModel
+      .find({ ancestors: rootUserId })
+      .select('userId depth position')
+      .lean();
+
+    if (downlineNodes.length === 0) return [];
+
+    const depthMap = new Map<string, { depth: number; position: string | null }>();
+    const downlineUserIds: Types.ObjectId[] = [];
+
+    for (const node of downlineNodes) {
+      const uid = (node as any).userId.toString();
+      depthMap.set(uid, { depth: (node as any).depth, position: (node as any).position ?? null });
+      downlineUserIds.push((node as any).userId);
+    }
+
+    const awards = await this.awardModel
+      .find({ userId: { $in: downlineUserIds } })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    if (awards.length === 0) return [];
+
+    const uniqueUserIds = [...new Set(awards.map((a) => a.userId.toString()))];
+    const users = await this.userModel
+      .find({ _id: { $in: uniqueUserIds.map((id) => new Types.ObjectId(id)) } })
+      .select('username membershipTier')
+      .lean();
+
+    const userMap = new Map<string, any>(
+      (users as any[]).map((u) => [u._id.toString(), u]),
+    );
+
+    return awards.map((award) => {
+      const uid = award.userId.toString();
+      const user = userMap.get(uid);
+      const genealogy = depthMap.get(uid);
+      return {
+        award: this.formatAward(award),
+        username: user?.username ?? uid,
+        membershipTier: user?.membershipTier ?? award.membershipTier,
+        depth: genealogy?.depth ?? 0,
+        position: genealogy?.position ?? null,
+      };
+    });
+  }
+
+  // ── History ───────────────────────────────────────────────────────────────
+
+  async getHistory(userIdStr: string, limit = 50) {
+    const userId = this.toObjectId(userIdStr);
+
+    const [awards, states] = await Promise.all([
+      this.awardModel
+        .find({ userId })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .lean(),
+      this.stateModel
+        .find({ userId })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .lean(),
+    ]);
+
+    const stateMap = new Map<string, any>(
+      states.map((s) => [s.periodKey, s]),
+    );
+
+    return awards.map((award) => {
+      const state = stateMap.get(award.periodKey);
+      return {
+        award: this.formatAward(award),
+        state: state ? this.formatState(state) : null,
+      };
+    });
   }
 
   // ── Formatters ────────────────────────────────────────────────────────────

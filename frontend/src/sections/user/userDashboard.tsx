@@ -36,10 +36,49 @@ interface IncomeBreakdown {
   transactions: WalletTransaction[];
 }
 
+interface WalletBalances {
+  php: number;
+  points: number;
+  gc_points: number;
+}
+
+interface ReferralCounts {
+  direct: number;
+  indirect: number;
+  spillover: number;
+  total: number;
+}
+
+interface ReferralData {
+  rootUser: any;
+  counts: ReferralCounts;
+  direct: any[];
+  indirect: any[];
+  spillover: any[];
+  all: any[];
+}
+
 const API_BASE_URL = 'http://localhost:3000';
 
 const formatPhp = (amount: number) =>
   amount.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+
+// ── Auth helper ───────────────────────────────────────────────────────────
+
+function getAuthContext() {
+  const token = localStorage.getItem('accessToken');
+  let userId = localStorage.getItem('userId');
+  if (!userId) {
+    const str = localStorage.getItem('user');
+    if (str) {
+      try {
+        const obj = JSON.parse(str);
+        userId = obj.id ?? obj._id ?? obj.userId;
+      } catch {}
+    }
+  }
+  return { token, userId };
+}
 
 // ── Period income helpers ─────────────────────────────────────────────────
 
@@ -74,7 +113,6 @@ export default function UserDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [, setProfileModalOpen] = useState(false);
-  const [profilePicture] = useState('CP');
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const navigate = useNavigate();
@@ -85,18 +123,17 @@ export default function UserDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [genealogyRoot, setGenealogyRoot] = useState<{ leftAvailablePoints: number; rightAvailablePoints: number } | null>(null);
 
+  // ── New dynamic state ────────────────────────────────────────────────
+  const [walletBalances, setWalletBalances] = useState<WalletBalances>({ php: 0, points: 0, gc_points: 0 });
+  const [balancesLoading, setBalancesLoading] = useState(true);
+  const [referralData, setReferralData] = useState<ReferralData | null>(null);
+  const [referralLoading, setReferralLoading] = useState(true);
+
+  // ── Fetch current user + genealogy root ──────────────────────────────
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
-        const token = localStorage.getItem('accessToken');
-        let userId = localStorage.getItem('userId');
-        if (!userId) {
-          const str = localStorage.getItem('user');
-          if (str) {
-            const obj = JSON.parse(str);
-            userId = obj.id ?? obj._id ?? obj.userId;
-          }
-        }
+        const { token, userId } = getAuthContext();
         if (!token || !userId) return;
 
         const res = await fetch(`${API_BASE_URL}/users/me`, {
@@ -124,7 +161,6 @@ export default function UserDashboard() {
         }
       } catch (err) {
         console.error('User fetch error:', err);
-        // fallback to localStorage
         try {
           const str = localStorage.getItem('user');
           if (str) setCurrentUser(JSON.parse(str));
@@ -134,22 +170,11 @@ export default function UserDashboard() {
     fetchCurrentUser();
   }, []);
 
+  // ── Fetch wallet transactions (income) ───────────────────────────────
   useEffect(() => {
     const fetchIncome = async () => {
       try {
-        const token = localStorage.getItem('accessToken');
-
-        let userId = localStorage.getItem('userId');
-        if (!userId) {
-          const userStr = localStorage.getItem('user');
-          if (userStr) {
-            const userObj = JSON.parse(userStr);
-            userId = userObj.id ?? userObj._id ?? userObj.userId;
-          }
-        }
-
-        console.log('resolved userId:', userId);
-
+        const { token, userId } = getAuthContext();
         if (!token || !userId) {
           console.error('Missing token or userId — cannot fetch income');
           return;
@@ -164,7 +189,6 @@ export default function UserDashboard() {
 
         const txns: WalletTransaction[] = await res.json();
 
-        // Only count PHP credits
         const phpCredits = txns.filter(
           (t) => t.currency === 'php' && t.type === 'credit',
         );
@@ -199,11 +223,78 @@ export default function UserDashboard() {
     fetchIncome();
   }, []);
 
+  // ── Fetch wallet balances (PHP, points, gc_points) ───────────────────
+  useEffect(() => {
+    const fetchBalances = async () => {
+      try {
+        const { token, userId } = getAuthContext();
+        if (!token || !userId) return;
+
+        const res = await fetch(
+          `${API_BASE_URL}/wallet/${userId}/balances`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) throw new Error('Failed to fetch balances');
+
+        const data = await res.json();
+        const bal = data.balances ?? {};
+        setWalletBalances({
+          php:       bal.php       ?? bal.PHP       ?? 0,
+          points:    bal.points    ?? bal.POINTS    ?? 0,
+          gc_points: bal.gc_points ?? bal.GC_POINTS ?? 0,
+        });
+      } catch (err) {
+        console.error('Balances fetch error:', err);
+      } finally {
+        setBalancesLoading(false);
+      }
+    };
+    fetchBalances();
+  }, []);
+
+  // ── Fetch referral data ──────────────────────────────────────────────
+  useEffect(() => {
+    const fetchReferrals = async () => {
+      try {
+        const { token, userId } = getAuthContext();
+        if (!token || !userId) return;
+
+        const res = await fetch(
+          `${API_BASE_URL}/genealogy/referrals/${userId}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) throw new Error('Failed to fetch referrals');
+
+        const data: ReferralData = await res.json();
+        setReferralData(data);
+      } catch (err) {
+        console.error('Referral fetch error:', err);
+      } finally {
+        setReferralLoading(false);
+      }
+    };
+    fetchReferrals();
+  }, []);
+
   // ── Period income (Today / This Week / This Month) ───────────────────
   const periodIncome = useMemo(
     () => getPeriodIncome(income?.transactions ?? []),
     [income],
   );
+
+  // ── Sign-5 progress: count direct referrals by tier for current month only ──
+  const sign5Progress = useMemo(() => {
+    const currentMonthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const directRefs = referralData?.direct ?? [];
+    const tierCounts: Record<string, number> = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    for (const ref of directRefs) {
+      const joinedMonth = (ref.createdAt ?? '').slice(0, 7);
+      if (joinedMonth !== currentMonthKey) continue;
+      const t = (ref.membershipTier ?? '').toLowerCase();
+      if (t in tierCounts) tierCounts[t]++;
+    }
+    return tierCounts;
+  }, [referralData]);
 
   // ── Existing effects ─────────────────────────────────────────────────
   useEffect(() => {
@@ -228,14 +319,23 @@ export default function UserDashboard() {
     platinum: { label: 'Platinum', price: '₱12,998', gradient: 'from-gray-600 via-gray-400 to-gray-300' },
   };
 
-
   const tier = TIER_META[currentUser?.membershipTier?.toLowerCase() ?? ''] ?? TIER_META.bronze;
+
+  // ── Dynamic profile display ──────────────────────────────────────────
+  const displayName = currentUser?.name || currentUser?.username || 'User';
+  const displayEmail = currentUser?.email || '';
+  const profileInitials = displayName
+    .split(' ')
+    .map((w: string) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || 'U';
 
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'genealogy', label: 'Genealogy', icon: Network },
-    { id: 'referal-hierarchy', label: 'Referal Hierarchy', icon: Lock, underDevelopment: true },
-    { id: 'pairing-history', label: 'Pairing History', icon: TrendingUp, underDevelopment: true },
+    { id: 'referal-hierarchy', label: 'Referal Hierarchy', icon: Lock },
+    { id: 'pairing-history', label: 'Pairing History', icon: TrendingUp },
     { id: 'payout-system', label: 'Payout System', icon: Wallet, underDevelopment: true },
     { id: 'subscription', label: 'Subscription', icon: ShoppingBag, underDevelopment: true },
     { id: 'unilevel-package', label: 'Unilevel Products', icon: Download, underDevelopment: true },
@@ -444,19 +544,43 @@ export default function UserDashboard() {
               </div>
             </div>
           </div>
-          <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
-            <p className="text-xs text-gray-500">Total Points</p>
-            <p className="text-sm font-bold text-gray-800">
-              {((genealogyRoot?.leftAvailablePoints ?? 0) + (genealogyRoot?.rightAvailablePoints ?? 0)).toLocaleString()}
-            </p>
+          
+          {/* ── Referral counts — dynamic from /genealogy/referrals ── */}
+          <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <p className="text-xs text-gray-500 mb-2">Referral Counts</p>
+            {referralLoading ? (
+              <Skeleton className="h-6 w-full" />
+            ) : (
+              <div className="flex items-center gap-4">
+                <div className="text-center">
+                  <p className="text-lg font-bold text-gray-800">{referralData?.counts.direct ?? 0}</p>
+                  <p className="text-xs text-gray-500">Direct</p>
+                </div>
+                <div className="w-px h-8 bg-gray-200" />
+                <div className="text-center">
+                  <p className="text-lg font-bold text-gray-800">{referralData?.counts.indirect ?? 0}</p>
+                  <p className="text-xs text-gray-500">Indirect</p>
+                </div>
+                <div className="w-px h-8 bg-gray-200" />
+                <div className="text-center">
+                  <p className="text-lg font-bold text-gray-800">{referralData?.counts.spillover ?? 0}</p>
+                  <p className="text-xs text-gray-500">Spillover</p>
+                </div>
+                <div className="w-px h-8 bg-gray-200" />
+                <div className="text-center">
+                  <p className="text-lg font-bold text-gray-800">{referralData?.counts.total ?? 0}</p>
+                  <p className="text-xs text-gray-500">Total</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Pairing Bonus — under development, content visible */}
+        {/* Pairing Bonus — dynamic total from wallet transactions */}
         <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Pairing Bonus</h3>
-            <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">🚧 Under Development</span>
+           
           </div>
           <div className="space-y-4">
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
@@ -465,28 +589,33 @@ export default function UserDashboard() {
             </div>
             <div className="flex items-center justify-between pt-4 border-t border-gray-100">
               <p className="text-sm font-medium text-gray-700">Total Earned</p>
-              <span className="text-2xl font-bold text-gray-900">₱0.00</span>
+              {incomeLoading
+                ? <Skeleton className="h-8 w-24" />
+                : <span className="text-2xl font-bold text-gray-900">
+                    ₱{formatPhp(income?.pairingBonus ?? 0)}
+                  </span>
+              }
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Pairing Bonus & Gift Certificates ────────────────────────── */}
+      {/* ── Gift Certificates & Unilevel PV ──────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-
-
-        {/* Gift Certificates — under development, content visible */}
+        {/* Gift Certificates — dynamic from wallet gc_points balance */}
         <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Gift Certificates (GC)</h3>
-            <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">🚧 Under Development</span>
           </div>
           <div className="p-4 bg-linear-to-r from-rose-50 to-pink-50 rounded-xl border border-rose-200">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-rose-700 mb-1">Total Earned</p>
-                <p className="text-4xl font-bold text-rose-900">0</p>
+                {balancesLoading
+                  ? <Skeleton className="h-10 w-16" />
+                  : <p className="text-4xl font-bold text-rose-900">{walletBalances.gc_points}</p>
+                }
               </div>
               <Gift className="w-12 h-12 text-rose-300" />
             </div>
@@ -494,7 +623,7 @@ export default function UserDashboard() {
           </div>
         </div>
 
-        {/* Unilevel PV — under development, content visible */}
+        {/* Unilevel PV — dynamic from wallet points balance */}
         <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Unilevel PV</h3>
@@ -504,7 +633,10 @@ export default function UserDashboard() {
             <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-200">
               <div className="flex items-baseline justify-between mb-2">
                 <p className="text-sm font-medium text-indigo-900">Current PV</p>
-                <p className="text-3xl font-bold text-indigo-900">0</p>
+                {balancesLoading
+                  ? <Skeleton className="h-8 w-24" />
+                  : <p className="text-3xl font-bold text-indigo-900">{formatPhp(walletBalances.points)}</p>
+                }
               </div>
               <p className="text-xs text-indigo-600">Resets every month</p>
             </div>
@@ -522,36 +654,41 @@ export default function UserDashboard() {
         </div>
       </div>
 
-      {/* ── Sign-5 & Unilevel PV ──────────────────────────────────────── */}
+      {/* ── Sign-5 Progress — dynamic from referral data ──────────────── */}
       <div className="grid grid-cols-1 gap-6">
-
-        {/* Sign-5 Progress — under development, content visible */}
         <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Sign-5 Progress (This Month)</h3>
-            <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">🚧 Under Development</span>
+            <h3 className="text-lg font-semibold text-gray-900">Sign-5 Progress</h3>
+            <span className="text-xs text-gray-400">{new Date().toLocaleString('en-PH', { month: 'long', year: 'numeric' })}</span>
           </div>
           <div className="space-y-3">
-            {[
-              { name: 'Bronze', color: 'bg-amber-500' },
-              { name: 'Silver', color: 'bg-gray-400' },
-              { name: 'Gold', color: 'bg-yellow-500' },
-              { name: 'Platinum', color: 'bg-slate-500' },
-            ].map(({ name, color }) => (
-              <div key={name}>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm font-medium text-gray-700">{name}</span>
-                  <span className="text-xs text-gray-400">0 / 5</span>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div className={`${color} h-2 rounded-full`} style={{ width: '0%' }} />
-                </div>
-              </div>
-            ))}
+            {referralLoading ? (
+              [1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-8 w-full" />)
+            ) : (
+              [
+                { name: 'Bronze',   key: 'bronze',   color: 'bg-amber-500' },
+                { name: 'Silver',   key: 'silver',   color: 'bg-gray-400' },
+                { name: 'Gold',     key: 'gold',     color: 'bg-yellow-500' },
+                { name: 'Platinum', key: 'platinum',  color: 'bg-slate-500' },
+              ].map(({ name, key, color }) => {
+                const count = sign5Progress[key] ?? 0;
+                const TARGET = 5;
+                const pct = Math.min((count / TARGET) * 100, 100);
+                return (
+                  <div key={name}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm font-medium text-gray-700">{name}</span>
+                      <span className="text-xs text-gray-400">{count} / {TARGET}</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div className={`${color} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
-
-
       </div>
     </div>
   );
@@ -572,6 +709,9 @@ export default function UserDashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('user');
     navigate('/auth');
   };
 
@@ -673,12 +813,12 @@ export default function UserDashboard() {
               className={`flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition active:bg-gray-100 ${sidebarOpen ? 'w-full' : 'w-full lg:justify-center'}`}
             >
               <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center shrink-0">
-                <span className="text-sm font-bold text-yellow-500">{profilePicture}</span>
+                <span className="text-sm font-bold text-yellow-500">{profileInitials}</span>
               </div>
               {sidebarOpen && (
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">CoProfitGlobal</p>
-                  <p className="text-xs text-gray-500 truncate">coprofitglobal@gmail.com</p>
+                  <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
+                  <p className="text-xs text-gray-500 truncate">{displayEmail}</p>
                 </div>
               )}
             </button>

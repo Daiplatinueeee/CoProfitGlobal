@@ -42,4 +42,28 @@ export class PairingController {
   ) {
     return this.pairingService.getDayState(userId, dateKey);
   }
+
+  /**
+   * Get pairing history across all downlines of a user, newest first.
+   * Example: GET /pairing/downline-history/:userId?limit=100
+   */
+  @Get('downline-history/:userId')
+  downlineHistory(
+    @Param('userId') userId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.pairingService.getDownlineHistory(userId, limit ? parseInt(limit, 10) : 100);
+  }
+
+  /**
+   * Get full pairing history for a user, newest first.
+   * Example: GET /pairing/history/:userId?limit=50
+   */
+  @Get('history/:userId')
+  history(
+    @Param('userId') userId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.pairingService.getHistory(userId, limit ? parseInt(limit, 10) : 50);
+  }
 }

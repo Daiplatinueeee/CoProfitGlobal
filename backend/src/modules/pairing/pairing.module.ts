@@ -9,6 +9,7 @@ import { PairingState, PairingStateSchema } from './schemas/pairing-state.schema
 import { PairingAward, PairingAwardSchema } from './schemas/pairing-award.schema';
 import { VolumeBucket, VolumeBucketSchema } from '../volume/schemas/volume-bucket.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { GenealogyNode, GenealogyNodeSchema } from '../genealogy/schema/genealogy-node.schema';
 
 import { WalletModule } from '../wallet/wallet.module';
 
@@ -19,6 +20,7 @@ import { WalletModule } from '../wallet/wallet.module';
       { name: PairingAward.name,  schema: PairingAwardSchema },
       { name: VolumeBucket.name,  schema: VolumeBucketSchema },
       { name: User.name,          schema: UserSchema },
+      { name: GenealogyNode.name, schema: GenealogyNodeSchema },
     ]),
     WalletModule, // ← gives PairingService access to WalletService
   ],

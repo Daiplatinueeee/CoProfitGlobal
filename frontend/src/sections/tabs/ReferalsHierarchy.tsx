@@ -1,72 +1,92 @@
-import pic1 from './../../assets/refs/Logo.webp';
-import pic2 from './../../assets/refs/Logo.webp';
-import pic3 from './../../assets/refs/Logo.webp';
-import pic4 from './../../assets/refs/Logo.webp';
-import pic5 from './../../assets/refs/Logo.webp';
-import pic6 from './../../assets/refs/Logo.webp';
-import pic7 from './../../assets/refs/Logo.webp';
-import pic8 from './../../assets/refs/Logo.webp';
+import { useEffect, useState } from 'react';
+import defaultLogo from './../../assets/refs/Logo.webp';
+
+const API_BASE_URL = 'http://localhost:3000';
+
+function getAuthContext() {
+  const token = localStorage.getItem('accessToken');
+  let userId = localStorage.getItem('userId');
+  if (!userId) {
+    const str = localStorage.getItem('user');
+    if (str) {
+      try {
+        const obj = JSON.parse(str);
+        userId = obj.id ?? obj._id ?? obj.userId;
+      } catch {}
+    }
+  }
+  return { token, userId };
+}
 
 function ReferalsHierarchy() {
-  const referralsData = [
-    { id: 1, level: 1, username: "john_doe", email: "john.doe@gmail.com", profilePicture: pic1, dateTime: "2025-02-22T14:30:00", isActive: true },
-    { id: 2, level: 1, username: "jane_smith", email: "jane.smith@gmail.com", profilePicture: pic2, dateTime: "2025-02-21T10:15:00", isActive: true },
-    { id: 3, level: 2, username: "mike_johnson", email: "mike.johnson@gmail.com", profilePicture: pic3, dateTime: "2025-02-18T09:45:00", isActive: true },
-    { id: 4, level: 3, username: "alex_turner", email: "alex.turner@gmail.com", profilePicture: pic4, dateTime: "2025-02-16T12:20:00", isActive: false },
-  ];
+  const [directReferrals, setDirectReferrals] = useState<any[]>([]);
+  const [indirectReferrals, setIndirectReferrals] = useState<any[]>([]);
+  const [spilloverReferrals, setSpilloverReferrals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const pairingBonusData = [
-    {
-      id: 1, level: 4, dateTime: "2025-02-15T16:00:00",
-      leftUser: { username: "emma_left", profilePicture: pic5 },
-      rightUser: { username: "liam_right", profilePicture: pic6 },
-      totalBonus: 250, isActive: true
-    },
-    {
-      id: 2, level: 4, dateTime: "2025-02-14T11:30:00",
-      leftUser: { username: "noah_left", profilePicture: pic7 },
-      rightUser: { username: "olivia_right", profilePicture: pic8 },
-      totalBonus: 180, isActive: false
-    },
-  ];
+  useEffect(() => {
+    const { token, userId } = getAuthContext();
+    if (!token || !userId) return;
+
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    fetch(`${API_BASE_URL}/genealogy/referrals/${userId}`, { headers })
+      .then(r => r.json())
+      .then((referralsData) => {
+        setDirectReferrals(referralsData.direct ?? []);
+        setIndirectReferrals(referralsData.indirect ?? []);
+        setSpilloverReferrals(referralsData.spillover ?? []);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+
+  const sign5Counts = {
+    bronze:   directReferrals.filter(r => r.membershipTier?.toLowerCase() === 'bronze'   && (r.createdAt ?? '').slice(0, 7) === currentMonthKey).length,
+    silver:   directReferrals.filter(r => r.membershipTier?.toLowerCase() === 'silver'   && (r.createdAt ?? '').slice(0, 7) === currentMonthKey).length,
+    gold:     directReferrals.filter(r => r.membershipTier?.toLowerCase() === 'gold'     && (r.createdAt ?? '').slice(0, 7) === currentMonthKey).length,
+    platinum: directReferrals.filter(r => r.membershipTier?.toLowerCase() === 'platinum' && (r.createdAt ?? '').slice(0, 7) === currentMonthKey).length,
+  };
 
   const sign5Data = [
-    { rank: "Bronze", count: 0, required: 5, bonus: 500 },
-    { rank: "Silver", count: 0, required: 5, bonus: 1500 },
-    { rank: "Gold", count: 0, required: 5, bonus: 2500 },
-    { rank: "Platinum", count: 0, required: 5, bonus: 3500 },
+    { rank: 'Bronze',   count: sign5Counts.bronze,   required: 5, bonus: 500  },
+    { rank: 'Silver',   count: sign5Counts.silver,   required: 5, bonus: 1500 },
+    { rank: 'Gold',     count: sign5Counts.gold,     required: 5, bonus: 2500 },
+    { rank: 'Platinum', count: sign5Counts.platinum, required: 5, bonus: 3500 },
   ];
 
-  const leadershipBonusData = pairingBonusData.map(pair => ({
-    id: pair.id,
-    dateTime: pair.dateTime,
-    leadershipBonus: pair.totalBonus * 0.2,
-    isActive: pair.isActive,
-  }));
+  const groupedByLevel: Record<number, any[]> = {
+    1: directReferrals,
+    2: indirectReferrals,
+    3: spilloverReferrals,
+  };
 
-  const groupedByLevel = referralsData.reduce((acc, referral) => {
-    if (!acc[referral.level]) acc[referral.level] = [];
-    acc[referral.level].push(referral);
-    return acc;
-  }, {} as Record<number, typeof referralsData>);
-
-  const getLevelTitle = (level: string) => {
+  const getLevelTitle = (level: number) => {
     switch (level) {
-      case "1": return "Level 1 - Direct Referrals";
-      case "2": return "Level 2 - Indirect Referrals";
-      case "3": return "Level 3 - Spill Over";
-      default: return "";
+      case 1: return 'Level 1 - Direct Referrals';
+      case 2: return 'Level 2 - Indirect Referrals';
+      case 3: return 'Level 3 - Spill Over';
+      default: return '';
     }
   };
 
-  const formatDateTime = (dateTime: string) =>
-    new Date(dateTime).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  };
 
-  const getStatusBadge = (isActive: boolean) => (
-    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${isActive ? "bg-green-100 text-green-800" : "bg-slate-200 text-slate-700"}`}>
-      {isActive ? "Active" : "Inactive"}
-    </span>
-  );
+  if (loading) {
+    return (
+      <div className="w-full max-w-6xl mx-auto p-6 flex items-center justify-center min-h-48">
+        <p className="text-slate-500 text-sm">Loading referral hierarchy...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-6xl mx-auto p-6 bg-white space-y-12">
@@ -74,38 +94,51 @@ function ReferalsHierarchy() {
 
       {/* LEVEL 1-3 TABLES */}
       <div className="space-y-10">
-        {Object.entries(groupedByLevel).map(([level, referrals]) => (
-          <div key={level}>
-            <div className="mb-4 pb-2 border-b-2 border-slate-300">
-              <h3 className="text-xl font-bold text-slate-900">{getLevelTitle(level)}</h3>
-              <p className="text-sm text-slate-500">{referrals.length} record(s)</p>
-            </div>
-            <div className="overflow-x-auto rounded-lg border border-slate-200">
-              <table className="w-full text-sm text-left text-slate-600">
-                <thead className="bg-slate-100 text-slate-900 font-semibold">
-                  <tr>
-                    <th className="px-6 py-4 text-center">Profile</th>
-                    <th className="px-6 py-4">Username</th>
-                    <th className="px-6 py-4">Email</th>
-                    <th className="px-6 py-4">Date & Time</th>
-                    <th className="px-6 py-4">Account Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {referrals.map(referral => (
-                    <tr key={referral.id} className="border-t border-slate-200 hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 text-center"><img src={referral.profilePicture} alt={referral.username} className="w-12 h-12 rounded-full border mx-auto" /></td>
-                      <td className="px-6 py-4 font-semibold text-slate-900">{referral.username}</td>
-                      <td className="px-6 py-4">{referral.email}</td>
-                      <td className="px-6 py-4">{formatDateTime(referral.dateTime)}</td>
-                      <td className="px-6 py-4">{getStatusBadge(referral.isActive)}</td>
+        {([1, 2, 3] as const).map(level => {
+          const referrals = groupedByLevel[level];
+          return (
+            <div key={level}>
+              <div className="mb-4 pb-2 border-b-2 border-slate-300">
+                <h3 className="text-xl font-bold text-slate-900">{getLevelTitle(level)}</h3>
+                <p className="text-sm text-slate-500">{referrals.length} record(s)</p>
+              </div>
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full text-sm text-left text-slate-600">
+                  <thead className="bg-slate-100 text-slate-900 font-semibold">
+                    <tr>
+                      <th className="px-6 py-4 text-center">Profile</th>
+                      <th className="px-6 py-4">Username</th>
+                      <th className="px-6 py-4">Email</th>
+                      <th className="px-6 py-4">Date Joined</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {referrals.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-6 text-center text-slate-400">No records found.</td>
+                      </tr>
+                    ) : (
+                      referrals.map((referral: any) => (
+                        <tr key={referral.id} className="border-t border-slate-200 hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 text-center">
+                            <img
+                              src={referral.profileImage || defaultLogo}
+                              alt={referral.username}
+                              className="w-12 h-12 rounded-full border mx-auto object-cover"
+                            />
+                          </td>
+                          <td className="px-6 py-4 font-semibold text-slate-900">{referral.username}</td>
+                          <td className="px-6 py-4">{referral.email}</td>
+                          <td className="px-6 py-4">{formatDate(referral.createdAt)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* LEVEL 4 - SIGN 5 */}
         <div>
@@ -122,34 +155,6 @@ function ReferalsHierarchy() {
             ))}
           </div>
         </div>
-
-        {/* LEVEL 5 - LEADERSHIP BONUS */}
-        <div>
-          <div className="mb-4 pb-2 border-b-2 border-slate-300">
-            <h3 className="text-xl font-bold text-slate-900">Level 5 - Leadership Bonus (20%)</h3>
-          </div>
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full text-sm text-left text-slate-600">
-              <thead className="bg-slate-100 text-slate-900 font-semibold">
-                <tr>
-                  <th className="px-6 py-4">Date & Time</th>
-                  <th className="px-6 py-4">Leadership Bonus (20%)</th>
-                  <th className="px-6 py-4">Account Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leadershipBonusData.map(item => (
-                  <tr key={item.id} className="border-t border-slate-200 hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">{formatDateTime(item.dateTime)}</td>
-                    <td className="px-6 py-4 font-bold text-blue-700">₱{item.leadershipBonus}</td>
-                    <td className="px-6 py-4">{getStatusBadge(item.isActive)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
       </div>
     </div>
   );

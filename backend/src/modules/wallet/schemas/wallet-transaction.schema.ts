@@ -18,6 +18,7 @@ export enum WalletTxnSource {
   PAIRING = 'pairing',
   SIGN5 = 'sign5',
   LEADERSHIP = 'leadership',
+  SPILLOVER = 'spillover',
   ADMIN_ADJUSTMENT = 'admin_adjustment',
   WITHDRAWAL = 'withdrawal',
 }
