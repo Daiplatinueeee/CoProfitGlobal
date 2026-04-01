@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, Pencil } from 'lucide-react';
 
 import CreateUserModal from './CreateUserModal';
 
@@ -22,6 +22,8 @@ interface User {
   createdAt: string;
   createdTime: string;
   isActive: boolean;
+  leftLegPoints: number;
+  rightLegPoints: number;
 }
 
 type Tier = 'bronze' | 'silver' | 'gold' | 'platinum' | null;
@@ -49,6 +51,10 @@ function UsersOverview() {
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+
+  const [editPointsUserId, setEditPointsUserId] = useState<string | null>(null);
+  const [editPointsForm, setEditPointsForm] = useState({ leftLegPoints: 0, rightLegPoints: 0 });
+  const [editPointsLoading, setEditPointsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -88,6 +94,8 @@ function UsersOverview() {
       password: '',
       tier: apiUser.membershipTier || null,
       profilePicture: apiUser.profileImage,
+      leftLegPoints: apiUser.leftLegPoints ?? 0,
+      rightLegPoints: apiUser.rightLegPoints ?? 0,
       createdAt,
       createdTime,
       isActive: apiUser.isActive !== undefined ? apiUser.isActive : true,
@@ -192,6 +200,43 @@ function UsersOverview() {
     console.error('Error creating user:', err);
   }
 };
+
+  const openEditPoints = (user: User) => {
+    setEditPointsUserId(user.id);
+    setEditPointsForm({ leftLegPoints: user.leftLegPoints, rightLegPoints: user.rightLegPoints });
+  };
+
+  const handleUpdateLegPoints = async () => {
+    if (!editPointsUserId) return;
+    setEditPointsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/admin/users/${editPointsUserId}/leg-points`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(editPointsForm),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update leg points');
+      }
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === editPointsUserId
+            ? { ...u, leftLegPoints: editPointsForm.leftLegPoints, rightLegPoints: editPointsForm.rightLegPoints }
+            : u,
+        ),
+      );
+      setEditPointsUserId(null);
+      setSuccessMessage('Leg points updated successfully!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update leg points');
+    } finally {
+      setEditPointsLoading(false);
+    }
+  };
 
   const handleDeleteUser = async (userId: string) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
@@ -323,12 +368,16 @@ function UsersOverview() {
               {users.length} total user{users.length !== 1 ? 's' : ''}
             </p>
           </div>
+
+          {/*
           <button
             onClick={() => setShowCreateForm(true)}
             className="bg-sky-400 hover:bg-sky-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
             Add User
           </button>
+          */}
+          
         </div>
 
         {/* Alerts */}
@@ -532,6 +581,27 @@ function UsersOverview() {
                         <p className="font-medium text-gray-900 text-sm">{user.beneficiary || '—'}</p>
                       </div>
                     </div>
+
+                    {/* Leg points */}
+                    <div className="mt-3 bg-blue-50 rounded-lg p-4 flex items-center gap-6">
+                      <div className="flex-1 grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-blue-600 text-xs font-medium mb-1">Left Leg Points</p>
+                          <p className="font-semibold text-blue-900 text-sm">{user.leftLegPoints.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-blue-600 text-xs font-medium mb-1">Right Leg Points</p>
+                          <p className="font-semibold text-blue-900 text-sm">{user.rightLegPoints.toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => openEditPoints(user)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Edit Points
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -550,6 +620,56 @@ function UsersOverview() {
             </div>
           )}
         </div>
+
+        {/* Edit leg points modal */}
+        {editPointsUserId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Edit Leg Points</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Left Leg Points</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editPointsForm.leftLegPoints}
+                    onChange={(e) =>
+                      setEditPointsForm((prev) => ({ ...prev, leftLegPoints: Number(e.target.value) }))
+                    }
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Right Leg Points</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editPointsForm.rightLegPoints}
+                    onChange={(e) =>
+                      setEditPointsForm((prev) => ({ ...prev, rightLegPoints: Number(e.target.value) }))
+                    }
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setEditPointsUserId(null)}
+                  className="flex-1 py-2 px-4 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateLegPoints}
+                  disabled={editPointsLoading}
+                  className="flex-1 py-2 px-4 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors"
+                >
+                  {editPointsLoading ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Create modal */}
         <CreateUserModal

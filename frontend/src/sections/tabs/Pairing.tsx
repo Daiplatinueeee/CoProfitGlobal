@@ -26,6 +26,7 @@ interface PairingAward {
   payoutPhp: number;
   ratePhpPerPoint: number;
   capLimit: number;
+  gcAwarded: number;
   createdAt: string;
 }
 
@@ -160,9 +161,16 @@ function MyPairings() {
                 <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Paired Points</p>
                 <p className="text-sm font-bold text-slate-700 mb-2">{award.pairedPoints.toLocaleString()} pts</p>
                 <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Payout</p>
-                <div className="bg-linear-to-br from-purple-100 to-purple-50 rounded-lg px-6 py-4 border border-purple-200">
-                  <p className="text-2xl font-bold text-purple-600">₱{formatPhp(award.payoutPhp)}</p>
-                </div>
+                {award.gcAwarded > 0 ? (
+                  <div className="bg-linear-to-br from-emerald-100 to-emerald-50 rounded-lg px-6 py-4 border border-emerald-300 flex flex-col items-center">
+                    <p className="text-2xl font-bold text-emerald-600">+{award.gcAwarded} GC</p>
+                    <p className="text-xs text-emerald-500 mt-1">Every 5th pair</p>
+                  </div>
+                ) : (
+                  <div className="bg-linear-to-br from-purple-100 to-purple-50 rounded-lg px-6 py-4 border border-purple-200">
+                    <p className="text-2xl font-bold text-purple-600">₱{formatPhp(award.payoutPhp)}</p>
+                  </div>
+                )}
                 {state && <p className="text-xs text-slate-400 mt-2">Cap: {state.capUsed}/{state.capLimit}</p>}
               </div>
             </div>
@@ -253,9 +261,16 @@ function DownlinePairings() {
                 <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Paired Points</p>
                 <p className="text-sm font-bold text-slate-700 mb-2">{award.pairedPoints.toLocaleString()} pts</p>
                 <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Payout</p>
-                <div className="bg-linear-to-br from-purple-100 to-purple-50 rounded-lg px-6 py-4 border border-purple-200">
-                  <p className="text-2xl font-bold text-purple-600">₱{formatPhp(award.payoutPhp)}</p>
-                </div>
+                {award.gcAwarded > 0 ? (
+                  <div className="bg-linear-to-br from-emerald-100 to-emerald-50 rounded-lg px-6 py-4 border border-emerald-300 flex flex-col items-center">
+                    <p className="text-2xl font-bold text-emerald-600">+{award.gcAwarded} GC</p>
+                    <p className="text-xs text-emerald-500 mt-1">Every 5th pair</p>
+                  </div>
+                ) : (
+                  <div className="bg-linear-to-br from-purple-100 to-purple-50 rounded-lg px-6 py-4 border border-purple-200">
+                    <p className="text-2xl font-bold text-purple-600">₱{formatPhp(award.payoutPhp)}</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

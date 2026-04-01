@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model, Types } from 'mongoose'
+import * as bcrypt from 'bcrypt'
 
 import {
   GenealogyNode,
@@ -13,9 +14,9 @@ import {
 } from './schema/genealogy-node.schema'
 import { PlaceMemberDto } from './dto/place-member.dto'
 import {
+  MembershipTier,
   User,
   UserDocument,
-  SystemRole,
 } from '../users/schemas/user.schema'
 import { VolumeLedger, VolumeLedgerDocument } from '../volume/schemas/volume-ledger.schema'
 import {
@@ -27,9 +28,11 @@ import { VolumeService } from '../volume/volume.service'
 import {
   ProductPin,
   ProductPinDocument,
+  PinStatus,
 } from '../product-pins/schema/product-pins.schema'
 import { WalletService } from '../wallet/wallet.service'
 import { WalletCurrency, WalletTxnSource } from '../wallet/schemas/wallet-transaction.schema'
+import { UsersService } from '../users/users.service'
 
 @Injectable()
 export class GenealogyService {
@@ -51,7 +54,26 @@ export class GenealogyService {
 
     private readonly volumeService: VolumeService,
     private readonly walletService: WalletService,
+    private readonly usersService: UsersService,
   ) {}
+
+  // ── Placement bonus rate maps ─────────────────────────────────────────────
+
+  private readonly DIRECT_BONUS: Record<MembershipTier, number> = {
+    [MembershipTier.FREE]:     0,
+    [MembershipTier.BRONZE]:   100,
+    [MembershipTier.SILVER]:   300,
+    [MembershipTier.GOLD]:     500,
+    [MembershipTier.PLATINUM]: 700,
+  }
+
+  private readonly INDIRECT_BONUS: Record<MembershipTier, number> = {
+    [MembershipTier.FREE]:     0,
+    [MembershipTier.BRONZE]:   5,
+    [MembershipTier.SILVER]:   15,
+    [MembershipTier.GOLD]:     25,
+    [MembershipTier.PLATINUM]: 35,
+  }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -469,44 +491,58 @@ export class GenealogyService {
       throw new BadRequestException('Right leg already occupied')
     }
 
-    const existingUser = await this.userModel.findOne({
-      username: dto.username.trim(),
-    })
-
-    if (!existingUser) throw new NotFoundException('User not found')
-
-    if (existingUser.role !== SystemRole.USER) {
-      throw new BadRequestException('Only normal users can be placed in genealogy')
+    // ── Validate PIN ──────────────────────────────────────────────────────
+    const pinDoc = await this.productPinModel.findOne({ pin: dto.packagePin.trim() })
+    if (!pinDoc) throw new BadRequestException('Invalid package PIN — PIN does not exist')
+    if (pinDoc.status !== PinStatus.UNUSED) {
+      throw new BadRequestException(
+        `PIN is already ${pinDoc.status.toLowerCase()} and cannot be used`,
+      )
     }
 
-    if (!existingUser.membershipTier) {
-      throw new BadRequestException('User has no package tier yet')
-    }
-
-    if (existingUser._id.toString() === dto.parentUserId) {
-      throw new BadRequestException('You cannot place a user under themselves')
-    }
-
-    if (existingUser._id.toString() === dto.placerUserId) {
-      throw new BadRequestException('You cannot place yourself')
-    }
+    const membershipTier = pinDoc.tier
 
     const placerUser = await this.userModel.findById(dto.placerUserId)
     if (!placerUser) throw new NotFoundException('Placer user not found')
 
-    const existingNode = await this.genealogyModel.findOne({
-      userId: existingUser._id,
+    // ── Create the new user ───────────────────────────────────────────────
+    const passwordHash = await bcrypt.hash(dto.password, 10)
+
+    const newUser = await this.usersService.createUser({
+      name:           dto.name,
+      username:       dto.username,
+      email:          dto.email,
+      passwordHash,
+      membershipTier,
+      packagePin:     dto.packagePin.trim(),
+      age:            dto.age,
+      contact:        dto.contact,
+      address:        dto.address,
+      beneficiary:    dto.beneficiary,
+      birthday:       dto.birthday,
     })
 
-    if (existingNode) {
-      throw new BadRequestException('User is already placed in genealogy')
+    const newUserId = (newUser as any)._id as Types.ObjectId
+
+    // Set sponsorId to the placer
+    await this.userModel.findByIdAndUpdate(newUserId, { $set: { sponsorId: placerUser._id } })
+
+    // ── Mark PIN as USED — rollback user if this fails ────────────────────
+    try {
+      const updateResult = await this.productPinModel.updateOne(
+        { _id: pinDoc._id },
+        { $set: { status: PinStatus.USED, usedByUserId: newUserId, usedAt: new Date() } },
+      )
+      if (updateResult.matchedCount === 0) throw new Error('PIN document not found during update')
+    } catch (err: any) {
+      await this.userModel.deleteOne({ _id: newUserId })
+      throw new BadRequestException(
+        'Failed to mark PIN as used — user creation has been rolled back. Please try again.',
+      )
     }
 
-    existingUser.sponsorId = placerUser._id
-    await existingUser.save()
-
     const childNode = await this.genealogyModel.create({
-      userId:           existingUser._id,
+      userId:           newUserId,
       parentUserId:     parentNode.userId,
       position:         dto.leg,
       leftChildUserId:  null,
@@ -522,29 +558,42 @@ export class GenealogyService {
     }
 
     await parentNode.save()
-    await this.volumeService.awardActivationVolume(existingUser._id.toString())
+
+    // ── Spillover detection → reset root's indirect counter ──────────────
+    const isSpillover = placerUser._id.toString() !== parentNode.userId.toString()
+    if (isSpillover && childNode.ancestors.length > 0) {
+      const rootUserId = childNode.ancestors[0]
+      await this.userModel.findByIdAndUpdate(rootUserId, {
+        $set: { indirectResetDepth: childNode.depth },
+      })
+    }
+
+    // ── Award placement bonuses to all ancestors ──────────────────────────
+    await this.awardPlacementBonuses(childNode, membershipTier)
+
+    await this.volumeService.awardActivationVolume(newUserId.toString())
 
     const { leftAvailablePoints, rightAvailablePoints } =
-      await this.getAvailablePoints(existingUser._id)
+      await this.getAvailablePoints(newUserId)
 
     return {
-      id:                   existingUser._id.toString(),
-      userId:               existingUser._id.toString(),
-      username:             existingUser.username,
-      email:                existingUser.email,
-      profileImage:         existingUser.profileImage ?? '',
-      referralCode:         existingUser.referralCode ?? '',
-      sponsorId:            existingUser.sponsorId?.toString() ?? null,
-      membershipTier:       existingUser.membershipTier,
-      leftLegPoints:        existingUser.leftLegPoints  ?? 0,
-      rightLegPoints:       existingUser.rightLegPoints ?? 0,
+      id:                   newUserId.toString(),
+      userId:               newUserId.toString(),
+      username:             (newUser as any).username,
+      email:                (newUser as any).email,
+      profileImage:         (newUser as any).profileImage ?? '',
+      referralCode:         (newUser as any).referralCode ?? '',
+      sponsorId:            placerUser._id.toString(),
+      membershipTier:       (newUser as any).membershipTier,
+      leftLegPoints:        0,
+      rightLegPoints:       0,
       leftAvailablePoints,
       rightAvailablePoints,
-      age:                  existingUser.age,
-      contact:              existingUser.contact,
-      address:              existingUser.address,
-      beneficiary:          existingUser.beneficiary,
-      birthday:             existingUser.birthday,
+      age:                  (newUser as any).age,
+      contact:              (newUser as any).contact,
+      address:              (newUser as any).address,
+      beneficiary:          (newUser as any).beneficiary,
+      birthday:             (newUser as any).birthday,
       parentUserId:         parentNode.userId.toString(),
       leg:                  dto.leg,
     }
@@ -629,6 +678,19 @@ export class GenealogyService {
       throw new BadRequestException('Invalid userId')
     }
 
+    const userDoc = await this.userModel.findById(userId).select('membershipTier').lean()
+    if (!userDoc || (userDoc as any).membershipTier === MembershipTier.FREE) {
+      return {
+        userId,
+        rootUser: null,
+        spilloverCount: 0,
+        totalPoints: 0,
+        totalBonusPHP: 0,
+        pointsPerPHP: 400,
+        breakdown: [],
+      }
+    }
+
     const { spillover, rootUser } = await this.buildReferralLists(userId)
 
     if (spillover.length === 0) {
@@ -659,9 +721,6 @@ export class GenealogyService {
       pointsPerMember.set(sourceId, (pointsPerMember.get(sourceId) ?? 0) + entry.points)
     }
 
-    const RATE = 400
-    const monthKey = new Date().toISOString().slice(0, 7) // YYYY-MM
-
     const breakdown = spillover.map((member) => {
       const points = pointsPerMember.get(member.userId) ?? 0
       return {
@@ -669,44 +728,79 @@ export class GenealogyService {
         name:              member.name,
         username:          member.username,
         membershipTier:    member.membershipTier,
-        leg:               member.position,
         depth:             member.depth,
         pointsContributed: points,
-        bonusEarnedPHP:    points * RATE,
       }
     })
-
-    const totalPoints = breakdown.reduce((sum, b) => sum + b.pointsContributed, 0)
-
-    // ── Credit wallet for each spillover member (idempotent per member per month) ──
-    for (const entry of breakdown) {
-      if (entry.bonusEarnedPHP <= 0) continue
-      await this.walletService.credit({
-        userId,
-        currency: WalletCurrency.PHP,
-        amount:   entry.bonusEarnedPHP,
-        source:   WalletTxnSource.SPILLOVER,
-        refKey:   `spillover:${userId}:${entry.userId}:${monthKey}`,
-        note:     `Spill-over bonus — ${entry.username} (${monthKey}) | ${entry.pointsContributed} pts × ₱${RATE}`,
-        meta: {
-          monthKey,
-          memberUserId:   entry.userId,
-          memberUsername: entry.username,
-          membershipTier: entry.membershipTier,
-          pointsContributed: entry.pointsContributed,
-          rate: RATE,
-        },
-      })
-    }
 
     return {
       userId,
       rootUser,
       spilloverCount: spillover.length,
-      totalPoints,
-      totalBonusPHP:  totalPoints * RATE,
-      pointsPerPHP:   RATE,
       breakdown,
+    }
+  }
+
+  // ── Per-referral placement bonus ─────────────────────────────────────────
+
+  private async awardPlacementBonuses(
+    childNode: { depth: number; ancestors: Types.ObjectId[]; userId: Types.ObjectId },
+    membershipTier: MembershipTier,
+  ) {
+    if (membershipTier === MembershipTier.FREE) return
+
+    for (const ancestorObjId of childNode.ancestors) {
+      const ancestorId = ancestorObjId.toString()
+
+      const [ancestor, ancestorNode] = await Promise.all([
+        this.userModel
+          .findById(ancestorObjId)
+          .select('indirectResetDepth')
+          .lean(),
+        this.genealogyModel
+          .findOne({ userId: ancestorObjId })
+          .select('depth')
+          .lean(),
+      ])
+
+      if (!ancestor || !ancestorNode) continue
+
+      const depthDiff = childNode.depth - (ancestorNode as any).depth
+
+      if (depthDiff === 1) {
+        const amount = this.DIRECT_BONUS[membershipTier] ?? 0
+        if (amount > 0) {
+          await this.walletService.credit({
+            userId:   ancestorId,
+            currency: WalletCurrency.PHP,
+            amount,
+            source:   WalletTxnSource.REFERRAL_DIRECT,
+            refKey:   `ref_direct:${ancestorId}:${childNode.userId}`,
+            note:     `Direct placement bonus — ${membershipTier} member placed`,
+            meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff },
+          })
+        }
+      } else if (depthDiff >= 2) {
+        const resetDepth: number = (ancestor as any).indirectResetDepth ?? 1
+        const baseDepth = (ancestorNode as any).depth
+        const minDepth  = baseDepth + resetDepth + 1
+        const maxDepth  = baseDepth + resetDepth + 5
+
+        if (childNode.depth >= minDepth && childNode.depth <= maxDepth) {
+          const amount = this.INDIRECT_BONUS[membershipTier] ?? 0
+          if (amount > 0) {
+            await this.walletService.credit({
+              userId:   ancestorId,
+              currency: WalletCurrency.PHP,
+              amount,
+              source:   WalletTxnSource.REFERRAL_INDIRECT,
+              refKey:   `ref_indirect:${ancestorId}:${childNode.userId}`,
+              note:     `Indirect placement bonus — ${membershipTier} at depth ${childNode.depth}`,
+              meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff, resetDepth },
+            })
+          }
+        }
+      }
     }
   }
 }

@@ -6,7 +6,7 @@ const API_BASE = 'http://localhost:3000';
 interface PIN {
   id: string;
   pin: string;
-  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  tier: Tier;
   createdAt: string;
   createdTime: string;
   status: 'UNUSED' | 'USED' | 'VOID';
@@ -14,7 +14,9 @@ interface PIN {
   usedBy?: string;
 }
 
-type Tier = 'bronze' | 'silver' | 'gold' | 'platinum';
+type Tier = 'free' | 'bronze' | 'silver' | 'gold' | 'platinum';
+
+const FREE_STATIC_PIN = 'AB1234';
 
 /**
  * Map an API pin record to the local PIN shape.
@@ -70,6 +72,7 @@ function GeneratePin() {
   };
 
   const tierColors: Record<Tier, { bg: string; border: string; text: string }> = {
+    free: { bg: 'bg-gray-50', border: 'border-gray-300', text: 'text-gray-600' },
     bronze: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
     silver: { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700' },
     gold: { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700' },
@@ -95,7 +98,7 @@ function GeneratePin() {
   }, [fetchPins]);
 
   const handleConfirmGenerate = async () => {
-    if (!selectedTier) return;
+    if (!selectedTier || selectedTier === 'free') return;
     setLoading(true);
     setError(null);
     try {
@@ -227,7 +230,25 @@ function GeneratePin() {
         {/* Tier Selection */}
         <div className="mb-12">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Tier</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            {/* Free tier — static PIN, no generation */}
+            <button
+              onClick={() => setSelectedTier('free')}
+              className={`p-4 rounded-lg border-2 transition-all ${
+                selectedTier === 'free'
+                  ? `${tierColors.free.bg} ${tierColors.free.border}`
+                  : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className={`font-semibold capitalize ${selectedTier === 'free' ? tierColors.free.text : 'text-gray-700'}`}>
+                Free
+              </div>
+              <div className="mt-1 text-xs text-gray-500">Static PIN</div>
+              {selectedTier === 'free' && (
+                <div className="mt-2 text-sm text-blue-600 font-medium">✓ Selected</div>
+              )}
+            </button>
+
             {(['bronze', 'silver', 'gold', 'platinum'] as Tier[]).map((tier) => (
               <button
                 key={tier}
@@ -248,26 +269,39 @@ function GeneratePin() {
             ))}
           </div>
 
-        </div>
-
-        {/* Generate Button */}
-        <div className="mb-12">
-          <button
-            onClick={() => setShowModal(true)}
-            disabled={!selectedTier || loading}
-            className={`font-medium py-3 px-6 rounded-lg transition-colors flex items-center gap-2 ${
-              selectedTier && !loading
-                ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Generating…' : 'Generate PIN'}
-          </button>
-          {!selectedTier && (
-            <p className="text-sm text-red-600 mt-2">Please select a tier to generate a PIN</p>
+          {/* Free tier static PIN info */}
+          {selectedTier === 'free' && (
+            <div className="p-4 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-700">
+              <p className="font-semibold mb-1">Free Account — Static PIN</p>
+              <p>
+                The PIN for free accounts is fixed:{' '}
+                <span className="font-mono font-bold tracking-widest text-gray-900">{FREE_STATIC_PIN}</span>
+              </p>
+              <p className="mt-1 text-gray-500">Free accounts do not receive any bonus.</p>
+            </div>
           )}
         </div>
+
+        {/* Generate Button — hidden for free tier */}
+        {selectedTier !== 'free' && (
+          <div className="mb-12">
+            <button
+              onClick={() => setShowModal(true)}
+              disabled={!selectedTier || loading}
+              className={`font-medium py-3 px-6 rounded-lg transition-colors flex items-center gap-2 ${
+                selectedTier && !loading
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Generating…' : 'Generate PIN'}
+            </button>
+            {!selectedTier && (
+              <p className="text-sm text-red-600 mt-2">Please select a tier to generate a PIN</p>
+            )}
+          </div>
+        )}
 
         {/* PIN List */}
         <div>
@@ -284,7 +318,7 @@ function GeneratePin() {
                   >
                     All Tiers
                   </button>
-                  {(['bronze', 'silver', 'gold', 'platinum'] as Tier[]).map((t) => (
+                  {(['free', 'bronze', 'silver', 'gold', 'platinum'] as Tier[]).map((t) => (
                     <button
                       key={t}
                       onClick={() => { setFilterTier(t); setDisplayCount(5); }}

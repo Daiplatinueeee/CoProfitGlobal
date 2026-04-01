@@ -35,6 +35,10 @@ export class PairingAward {
   // Bronze=3, Silver=16, Gold=30, Platinum=50
   @Prop({ required: true, default: 0 })
   capLimit: number;
+
+  // GC credited instead of PHP on every 5th lifetime pair (0 normally, 1 on 5th pair)
+  @Prop({ required: true, default: 0 })
+  gcAwarded: number;
 }
 
 export const PairingAwardSchema = SchemaFactory.createForClass(PairingAward);

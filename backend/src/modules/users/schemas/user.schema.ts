@@ -5,6 +5,7 @@ import * as crypto from 'crypto';
 export type UserDocument = HydratedDocument<User>;
 
 export enum MembershipTier {
+  FREE = 'free',
   BRONZE = 'bronze',
   SILVER = 'silver',
   GOLD = 'gold',
@@ -86,6 +87,9 @@ export class User {
   @Prop({ type: Types.ObjectId, ref: 'User', default: null, index: true })
   sponsorId: Types.ObjectId | null;
 
+  @Prop({ type: Number, default: 1 })
+  indirectResetDepth: number;
+
   @Prop({ default: '' })
   profileImage: string;
 
@@ -94,6 +98,10 @@ export class User {
 
   @Prop({ type: Number, default: 0 })
   rightLegPoints: number;
+
+  // Counts pairs since last GC award (1–5); resets to 0 after GC is credited
+  @Prop({ type: Number, default: 0 })
+  gcPairingCounter: number;
 
   @Prop({ type: Number, default: null })
   age?: number | null;

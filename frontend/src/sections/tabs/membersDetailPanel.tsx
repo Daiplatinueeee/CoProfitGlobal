@@ -358,25 +358,19 @@ export default function MemberDetailsPanel({
               </p>
             </div>
 
-            {/* ── Spill-Over Bonus ───────────────────────────────────────── */}
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:bg-gray-100/80 hover:border-orange-200 transition-all group">
+            {/* ── Indirect Count ─────────────────────────────────────────── */}
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:bg-gray-100/80 hover:border-purple-200 transition-all group">
               <div className="flex items-start justify-between mb-1">
-                <p className="text-sm font-medium text-gray-900">Spill Over Bonus</p>
-                <span className="w-1.5 h-1.5 bg-orange-500 rounded-full mt-1" />
+                <p className="text-sm font-medium text-gray-900">Indirect Depth Count</p>
+                <span className="w-1.5 h-1.5 bg-purple-500 rounded-full mt-1" />
               </div>
-              <p className="text-lg font-semibold text-orange-600 mb-1">
-                {walletLoading ? 'Loading...' : walletError ? '—'
-                  : `₱ ${(walletAmounts?.spilloverPhp ?? 0).toLocaleString()}`}
+              <p className="text-lg font-semibold text-purple-600 mb-1">
+                {referralLoading ? 'Loading...' : referralError ? '—'
+                  : (referralCounts?.indirect ?? 0).toLocaleString()}
               </p>
               <p className="text-xs text-gray-600 group-hover:text-gray-700">
-                When downline is given by another leader
+                Eligibility for Indirect Referrals Bonus
               </p>
-              {!walletLoading && !walletError && walletAmounts && walletAmounts.spilloverCount > 0 && (
-                <div className="text-xs text-orange-700 mt-2 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-200">
-                  {walletAmounts.spilloverCount.toLocaleString()} spill-over member
-                  {walletAmounts.spilloverCount !== 1 ? 's' : ''} credited
-                </div>
-              )}
             </div>
 
             {/* ── Sign-5 Bonus ───────────────────────────────────────────── */}

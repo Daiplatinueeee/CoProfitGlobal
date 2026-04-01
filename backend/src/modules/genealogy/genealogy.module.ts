@@ -15,6 +15,7 @@ import { VolumeModule } from '../volume/volume.module'
 import { WalletModule } from '../wallet/wallet.module'
 import { VolumeLedger, VolumeLedgerSchema } from '../volume/schemas/volume-ledger.schema'
 import { VolumeBucket, VolumeBucketSchema } from '../volume/schemas/volume-bucket.schema'
+import { UsersModule } from '../users/users.module'
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { VolumeBucket, VolumeBucketSchema } from '../volume/schemas/volume-bucke
     ]),
     VolumeModule,
     WalletModule,
+    UsersModule,
   ],
   controllers: [GenealogyController],
   providers: [GenealogyService],

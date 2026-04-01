@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import logo from './../../assets/refs/Logo.webp'
 import MemberDetailsPanel from './membersDetailPanel'
-import AddMemberModal from './AddMemberModal'
+import AddMemberModal, { EMPTY_ADD_MEMBER_FORM } from './AddMemberModal'
+import type { AddMemberFormData } from './AddMemberModal'
 
 interface Member {
   id: string
@@ -35,9 +36,6 @@ interface NodePosition {
   y: number
 }
 
-interface AddMemberFormData {
-  username: string
-}
 
 const API_BASE_URL = 'http://localhost:3000'
 
@@ -66,10 +64,8 @@ function Genealogy() {
     leg: 'left' | 'right'
   } | null>(null)
 
-  const [formData, setFormData] = useState<AddMemberFormData>({
-    username: '',
-  })
-  const [formError, setFormError] = useState('')
+  const [formData, setFormData] = useState<AddMemberFormData>(EMPTY_ADD_MEMBER_FORM)
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
   const NODE_WIDTH = 190
   const NODE_HEIGHT = 240
@@ -78,8 +74,8 @@ function Genealogy() {
 
   const resetModalState = useCallback(() => {
     setModal(null)
-    setFormData({ username: '' })
-    setFormError('')
+    setFormData(EMPTY_ADD_MEMBER_FORM)
+    setFormErrors({})
   }, [])
 
   const extractCurrentUserId = () => {
@@ -226,65 +222,69 @@ function Genealogy() {
     [treeRoot],
   )
 
- const attachMember = async (parent: Member, leg: 'left' | 'right', username: string) => {
-  try {
-    if (!currentUserId) {
-      setFormError('Logged-in user not found')
-      return
+  const attachMember = async (parent: Member, leg: 'left' | 'right', data: AddMemberFormData) => {
+    try {
+      if (!currentUserId) {
+        setFormErrors({ _root: 'Logged-in user not found' })
+        return
+      }
+
+      const payload: Record<string, any> = {
+        parentUserId: parent.userId || parent.id,
+        leg,
+        placerUserId: currentUserId,
+        name: data.name.trim(),
+        email: data.email.trim(),
+        password: data.password,
+        packagePin: data.packagePin.trim(),
+      }
+
+      if (data.username.trim()) payload.username = data.username.trim()
+      if (data.age) payload.age = Number(data.age)
+      if (data.contact.trim()) payload.contact = data.contact.trim()
+      if (data.address.trim()) payload.address = data.address.trim()
+      if (data.beneficiary.trim()) payload.beneficiary = data.beneficiary.trim()
+      if (data.birthday) payload.birthday = data.birthday
+
+      const response = await fetch(`${API_BASE_URL}/genealogy/place`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        setFormErrors({ _root: result.message || 'Failed to add member' })
+        return
+      }
+
+      const refreshedTree = await fetchRootTree(currentUserId)
+      setOriginalRoot(refreshedTree)
+      setTreeRoot(refreshedTree)
+
+      resetModalState()
+    } catch (err: any) {
+      setFormErrors({ _root: err.message || 'Failed to add member' })
+      console.error('Error adding member:', err)
     }
-
-    const payload = {
-      parentUserId: parent.userId || parent.id,
-      leg,
-      username: username.trim(),
-      placerUserId: currentUserId,
-    }
-
-    const response = await fetch(`${API_BASE_URL}/genealogy/place`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      setFormError(data.message || 'Failed to add member')
-      return
-    }
-
-    const refreshedTree = await fetchRootTree(currentUserId)
-    setOriginalRoot(refreshedTree)
-    setTreeRoot(refreshedTree)
-
-    resetModalState()
-  } catch (err: any) {
-    setFormError(err.message || 'Failed to add member')
-    console.error('Error adding member:', err)
-  }
-}
-
-  const handleFormChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-    setFormError('')
   }
 
   const addNewMember = () => {
     if (!modal) return
 
-    const username = formData.username.trim()
+    const errors: Record<string, string> = {}
+    if (!formData.name.trim()) errors.name = 'Name is required'
+    if (!formData.email.trim()) errors.email = 'Email is required'
+    if (!formData.password) errors.password = 'Password is required'
+    if (!formData.packagePin.trim()) errors.packagePin = 'Package PIN is required'
 
-    if (!username) {
-      setFormError('Username is required')
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
       return
     }
 
-    attachMember(modal.parent, modal.leg, username)
+    attachMember(modal.parent, modal.leg, formData)
   }
 
   const handleReset = useCallback(() => {
@@ -441,8 +441,8 @@ function Genealogy() {
             onClick={(e) => {
               e.stopPropagation()
               setModal({ parent: member, leg: 'left' })
-              setFormData({ username: '' })
-              setFormError('')
+              setFormData(EMPTY_ADD_MEMBER_FORM)
+              setFormErrors({})
             }}
             style={{ cursor: 'pointer' }}
           >
@@ -478,8 +478,8 @@ function Genealogy() {
             onClick={(e) => {
               e.stopPropagation()
               setModal({ parent: member, leg: 'right' })
-              setFormData({ username: '' })
-              setFormError('')
+              setFormData(EMPTY_ADD_MEMBER_FORM)
+              setFormErrors({})
             }}
             style={{ cursor: 'pointer' }}
           >
@@ -619,8 +619,9 @@ function Genealogy() {
         <AddMemberModal
           modal={modal}
           formData={formData}
-          formError={formError}
-          onFormChange={handleFormChange}
+          formErrors={formErrors}
+          setFormData={setFormData}
+          setFormErrors={setFormErrors}
           onAddMember={addNewMember}
           onClose={resetModalState}
         />

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
+import { MembershipTier, User, UserDocument } from '../users/schemas/user.schema';
 import { Activation, ActivationDocument } from '../activations/schemas/activation.schema';
 import { PairingAward, PairingAwardDocument } from '../pairing/schemas/pairing-award.schema';
 import {
@@ -43,6 +44,9 @@ export class LeadershipService {
 
     @InjectModel(LeadershipAward.name)
     private readonly awardModel: Model<LeadershipAwardDocument>,
+
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
 
     private readonly walletService: WalletService,
   ) {}
@@ -200,6 +204,12 @@ export class LeadershipService {
 
   async evaluate(userIdStr: string, monthKey?: string, asOfDateIso?: string) {
     const userId = this.toObjectId(userIdStr);
+
+    const user = await this.userModel.findById(userId).select('membershipTier').lean();
+    if (!user || (user as any).membershipTier === MembershipTier.FREE) {
+      return { skipped: true, reason: 'Free accounts are not eligible for leadership bonus' };
+    }
+
     const mk = monthKey ?? this.currentMonthKey();
     const asOf = this.parseAsOf(asOfDateIso);
 

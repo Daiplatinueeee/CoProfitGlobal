@@ -32,6 +32,7 @@ export class PairingService {
    * Bronze = 3, Silver = 16, Gold = 30, Platinum = 50
    */
   private readonly TIER_CAP_MAP: Record<MembershipTier, number> = {
+    [MembershipTier.FREE]:     0,
     [MembershipTier.BRONZE]:   3,
     [MembershipTier.SILVER]:   16,
     [MembershipTier.GOLD]:     30,
@@ -171,9 +172,22 @@ export class PairingService {
 
       // How many pairs can we do this pass?
       const pairedPoints = Math.min(pairable, capRemaining);
-      const payoutPhp    = pairedPoints * this.RATE_PHP_PER_POINT;
       const leftCarryOut = leftAvailable  - pairedPoints;
       const rightCarryOut = rightAvailable - pairedPoints;
+
+      // Increment GC pairing counter (1–5); every 5th pair gives 1 GC instead of PHP
+      const freshUser = await this.userModel
+        .findByIdAndUpdate(
+          userId,
+          [{ $set: { gcPairingCounter: { $mod: [{ $add: ['$gcPairingCounter', 1] }, 5] } } }],
+          { new: true },
+        )
+        .select('gcPairingCounter')
+        .lean();
+      // After the $mod: value is 0 only when the counter just wrapped (5th pair)
+      const isGcPair = (freshUser as any)?.gcPairingCounter === 0;
+      const payoutPhp = isGcPair ? 0 : pairedPoints * this.RATE_PHP_PER_POINT;
+      const gcAwarded = isGcPair ? 1 : 0;
 
       // Sequential periodKey: YYYY-MM-DD-1, YYYY-MM-DD-2, …
       const seq       = await this.getDailySequence(userId, dateKey);
@@ -217,17 +231,39 @@ export class PairingService {
           payoutPhp,
           ratePhpPerPoint: this.RATE_PHP_PER_POINT,
           capLimit: dailyCap,
+          gcAwarded,
         }),
       ]);
 
-      // ── Credit PHP wallet ──────────────────────────────────────────
-      if (payoutPhp > 0) {
+      // ── Credit wallet ──────────────────────────────────────────────
+      if (isGcPair) {
+        // 5th pair: award 1 GC instead of PHP
+        await this.walletService.credit({
+          userId: userIdStr,
+          currency: WalletCurrency.GC_POINTS,
+          amount: 1,
+          source: WalletTxnSource.PAIRING,
+          refKey: `pairing:gc:${userIdStr}:${periodKey}`,
+          note: `GC reward — seq ${seq} (${dateKey}) | every 5th pair`,
+          meta: {
+            periodKey,
+            seq,
+            membershipTier: tier,
+            pairedPoints,
+            capLimit: dailyCap,
+            capUsed: capUsed + pairedPoints,
+            leftAvailable,
+            rightAvailable,
+            leftCarryOut,
+            rightCarryOut,
+          },
+        });
+      } else if (payoutPhp > 0) {
         await this.walletService.credit({
           userId: userIdStr,
           currency: WalletCurrency.PHP,
           amount: payoutPhp,
           source: WalletTxnSource.PAIRING,
-          // refKey is globally unique — prevents double-posting
           refKey: `pairing:${userIdStr}:${periodKey}`,
           note:
             `Pairing bonus — seq ${seq} (${dateKey}) | ` +
@@ -450,6 +486,7 @@ export class PairingService {
       payoutPhp:       a.payoutPhp,
       ratePhpPerPoint: a.ratePhpPerPoint,
       capLimit:        a.capLimit,
+      gcAwarded:       a.gcAwarded ?? 0,
       createdAt:       a.createdAt,
     };
   }

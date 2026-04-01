@@ -16,6 +16,7 @@ import { PairingAward, PairingAwardSchema } from '../pairing/schemas/pairing-awa
 // Credits Wallet
 import { WalletModule } from '../wallet/wallet.module';
 import { GenealogyNode, GenealogyNodeSchema } from '../genealogy/schema/genealogy-node.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { GenealogyNode, GenealogyNodeSchema } from '../genealogy/schema/genealog
       { name: Activation.name, schema: ActivationSchema },
       { name: PairingAward.name, schema: PairingAwardSchema },
       { name: GenealogyNode.name, schema: GenealogyNodeSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [LeadershipController],

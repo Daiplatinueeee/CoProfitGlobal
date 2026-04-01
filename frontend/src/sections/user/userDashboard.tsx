@@ -334,7 +334,7 @@ export default function UserDashboard() {
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'genealogy', label: 'Genealogy', icon: Network },
-    { id: 'referal-hierarchy', label: 'Referal Hierarchy', icon: Lock },
+    { id: 'referral-hierarchy', label: 'Referral Hierarchy', icon: Lock },
     { id: 'pairing-history', label: 'Pairing History', icon: TrendingUp },
     { id: 'payout-system', label: 'Payout System', icon: Wallet, underDevelopment: true },
     { id: 'subscription', label: 'Subscription', icon: ShoppingBag, underDevelopment: true },
@@ -698,7 +698,7 @@ export default function UserDashboard() {
       genealogy: <Genealogy />,
       'pairing-history': <Pairing />,
       'payout-system': <Payout />,
-      'referal-hierarchy': <ReferalsHierarchy />,
+      'referral-hierarchy': <ReferalsHierarchy />,
       'withdraw-gc': <WithdrawGC />,
       subscription: <Subscription />,
       'unilevel-package': <UnilevelProducts />,

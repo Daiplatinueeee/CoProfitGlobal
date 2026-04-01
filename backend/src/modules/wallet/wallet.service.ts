@@ -38,7 +38,6 @@ export class WalletService {
 
     for (const r of rows) map[r.currency] = r.balance;
 
-    console.log(`[wallet:getBalances] userId=${userId} balances=${JSON.stringify(map)}`);
 
     return { userId, balances: map };
   }

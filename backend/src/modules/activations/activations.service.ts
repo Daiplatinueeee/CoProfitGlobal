@@ -45,15 +45,24 @@ export class ActivationsService {
       throw new BadRequestException('leg is required')
     }
 
-    if (!dto.username) {
-      throw new BadRequestException('username is required')
+    if (!dto.name) {
+      throw new BadRequestException('name is required')
     }
 
     const result = await this.genealogyService.placeMember({
       parentUserId: dto.parentUserId,
-      leg: dto.leg as GenealogySide,
-      username: dto.username,
+      leg:          dto.leg as GenealogySide,
       placerUserId: dto.placerUserId,
+      name:         dto.name,
+      username:     dto.username,
+      email:        dto.email,
+      password:     dto.password,
+      packagePin:   dto.packagePin,
+      age:          dto.age,
+      contact:      dto.contact,
+      address:      dto.address,
+      beneficiary:  dto.beneficiary,
+      birthday:     dto.birthday,
     })
 
     if (!result.membershipTier) {
