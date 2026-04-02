@@ -14,6 +14,8 @@ import WithdrawGC from '../tabs/WithdrawGC';
 import UnilevelProducts from '../tabs/UnilevelProducts';
 import PayoutHistory from '../tabs/PayoutHistory'
 
+import baseImg from '../../assets/refs/baseImg.png'
+
 // ── Types ─────────────────────────────────────────────────────────────────
 
 interface WalletTransaction {
@@ -74,7 +76,7 @@ function getAuthContext() {
       try {
         const obj = JSON.parse(str);
         userId = obj.id ?? obj._id ?? obj.userId;
-      } catch {}
+      } catch { }
     }
   }
   return { token, userId };
@@ -116,6 +118,7 @@ export default function UserDashboard() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const navigate = useNavigate();
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   // ── Wallet / income state ────────────────────────────────────────────
   const [income, setIncome] = useState<IncomeBreakdown | null>(null);
@@ -239,8 +242,8 @@ export default function UserDashboard() {
         const data = await res.json();
         const bal = data.balances ?? {};
         setWalletBalances({
-          php:       bal.php       ?? bal.PHP       ?? 0,
-          points:    bal.points    ?? bal.POINTS    ?? 0,
+          php: bal.php ?? bal.PHP ?? 0,
+          points: bal.points ?? bal.POINTS ?? 0,
           gc_points: bal.gc_points ?? bal.GC_POINTS ?? 0,
         });
       } catch (err) {
@@ -353,48 +356,74 @@ export default function UserDashboard() {
     <div className="space-y-6 pb-6 bg-white">
 
       {/* ── Total Income Card ─────────────────────────────────────────── */}
-      <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-3xl p-8 border border-blue-100 shadow-lg">
-        <p className="text-sm font-medium text-blue-600 mb-2">Total Income</p>
+      <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-3xl p-8 border border-blue-100 shadow-lg flex items-center justify-between overflow-hidden relative">
 
-        {incomeLoading ? (
-          <Skeleton className="h-9 w-52 mb-4" />
-        ) : (
-          <p className="text-3xl font-bold text-gray-900 mb-4">
-            ₱{formatPhp(income?.totalIncome ?? 0)}
-          </p>
-        )}
+        {/* Left: Income Content */}
+        <div className="flex-1">
+          <p className="text-sm font-medium text-blue-600 mb-2">Total Income</p>
 
-        <div className="flex items-center gap-6">
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-600 mb-1">Today</span>
-            {incomeLoading
-              ? <Skeleton className="h-7 w-28" />
-              : <span className="text-2xl font-semibold text-gray-900">
-                ₱{formatPhp(periodIncome.today)}
-              </span>
-            }
-          </div>
-          <div className="w-px h-12 bg-blue-200" />
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-600 mb-1">This Week</span>
-            {incomeLoading
-              ? <Skeleton className="h-7 w-28" />
-              : <span className="text-2xl font-semibold text-blue-600">
-                ₱{formatPhp(periodIncome.thisWeek)}
-              </span>
-            }
-          </div>
-          <div className="w-px h-12 bg-blue-200" />
-          <div className="flex flex-col">
-            <span className="text-xs text-gray-600 mb-1">This Month</span>
-            {incomeLoading
-              ? <Skeleton className="h-7 w-28" />
-              : <span className="text-2xl font-semibold text-indigo-600">
-                ₱{formatPhp(periodIncome.thisMonth)}
-              </span>
-            }
+          {incomeLoading ? (
+            <Skeleton className="h-9 w-52 mb-4" />
+          ) : (
+            <p className="text-3xl font-bold text-gray-900 mb-4">
+              ₱{formatPhp(income?.totalIncome ?? 0)}
+            </p>
+          )}
+
+          <div className="flex items-center gap-6">
+            <div className="flex flex-col">
+              <span className="text-xs text-gray-600 mb-1">Today</span>
+              {incomeLoading
+                ? <Skeleton className="h-7 w-28" />
+                : <span className="text-2xl font-semibold text-gray-900">
+                  ₱{formatPhp(periodIncome.today)}
+                </span>
+              }
+            </div>
+            <div className="w-px h-12 bg-blue-200" />
+            <div className="flex flex-col">
+              <span className="text-xs text-gray-600 mb-1">This Week</span>
+              {incomeLoading
+                ? <Skeleton className="h-7 w-28" />
+                : <span className="text-2xl font-semibold text-blue-600">
+                  ₱{formatPhp(periodIncome.thisWeek)}
+                </span>
+              }
+            </div>
+            <div className="w-px h-12 bg-blue-200" />
+            <div className="flex flex-col">
+              <span className="text-xs text-gray-600 mb-1">This Month</span>
+              {incomeLoading
+                ? <Skeleton className="h-7 w-28" />
+                : <span className="text-2xl font-semibold text-indigo-600">
+                  ₱{formatPhp(periodIncome.thisMonth)}
+                </span>
+              }
+            </div>
           </div>
         </div>
+
+        {/* Middle: User Info */}
+        <div className="flex flex-col items-start gap-1 px-10 border-l border-blue-200 ml-6">
+          <span className="text-lg font-bold text-gray-800">{displayName}</span>
+          <span className="text-sm text-gray-500">{displayEmail}</span>
+          <span className="text-sm text-blue-500 font-medium">www.coprofitglobal.com</span>
+        </div>
+
+        {/* Right: Profile Silhouette */}
+        <div className="relative shrink-0 self-end -ml-5 -mb-8">
+          <img
+            src={baseImg}
+            alt="Profile"
+            className="h-45 w-40 object-cover object-top mr-5 scale-x-[-1]"
+            style={{
+              filter: 'drop-shadow(0 4px 12px rgba(99,102,241,0.25))',
+              maskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)'
+            }}
+          />
+        </div>
+
       </div>
 
       {/* ── Income Summary Cards ──────────────────────────────────────── */}
@@ -544,7 +573,7 @@ export default function UserDashboard() {
               </div>
             </div>
           </div>
-          
+
           {/* ── Referral counts — dynamic from /genealogy/referrals ── */}
           <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100">
             <p className="text-xs text-gray-500 mb-2">Referral Counts</p>
@@ -580,7 +609,7 @@ export default function UserDashboard() {
         <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Pairing Bonus</h3>
-           
+
           </div>
           <div className="space-y-4">
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
@@ -592,10 +621,47 @@ export default function UserDashboard() {
               {incomeLoading
                 ? <Skeleton className="h-8 w-24" />
                 : <span className="text-2xl font-bold text-gray-900">
-                    ₱{formatPhp(income?.pairingBonus ?? 0)}
-                  </span>
+                  ₱{formatPhp(income?.pairingBonus ?? 0)}
+                </span>
               }
             </div>
+          </div>
+        </div>
+      </div>
+
+       {/* ── Sign-5 Progress — dynamic from referral data ──────────────── */}
+      <div className="grid grid-cols-1 gap-6">
+        <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Sign-5 Progress</h3>
+            <span className="text-xs text-gray-400">{new Date().toLocaleString('en-PH', { month: 'long', year: 'numeric' })}</span>
+          </div>
+          <div className="space-y-3">
+            {referralLoading ? (
+              [1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-8 w-full" />)
+            ) : (
+              [
+                { name: 'Bronze', key: 'bronze', color: 'bg-amber-500' },
+                { name: 'Silver', key: 'silver', color: 'bg-gray-400' },
+                { name: 'Gold', key: 'gold', color: 'bg-yellow-500' },
+                { name: 'Platinum', key: 'platinum', color: 'bg-slate-500' },
+              ].map(({ name, key, color }) => {
+                const count = sign5Progress[key] ?? 0;
+                const TARGET = 5;
+                const pct = Math.min((count / TARGET) * 100, 100);
+                return (
+                  <div key={name}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm font-medium text-gray-700">{name}</span>
+                      <span className="text-xs text-gray-400">{count} / {TARGET}</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div className={`${color} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
@@ -650,43 +716,6 @@ export default function UserDashboard() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Sign-5 Progress — dynamic from referral data ──────────────── */}
-      <div className="grid grid-cols-1 gap-6">
-        <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Sign-5 Progress</h3>
-            <span className="text-xs text-gray-400">{new Date().toLocaleString('en-PH', { month: 'long', year: 'numeric' })}</span>
-          </div>
-          <div className="space-y-3">
-            {referralLoading ? (
-              [1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-8 w-full" />)
-            ) : (
-              [
-                { name: 'Bronze',   key: 'bronze',   color: 'bg-amber-500' },
-                { name: 'Silver',   key: 'silver',   color: 'bg-gray-400' },
-                { name: 'Gold',     key: 'gold',     color: 'bg-yellow-500' },
-                { name: 'Platinum', key: 'platinum',  color: 'bg-slate-500' },
-              ].map(({ name, key, color }) => {
-                const count = sign5Progress[key] ?? 0;
-                const TARGET = 5;
-                const pct = Math.min((count / TARGET) * 100, 100);
-                return (
-                  <div key={name}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm font-medium text-gray-700">{name}</span>
-                      <span className="text-xs text-gray-400">{count} / {TARGET}</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2">
-                      <div className={`${color} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })
-            )}
           </div>
         </div>
       </div>
@@ -832,6 +861,12 @@ export default function UserDashboard() {
                 <LogOut className="w-4 h-4" />
               </button>
             )}
+            {/* Copyright Footer */}
+            <div className="px-4 py-2.5 bg-transparent text-center">
+              <p className="text-[12px] text-gray-400 text-center leading-relaxed">
+                v1.0.0 &nbsp;·&nbsp; © 2025 CoProfitGlobal.
+              </p>
+            </div>
           </div>
         </div>
       </div>
