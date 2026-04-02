@@ -38,23 +38,36 @@ export class AdminService {
     return Types.ObjectId.isValid(id);
   }
 
+  // The free static PIN is shared across all free accounts — it lives only in
+  // memory (never in the DB) so the normal lookup is skipped for this value.
+  private static readonly FREE_STATIC_PIN = 'AB1234';
+
   async createUser(dto: AdminCreateUserDto) {
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    // ── Step 1: Validate the PIN exists and is UNUSED ──────────────────────
-    const pinDoc = await this.pinModel.findOne({ pin: dto.packagePin });
+    const isFreePin = dto.packagePin === AdminService.FREE_STATIC_PIN;
+    let membershipTier: MembershipTier;
+    let pinDoc: ProductPinDocument | null = null;
 
-    if (!pinDoc) {
-      throw new BadRequestException('Invalid package PIN — PIN does not exist');
-    }
-    if (pinDoc.status !== PinStatus.UNUSED) {
-      throw new BadRequestException(
-        `PIN is already ${pinDoc.status.toLowerCase()} and cannot be used`,
-      );
-    }
+    if (isFreePin) {
+      // ── Free-account path: static PIN, no DB lookup, no consumption ───────
+      membershipTier = MembershipTier.FREE;
+    } else {
+      // ── Step 1: Validate the PIN exists and is UNUSED ──────────────────────
+      pinDoc = await this.pinModel.findOne({ pin: dto.packagePin });
 
-    // ── Step 2: Derive membershipTier from the PIN ─────────────────────────
-    const membershipTier = pinDoc.tier;
+      if (!pinDoc) {
+        throw new BadRequestException('Invalid package PIN — PIN does not exist');
+      }
+      if (pinDoc.status !== PinStatus.UNUSED) {
+        throw new BadRequestException(
+          `PIN is already ${pinDoc.status.toLowerCase()} and cannot be used`,
+        );
+      }
+
+      // ── Step 2: Derive membershipTier from the PIN ─────────────────────────
+      membershipTier = pinDoc.tier;
+    }
 
     // ── Step 3: Create the user ────────────────────────────────────────────
     const created = await this.usersService.createUser({
@@ -74,33 +87,36 @@ export class AdminService {
     });
 
     console.log('User created successfully:', (created as any)._id.toString());
-    console.log('Now marking PIN as USED...');
 
-    // ── Step 4: Mark PIN as USED — rollback user if this fails ─────────────
-    try {
-      const updateResult = await this.pinModel.updateOne(
-        { _id: pinDoc._id },
-        {
-          $set: {
-            status: PinStatus.USED,
-            usedByUserId: (created as any)._id,
-            usedAt: new Date(),
+    if (!isFreePin && pinDoc) {
+      console.log('Now marking PIN as USED...');
+
+      // ── Step 4: Mark PIN as USED — rollback user if this fails ─────────────
+      try {
+        const updateResult = await this.pinModel.updateOne(
+          { _id: pinDoc._id },
+          {
+            $set: {
+              status: PinStatus.USED,
+              usedByUserId: (created as any)._id,
+              usedAt: new Date(),
+            },
           },
-        },
-      );
+        );
 
-      if (updateResult.matchedCount === 0) {
-        throw new Error('PIN document not found during update');
+        if (updateResult.matchedCount === 0) {
+          throw new Error('PIN document not found during update');
+        }
+
+        console.log('PIN marked as USED successfully:', dto.packagePin);
+      } catch (err: any) {
+        // Rollback: delete the user we just created so data stays consistent
+        console.error('Failed to mark PIN as USED — rolling back user creation:', err.message);
+        await this.userModel.deleteOne({ _id: (created as any)._id });
+        throw new BadRequestException(
+          'Failed to mark PIN as used — user creation has been rolled back. Please try again.',
+        );
       }
-
-      console.log('PIN marked as USED successfully:', dto.packagePin);
-    } catch (err: any) {
-      // Rollback: delete the user we just created so data stays consistent
-      console.error('Failed to mark PIN as USED — rolling back user creation:', err.message);
-      await this.userModel.deleteOne({ _id: (created as any)._id });
-      throw new BadRequestException(
-        'Failed to mark PIN as used — user creation has been rolled back. Please try again.',
-      );
     }
 
     return {
