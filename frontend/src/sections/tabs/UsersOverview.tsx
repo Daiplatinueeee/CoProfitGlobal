@@ -348,6 +348,7 @@ function UsersOverview() {
   const displayedUsers = filteredUsers.slice(0, displayCount);
 
   const tierColors: Record<string, { bg: string; border: string; text: string }> = {
+    free: { bg: 'bg-gray-100', border: 'border-gray-200', text: 'text-gray-600' },
     bronze: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
     silver: { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700' },
     gold: { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700' },

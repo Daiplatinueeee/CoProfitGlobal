@@ -492,15 +492,23 @@ export class GenealogyService {
     }
 
     // ── Validate PIN ──────────────────────────────────────────────────────
-    const pinDoc = await this.productPinModel.findOne({ pin: dto.packagePin.trim() })
-    if (!pinDoc) throw new BadRequestException('Invalid package PIN — PIN does not exist')
-    if (pinDoc.status !== PinStatus.UNUSED) {
-      throw new BadRequestException(
-        `PIN is already ${pinDoc.status.toLowerCase()} and cannot be used`,
-      )
-    }
+    const FREE_STATIC_PIN = 'AB1234'
+    const isFreePin = dto.packagePin.trim() === FREE_STATIC_PIN
+    let pinDoc: any = null
+    let membershipTier: MembershipTier
 
-    const membershipTier = pinDoc.tier
+    if (isFreePin) {
+      membershipTier = MembershipTier.FREE
+    } else {
+      pinDoc = await this.productPinModel.findOne({ pin: dto.packagePin.trim() })
+      if (!pinDoc) throw new BadRequestException('Invalid package PIN — PIN does not exist')
+      if (pinDoc.status !== PinStatus.UNUSED) {
+        throw new BadRequestException(
+          `PIN is already ${pinDoc.status.toLowerCase()} and cannot be used`,
+        )
+      }
+      membershipTier = pinDoc.tier
+    }
 
     const placerUser = await this.userModel.findById(dto.placerUserId)
     if (!placerUser) throw new NotFoundException('Placer user not found')
@@ -528,17 +536,19 @@ export class GenealogyService {
     await this.userModel.findByIdAndUpdate(newUserId, { $set: { sponsorId: placerUser._id } })
 
     // ── Mark PIN as USED — rollback user if this fails ────────────────────
-    try {
-      const updateResult = await this.productPinModel.updateOne(
-        { _id: pinDoc._id },
-        { $set: { status: PinStatus.USED, usedByUserId: newUserId, usedAt: new Date() } },
-      )
-      if (updateResult.matchedCount === 0) throw new Error('PIN document not found during update')
-    } catch (err: any) {
-      await this.userModel.deleteOne({ _id: newUserId })
-      throw new BadRequestException(
-        'Failed to mark PIN as used — user creation has been rolled back. Please try again.',
-      )
+    if (!isFreePin && pinDoc) {
+      try {
+        const updateResult = await this.productPinModel.updateOne(
+          { _id: pinDoc._id },
+          { $set: { status: PinStatus.USED, usedByUserId: newUserId, usedAt: new Date() } },
+        )
+        if (updateResult.matchedCount === 0) throw new Error('PIN document not found during update')
+      } catch (err: any) {
+        await this.userModel.deleteOne({ _id: newUserId })
+        throw new BadRequestException(
+          'Failed to mark PIN as used — user creation has been rolled back. Please try again.',
+        )
+      }
     }
 
     const childNode = await this.genealogyModel.create({
