@@ -175,17 +175,17 @@ export class PairingService {
       const leftCarryOut = leftAvailable  - pairedPoints;
       const rightCarryOut = rightAvailable - pairedPoints;
 
-      // Increment GC pairing counter (1–5); every 5th pair gives 1 GC instead of PHP
+      // Increment GC pairing counter; every 5th pair gives 1 GC instead of PHP
       const freshUser = await this.userModel
         .findByIdAndUpdate(
           userId,
-          [{ $set: { gcPairingCounter: { $mod: [{ $add: ['$gcPairingCounter', 1] }, 5] } } }],
+          { $inc: { gcPairingCounter: 1 } },
           { new: true },
         )
         .select('gcPairingCounter')
         .lean();
-      // After the $mod: value is 0 only when the counter just wrapped (5th pair)
-      const isGcPair = (freshUser as any)?.gcPairingCounter === 0;
+      // Counter is divisible by 5 on every 5th pair
+      const isGcPair = ((freshUser as any)?.gcPairingCounter ?? 0) % 5 === 0;
       const payoutPhp = isGcPair ? 0 : pairedPoints * this.RATE_PHP_PER_POINT;
       const gcAwarded = isGcPair ? 1 : 0;
 
