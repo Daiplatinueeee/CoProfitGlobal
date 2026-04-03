@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import logo from './../../assets/refs/Logo.webp'
 import MemberDetailsPanel from './membersDetailPanel'
-import AddMemberModal, { EMPTY_ADD_MEMBER_FORM } from './AddMemberModal'
-import type { AddMemberFormData } from './AddMemberModal'
+import AddMemberModal, { EMPTY_ADD_MEMBER_FORM } from '../../modals/AddMemberModal'
+import type { AddMemberFormData } from '../../modals/AddMemberModal'
 
 interface Member {
   id: string

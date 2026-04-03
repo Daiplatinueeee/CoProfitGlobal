@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Copy, RefreshCw, Eye, EyeOff, Download,
   FileSpreadsheet, FileText, File, X,
-  ChevronDown, CheckSquare, Square, MinusSquare,
+  ChevronDown,
 } from 'lucide-react';
+import { ExportModal } from './../../modals/ExportModal';
 
 const API_BASE = 'http://localhost:3000';
 
@@ -80,7 +81,6 @@ async function exportToExcel(pins: PIN[], filename = 'pins-export') {
   XLSX.writeFile(wb, `${filename}.xlsx`);
 }
 
-// Fixed Word export — correct docx UMD v7 API with ShadingType & proper section shape
 async function exportToWord(pins: PIN[], filename = 'pins-export') {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.umd.min.js');
   const {
@@ -90,7 +90,7 @@ async function exportToWord(pins: PIN[], filename = 'pins-export') {
   } = (window as any).docx;
 
   const COLS = ['PIN', 'Tier', 'Status', 'Created Date', 'Created Time', 'Used At', 'Used By'];
-  const COL_W = [1600, 1100, 1200, 1500, 1500, 1900, 1900]; // DXA units
+  const COL_W = [1600, 1100, 1200, 1500, 1500, 1900, 1900];
 
   const cellBorder = {
     top: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
@@ -232,206 +232,22 @@ const FORMAT_OPTIONS: {
   icon: React.ReactNode;
   activeClass: string;
 }[] = [
-    {
-      id: 'excel', label: 'Excel', ext: '.xlsx',
-      icon: <FileSpreadsheet className="w-5 h-5" />,
-      activeClass: 'border-emerald-500 bg-emerald-50 text-emerald-700',
-    },
-    {
-      id: 'word', label: 'Word', ext: '.docx',
-      icon: <FileText className="w-5 h-5" />,
-      activeClass: 'border-blue-500 bg-blue-50 text-blue-700',
-    },
-    {
-      id: 'pdf', label: 'PDF', ext: '.pdf',
-      icon: <File className="w-5 h-5" />,
-      activeClass: 'border-red-500 bg-red-50 text-red-700',
-    },
-  ];
-
-// ─── Bulk Export Modal (checklist) ────────────────────────────────────────────
-
-interface ExportModalProps {
-  pins: PIN[];      // current filtered view — all selectable
-  onClose: () => void;
-}
-
-function ExportModal({ pins, onClose }: ExportModalProps) {
-  const [selected, setSelected] = useState<Set<string>>(new Set(pins.map((p) => p.id)));
-  const [format, setFormat] = useState<ExportFormat>('excel');
-  const [exporting, setExporting] = useState(false);
-  const [done, setDone] = useState(false);
-
-  const allChecked = selected.size === pins.length && pins.length > 0;
-  const someChecked = selected.size > 0 && selected.size < pins.length;
-
-  const toggleAll = () => {
-    setSelected(allChecked ? new Set() : new Set(pins.map((p) => p.id)));
-  };
-
-  const toggleOne = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const handleExport = async () => {
-    const toExport = pins.filter((p) => selected.has(p.id));
-    if (!toExport.length) return;
-    setExporting(true);
-    setDone(false);
-    try {
-      await runExport(toExport, format);
-      setDone(true);
-      setTimeout(() => setDone(false), 2500);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const tierBadge: Record<Tier, string> = {
-    free: 'bg-gray-100 text-gray-600',
-    bronze: 'bg-amber-100 text-amber-700',
-    silver: 'bg-slate-100 text-slate-700',
-    gold: 'bg-yellow-100 text-yellow-700',
-    platinum: 'bg-purple-100 text-purple-700',
-  };
-
-  const statusDot = (s: PIN['status']) =>
-    s === 'USED' ? 'text-red-600' : s === 'VOID' ? 'text-orange-600' : 'text-green-600';
-
-  return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-
-        {/* Modal header */}
-        <div className="flex items-center justify-between px-7 pt-6 pb-4 border-b border-gray-100 shrink-0">
-          <div>
-            <h2 className="text-xl text-gray-900">Bulk Export</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Check the PINs you want to include</p>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Select-all bar */}
-        <div className="px-7 py-3 border-b border-gray-100 flex items-center justify-between shrink-0 bg-gray-50/70">
-          <button
-            onClick={toggleAll}
-            className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors select-none"
-          >
-            {allChecked
-              ? <CheckSquare className="w-4 h-4 text-blue-600" />
-              : someChecked
-                ? <MinusSquare className="w-4 h-4 text-blue-400" />
-                : <Square className="w-4 h-4 text-gray-400" />}
-            {allChecked ? 'Deselect all' : 'Select all'}
-          </button>
-          <span className="text-xs font-medium text-gray-500">
-            {selected.size} / {pins.length} selected
-          </span>
-        </div>
-
-        {/* Checklist */}
-        <div className="overflow-y-auto flex-1 px-5 py-3">
-          {pins.length === 0 ? (
-            <p className="text-center text-gray-400 py-10 text-sm">No PINs in the current view.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {pins.map((p) => {
-                const checked = selected.has(p.id);
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => toggleOne(p.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${checked
-                      ? 'border-blue-300 bg-blue-50'
-                      : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                  >
-                    {/* Checkbox icon */}
-                    <span className="shrink-0">
-                      {checked
-                        ? <CheckSquare className="w-4 h-4 text-blue-600" />
-                        : <Square className="w-4 h-4 text-gray-300" />}
-                    </span>
-
-                    {/* PIN */}
-                    <span className="font-mono font-semibold text-sm text-gray-900 w-20 shrink-0 truncate">
-                      {p.pin.startsWith('[hashed') ? '(hashed)' : p.pin}
-                    </span>
-
-                    {/* Tier badge */}
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize shrink-0 ${tierBadge[p.tier]}`}>
-                      {p.tier}
-                    </span>
-
-                    {/* Status */}
-                    <span className={`text-xs font-medium shrink-0 ${statusDot(p.status)}`}>
-                      {p.status.charAt(0) + p.status.slice(1).toLowerCase()}
-                    </span>
-
-                    {/* Date — pushed right */}
-                    <span className="ml-auto text-xs text-gray-400 shrink-0">{p.createdAt}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Format + export action */}
-        <div className="px-7 py-5 border-t border-gray-100 shrink-0 space-y-4 bg-white rounded-b-2xl">
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">File format</p>
-            <div className="grid grid-cols-3 gap-3">
-              {FORMAT_OPTIONS.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setFormat(f.id)}
-                  className={`rounded-xl border-2 p-3 flex flex-col items-center gap-1.5 transition-all ${format === f.id
-                    ? f.activeClass
-                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                    }`}
-                >
-                  {f.icon}
-                  <span className="text-xs font-semibold">{f.label}</span>
-                  <span className="text-[10px] opacity-60">{f.ext}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button
-            onClick={handleExport}
-            disabled={exporting || selected.size === 0}
-            className={`w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${done
-              ? 'bg-green-600 text-white'
-              : exporting
-                ? 'bg-blue-400 text-white cursor-not-allowed'
-                : selected.size === 0
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
-          >
-            {done ? (
-              '✓ Downloaded!'
-            ) : exporting ? (
-              <><RefreshCw className="w-4 h-4 animate-spin" /> Exporting…</>
-            ) : (
-              <><Download className="w-4 h-4" /> Export {selected.size} PIN{selected.size !== 1 ? 's' : ''}</>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+  {
+    id: 'excel', label: 'Excel', ext: '.xlsx',
+    icon: <FileSpreadsheet className="w-5 h-5" />,
+    activeClass: 'border-emerald-500 bg-emerald-50 text-emerald-700',
+  },
+  {
+    id: 'word', label: 'Word', ext: '.docx',
+    icon: <FileText className="w-5 h-5" />,
+    activeClass: 'border-blue-500 bg-blue-50 text-blue-700',
+  },
+  {
+    id: 'pdf', label: 'PDF', ext: '.pdf',
+    icon: <File className="w-5 h-5" />,
+    activeClass: 'border-red-500 bg-red-50 text-red-700',
+  },
+];
 
 // ─── Per-PIN export dropdown ──────────────────────────────────────────────────
 
@@ -948,7 +764,7 @@ function GeneratePin() {
           </div>
         )}
 
-        {/* Bulk Export Modal — checklist */}
+        {/* Bulk Export Modal — imported from ExportModal.tsx */}
         {showExportModal && (
           <ExportModal
             pins={filteredPins}
