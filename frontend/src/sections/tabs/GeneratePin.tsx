@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Copy, RefreshCw, Eye, EyeOff, Download,
-  FileSpreadsheet, FileText, File, X,
+  FileSpreadsheet, FileText, File,
   ChevronDown,
 } from 'lucide-react';
 import { ExportModal } from './../../modals/ExportModal';
@@ -222,32 +222,6 @@ async function runExport(pins: PIN[], format: ExportFormat) {
   else if (format === 'word') await exportToWord(pins, name);
   else await exportToPdf(pins, name);
 }
-
-// ─── Format options (shared) ──────────────────────────────────────────────────
-
-const FORMAT_OPTIONS: {
-  id: ExportFormat;
-  label: string;
-  ext: string;
-  icon: React.ReactNode;
-  activeClass: string;
-}[] = [
-  {
-    id: 'excel', label: 'Excel', ext: '.xlsx',
-    icon: <FileSpreadsheet className="w-5 h-5" />,
-    activeClass: 'border-emerald-500 bg-emerald-50 text-emerald-700',
-  },
-  {
-    id: 'word', label: 'Word', ext: '.docx',
-    icon: <FileText className="w-5 h-5" />,
-    activeClass: 'border-blue-500 bg-blue-50 text-blue-700',
-  },
-  {
-    id: 'pdf', label: 'PDF', ext: '.pdf',
-    icon: <File className="w-5 h-5" />,
-    activeClass: 'border-red-500 bg-red-50 text-red-700',
-  },
-];
 
 // ─── Per-PIN export dropdown ──────────────────────────────────────────────────
 

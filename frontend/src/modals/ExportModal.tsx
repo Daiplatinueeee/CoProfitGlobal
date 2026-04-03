@@ -376,7 +376,7 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
                 >
                   {tf.label}
                   <span
-                    className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${
+                    className={`inline-flex items-center justify-center min-w-4.5 h-4.5 px-1 rounded-full text-[10px] font-bold ${
                       isActive ? 'bg-white/25 text-inherit' : 'bg-gray-100 text-gray-500'
                     }`}
                   >
