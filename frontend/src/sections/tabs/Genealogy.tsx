@@ -3,6 +3,9 @@ import logo from './../../assets/refs/Logo.webp'
 import MemberDetailsPanel from './membersDetailPanel'
 import AddMemberModal, { EMPTY_ADD_MEMBER_FORM } from '../../modals/AddMemberModal'
 import type { AddMemberFormData } from '../../modals/AddMemberModal'
+import ChooseMemberTypeModal from '../../modals/ChooseTypeModal'
+import ExistingMemberModal from '../../modals/ExistingUserModal'
+import type { ExistingMemberResult } from '../../modals/ExistingUserModal'
 
 interface Member {
   id: string
@@ -59,7 +62,20 @@ function Genealogy() {
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState<Member[]>([])
 
+  // Picker modal — shown first when "Add Left/Right Member" is clicked
+  const [chooserModal, setChooserModal] = useState<{
+    parent: Member
+    leg: 'left' | 'right'
+  } | null>(null)
+
+  // Add-new-member modal
   const [modal, setModal] = useState<{
+    parent: Member
+    leg: 'left' | 'right'
+  } | null>(null)
+
+  // Place-existing-member modal
+  const [existingModal, setExistingModal] = useState<{
     parent: Member
     leg: 'left' | 'right'
   } | null>(null)
@@ -73,7 +89,9 @@ function Genealogy() {
   const VERTICAL_SPACING = 320
 
   const resetModalState = useCallback(() => {
+    setChooserModal(null)
     setModal(null)
+    setExistingModal(null)
     setFormData(EMPTY_ADD_MEMBER_FORM)
     setFormErrors({})
   }, [])
@@ -270,6 +288,34 @@ function Genealogy() {
     }
   }
 
+  const placeExistingMember = async (member: ExistingMemberResult) => {
+    if (!existingModal || !currentUserId) return
+    try {
+      const payload = {
+        parentUserId: existingModal.parent.userId || existingModal.parent.id,
+        leg: existingModal.leg,
+        placerUserId: currentUserId,
+        existingMemberId: member.userId || member.id,
+      }
+      const response = await fetch(`${API_BASE_URL}/genealogy/place-existing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        console.error('Failed to place existing member:', result.message)
+        return
+      }
+      const refreshedTree = await fetchRootTree(currentUserId)
+      setOriginalRoot(refreshedTree)
+      setTreeRoot(refreshedTree)
+      resetModalState()
+    } catch (err: any) {
+      console.error('Error placing existing member:', err)
+    }
+  }
+
   const addNewMember = () => {
     if (!modal) return
 
@@ -440,9 +486,7 @@ function Genealogy() {
           <g
             onClick={(e) => {
               e.stopPropagation()
-              setModal({ parent: member, leg: 'left' })
-              setFormData(EMPTY_ADD_MEMBER_FORM)
-              setFormErrors({})
+              setChooserModal({ parent: member, leg: 'left' })
             }}
             style={{ cursor: 'pointer' }}
           >
@@ -477,9 +521,7 @@ function Genealogy() {
           <g
             onClick={(e) => {
               e.stopPropagation()
-              setModal({ parent: member, leg: 'right' })
-              setFormData(EMPTY_ADD_MEMBER_FORM)
-              setFormErrors({})
+              setChooserModal({ parent: member, leg: 'right' })
             }}
             style={{ cursor: 'pointer' }}
           >
@@ -616,6 +658,23 @@ function Genealogy() {
           )}
         </div>
 
+        {/* Step 1: Choose new vs existing */}
+        <ChooseMemberTypeModal
+          modal={chooserModal}
+          onChooseNew={() => {
+            setModal(chooserModal)
+            setFormData(EMPTY_ADD_MEMBER_FORM)
+            setFormErrors({})
+            setChooserModal(null)
+          }}
+          onChooseExisting={() => {
+            setExistingModal(chooserModal)
+            setChooserModal(null)
+          }}
+          onClose={resetModalState}
+        />
+
+        {/* Step 2a: New member form */}
         <AddMemberModal
           modal={modal}
           formData={formData}
@@ -624,6 +683,14 @@ function Genealogy() {
           setFormErrors={setFormErrors}
           onAddMember={addNewMember}
           onClose={resetModalState}
+        />
+
+        {/* Step 2b: Place existing member */}
+        <ExistingMemberModal
+          modal={existingModal}
+          onPlace={placeExistingMember}
+          onClose={resetModalState}
+          apiBaseUrl={API_BASE_URL}
         />
 
         <svg

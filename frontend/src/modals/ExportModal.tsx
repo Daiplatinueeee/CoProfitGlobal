@@ -268,6 +268,20 @@ const TIER_FILTERS: {
   },
 ];
 
+// ─── Status filter config ─────────────────────────────────────────────────────
+
+type StatusFilter = 'all' | 'UNUSED' | 'USED';
+
+const STATUS_FILTERS: {
+  id: StatusFilter;
+  label: string;
+  activeClass: string;
+}[] = [
+  { id: 'all',    label: 'All',    activeClass: 'bg-blue-600 text-white border-blue-600' },
+  { id: 'UNUSED', label: 'Unused', activeClass: 'bg-green-600 text-white border-green-600' },
+  { id: 'USED',   label: 'Used',   activeClass: 'bg-red-500 text-white border-red-500' },
+];
+
 // ─── Bulk Export Modal ────────────────────────────────────────────────────────
 
 export interface ExportModalProps {
@@ -277,16 +291,19 @@ export interface ExportModalProps {
 
 export function ExportModal({ pins, onClose }: ExportModalProps) {
   const [tierFilter, setTierFilter] = useState<TierFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set(pins.map((p) => p.id)));
   const [format, setFormat] = useState<ExportFormat>('excel');
   const [exporting, setExporting] = useState(false);
   const [done, setDone] = useState(false);
 
-  // Pins visible in the checklist based on the active tier filter
+  // Pins visible in the checklist based on both active tier and status filters
   // Note: 'free' tier is excluded from bulk export tier filters since it's a static PIN
-  const visiblePins = tierFilter === 'all'
-    ? pins
-    : pins.filter((p) => p.tier === tierFilter);
+  const visiblePins = pins.filter((p) => {
+    const tierMatch = tierFilter === 'all' || p.tier === tierFilter;
+    const statusMatch = statusFilter === 'all' || p.status === statusFilter;
+    return tierMatch && statusMatch;
+  });
 
   const allChecked = visiblePins.length > 0 && visiblePins.every((p) => selected.has(p.id));
   const someChecked = visiblePins.some((p) => selected.has(p.id)) && !allChecked;
@@ -338,9 +355,17 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
   const statusDot = (s: PIN['status']) =>
     s === 'USED' ? 'text-red-600' : s === 'VOID' ? 'text-orange-600' : 'text-green-600';
 
-  // Count how many pins per tier (for badge counts)
-  const countForTier = (t: TierFilter) =>
-    t === 'all' ? pins.length : pins.filter((p) => p.tier === t).length;
+  // Count how many pins per tier (respects active status filter for accurate badge counts)
+  const countForTier = (t: TierFilter) => {
+    const base = t === 'all' ? pins : pins.filter((p) => p.tier === t);
+    return statusFilter === 'all' ? base.length : base.filter((p) => p.status === statusFilter).length;
+  };
+
+  // Count how many pins per status (respects active tier filter)
+  const countForStatus = (s: StatusFilter) => {
+    const base = tierFilter === 'all' ? pins : pins.filter((p) => p.tier === tierFilter);
+    return s === 'all' ? base.length : base.filter((p) => p.status === s).length;
+  };
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -388,6 +413,37 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
           </div>
         </div>
 
+        {/* Status filter pills */}
+        <div className="px-7 py-3 border-b border-gray-100 shrink-0 bg-gray-50/40">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Filter by Status</p>
+          <div className="flex flex-wrap gap-2">
+            {STATUS_FILTERS.map((sf) => {
+              const count = countForStatus(sf.id);
+              const isActive = statusFilter === sf.id;
+              return (
+                <button
+                  key={sf.id}
+                  onClick={() => setStatusFilter(sf.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all ${
+                    isActive
+                      ? sf.activeClass
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {sf.label}
+                  <span
+                    className={`inline-flex items-center justify-center min-w-4.5 h-4.5 px-1 rounded-full text-[10px] font-bold ${
+                      isActive ? 'bg-white/25 text-inherit' : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Select-all bar */}
         <div className="px-7 py-3 border-b border-gray-100 flex items-center justify-between shrink-0 bg-gray-50/70">
           <button
@@ -403,6 +459,9 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
           </button>
           <span className="text-xs font-medium text-gray-500">
             {selected.size} / {pins.length} selected
+            {visiblePins.length < pins.length && (
+              <span className="text-gray-400"> ({visiblePins.length} visible)</span>
+            )}
           </span>
         </div>
 
@@ -410,7 +469,7 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
         <div className="overflow-y-auto flex-1 px-5 py-3">
           {visiblePins.length === 0 ? (
             <p className="text-center text-gray-400 py-10 text-sm">
-              No PINs found for this tier.
+              No PINs match the selected filters.
             </p>
           ) : (
             <div className="space-y-1.5">
