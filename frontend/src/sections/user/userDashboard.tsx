@@ -118,7 +118,6 @@ export default function UserDashboard() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const navigate = useNavigate();
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   // ── Wallet / income state ────────────────────────────────────────────
   const [income, setIncome] = useState<IncomeBreakdown | null>(null);

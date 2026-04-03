@@ -1,4 +1,3 @@
-import React from 'react'
 import { X, UserPlus, Users, ShieldAlert } from 'lucide-react'
 
 interface Member {
