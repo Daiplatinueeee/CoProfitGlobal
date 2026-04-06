@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, X, Pencil } from 'lucide-react';
 
-import CreateUserModal from './CreateUserModal';
+import CreateUserModal from '../../modals/CreateUserModal';
 
 const API_BASE = 'http://localhost:3000';
 
@@ -359,25 +359,25 @@ function UsersOverview() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6">
-      <div className="max-w-5xl mx-auto">
+    <div>
+      <div className="max-w-6xl mx-auto px-4 md:px-8 py-12">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl text-gray-900">Users Overview</h1>
+            <h1 className="text-4xl text-gray-900">Users Overview</h1>
             <p className="text-gray-500 text-sm mt-1">
               {users.length} total user{users.length !== 1 ? 's' : ''}
             </p>
           </div>
 
-          {/*
+          
           <button
             onClick={() => setShowCreateForm(true)}
             className="bg-sky-400 hover:bg-sky-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
             Add User
           </button>
-          */}
+         
           
         </div>
 
