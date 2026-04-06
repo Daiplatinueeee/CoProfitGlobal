@@ -202,7 +202,7 @@ export class Sign5Service {
       },
       {
         upsert: true,
-        new: true,
+        returnDocument: 'after',
       },
     ).lean();
 

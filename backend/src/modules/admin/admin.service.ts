@@ -187,7 +187,7 @@ export class AdminService {
     }
 
     const user = await this.userModel
-      .findByIdAndUpdate(userId, { $set: update }, { new: true })
+      .findByIdAndUpdate(userId, { $set: update }, { returnDocument: 'after' })
       .select('_id name username leftLegPoints rightLegPoints')
       .lean();
 

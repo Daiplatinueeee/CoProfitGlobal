@@ -13,7 +13,6 @@ import {
 } from '../product-pins/schema/product-pins.schema'
 import { VolumeModule } from '../volume/volume.module'
 import { WalletModule } from '../wallet/wallet.module'
-import { VolumeLedger, VolumeLedgerSchema } from '../volume/schemas/volume-ledger.schema'
 import { VolumeBucket, VolumeBucketSchema } from '../volume/schemas/volume-bucket.schema'
 import { UsersModule } from '../users/users.module'
 
@@ -23,7 +22,6 @@ import { UsersModule } from '../users/users.module'
       { name: GenealogyNode.name, schema: GenealogyNodeSchema },
       { name: User.name, schema: UserSchema },
       { name: ProductPin.name, schema: ProductPinSchema },
-      { name: VolumeLedger.name, schema: VolumeLedgerSchema },
       { name: VolumeBucket.name, schema: VolumeBucketSchema },
     ]),
     VolumeModule,

@@ -162,16 +162,9 @@ export class PairingService {
       const rightAvailable = rightBucket?.availablePoints ?? 0;
       const pairable       = Math.min(leftAvailable, rightAvailable);
 
-      if (pairable <= 0) {
-        this.logger.debug(
-          `[tryPair] ${userIdStr} — not enough points on both legs ` +
-          `(L=${leftAvailable}, R=${rightAvailable})`,
-        );
-        break;
-      }
-
       // How many pairs can we do this pass?
       const pairedPoints = Math.min(pairable, capRemaining);
+      if (pairedPoints <= 0) break;
       const leftCarryOut = leftAvailable  - pairedPoints;
       const rightCarryOut = rightAvailable - pairedPoints;
 
@@ -180,7 +173,7 @@ export class PairingService {
         .findByIdAndUpdate(
           userId,
           { $inc: { gcPairingCounter: 1 } },
-          { new: true },
+          { returnDocument: 'after' },
         )
         .select('gcPairingCounter')
         .lean();

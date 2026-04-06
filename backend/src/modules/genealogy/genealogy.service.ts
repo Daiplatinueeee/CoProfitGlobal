@@ -18,7 +18,6 @@ import {
   User,
   UserDocument,
 } from '../users/schemas/user.schema'
-import { VolumeLedger, VolumeLedgerDocument } from '../volume/schemas/volume-ledger.schema'
 import {
   VolumeBucket,
   VolumeBucketDocument,
@@ -39,9 +38,6 @@ export class GenealogyService {
   constructor(
     @InjectModel(GenealogyNode.name)
     private readonly genealogyModel: Model<GenealogyNodeDocument>,
-
-    @InjectModel(VolumeLedger.name)
-    private readonly volumeLedgerModel: Model<VolumeLedgerDocument>,
 
     @InjectModel(VolumeBucket.name)
     private readonly volumeBucketModel: Model<VolumeBucketDocument>,
@@ -170,10 +166,8 @@ export class GenealogyService {
   // ── Referral lists ────────────────────────────────────────────────────────
 
   /**
-   * direct referral  = target.sponsorId === rootUserId
-   * indirect referral = rootUserId exists higher in sponsor chain at level 2+
-   * spillover = target is inside root user's genealogy subtree,
-   *             but target was NOT directly sponsored by root user
+   * direct referral  = sponsorId === rootUserId (regardless of tree position)
+   * indirect referral = in genealogy downline tree AND sponsorId !== rootUserId
    */
   private async buildReferralLists(rootUserId: string) {
     if (!this.isValidObjectId(rootUserId)) {
@@ -185,10 +179,10 @@ export class GenealogyService {
     const rootUser = await this.userModel.findById(rootObjectId).lean()
     if (!rootUser) throw new NotFoundException('User not found')
 
-    const [users, downlineNodes] = await Promise.all([
+    const [directUsers, downlineNodes] = await Promise.all([
       this.userModel
         .find(
-          {},
+          { sponsorId: rootObjectId },
           {
             name: 1, username: 1, email: 1, role: 1,
             membershipTier: 1, sponsorId: 1, referralCode: 1,
@@ -201,100 +195,21 @@ export class GenealogyService {
       this.genealogyModel.find({ ancestors: rootObjectId }).lean(),
     ])
 
-    const userMap = new Map<string, any>(
-      users.map((user: any) => [user._id.toString(), user]),
-    )
+    const directUserIds = new Set(directUsers.map((u: any) => u._id.toString()))
 
-    // sponsor tree map: sponsorId -> direct sponsored users
-    const sponsoredByMap = new Map<string, any[]>()
-
-    for (const user of users) {
-      const sponsorId = user.sponsorId?.toString()
-      if (!sponsorId) continue
-      if (!sponsoredByMap.has(sponsorId)) sponsoredByMap.set(sponsorId, [])
-      sponsoredByMap.get(sponsorId)!.push(user)
-    }
-
-    const direct:   any[] = []
-    const indirect: any[] = []
-    const all:      any[] = []
-    const visited = new Set<string>()
-
-    const buildItem = async (child: any, level: number) => {
-      const { leftAvailablePoints, rightAvailablePoints } =
-        await this.getAvailablePoints(child._id)
-
-      return {
-        id:                   child._id.toString(),
-        userId:               child._id.toString(),
-        name:                 child.name ?? '',
-        username:             child.username,
-        email:                child.email,
-        role:                 child.role,
-        membershipTier:       child.membershipTier,
-        sponsorId:            child.sponsorId?.toString() ?? null,
-        referralCode:         child.referralCode ?? '',
-        profileImage:         child.profileImage ?? '',
-        leftLegPoints:        child.leftLegPoints  ?? 0,
-        rightLegPoints:       child.rightLegPoints ?? 0,
-        leftAvailablePoints,
-        rightAvailablePoints,
-        age:                  child.age        ?? null,
-        contact:              child.contact    ?? '',
-        address:              child.address    ?? '',
-        beneficiary:          child.beneficiary ?? '',
-        birthday:             child.birthday   ?? '',
-        createdAt:            child.createdAt ?? null,
-        referralLevel:        level,
-        referralType:         level === 1 ? 'direct' : 'indirect',
-      }
-    }
-
-    const walkSponsorTree = async (sponsorUserId: string, level: number) => {
-      const children = sponsoredByMap.get(sponsorUserId) ?? []
-
-      for (const child of children) {
-        const childId = child._id.toString()
-        if (visited.has(childId)) continue
-        visited.add(childId)
-
-        const item = await buildItem(child, level)
-        all.push(item)
-
-        if (level === 1) direct.push(item)
-        else indirect.push(item)
-
-        await walkSponsorTree(childId, level + 1)
-      }
-    }
-
-    await walkSponsorTree(rootUserId, 1)
-
-    // Spillover: in genealogy subtree but not directly sponsored by root
-    const spillover: any[] = []
-
-    for (const node of downlineNodes) {
-      const downlineUserId = node.userId.toString()
-      if (downlineUserId === rootUserId) continue
-
-      const user: any = userMap.get(downlineUserId)
-      if (!user) continue
-
-      const sponsorId = user.sponsorId?.toString() ?? null
-      if (sponsorId === rootUserId) continue // direct referral, not spillover
-
+    const buildItem = async (user: any, referralType: 'direct' | 'indirect') => {
       const { leftAvailablePoints, rightAvailablePoints } =
         await this.getAvailablePoints(user._id)
 
-      spillover.push({
-        id:                   downlineUserId,
-        userId:               downlineUserId,
+      return {
+        id:                   user._id.toString(),
+        userId:               user._id.toString(),
         name:                 user.name ?? '',
         username:             user.username,
         email:                user.email,
         role:                 user.role,
         membershipTier:       user.membershipTier,
-        sponsorId,
+        sponsorId:            user.sponsorId?.toString() ?? null,
         referralCode:         user.referralCode ?? '',
         profileImage:         user.profileImage ?? '',
         leftLegPoints:        user.leftLegPoints  ?? 0,
@@ -307,34 +222,63 @@ export class GenealogyService {
         beneficiary:          user.beneficiary ?? '',
         birthday:             user.birthday   ?? '',
         createdAt:            user.createdAt ?? null,
-        parentUserId:         node.parentUserId?.toString() ?? null,
-        position:             node.position ?? null,
-        depth:                node.depth ?? 0,
-        referralType:         'spillover',
-      })
+        referralLevel:        referralType === 'direct' ? 1 : 2,
+        referralType,
+      }
     }
+
+    const direct: any[] = await Promise.all(
+      directUsers.map((u: any) => buildItem(u, 'direct')),
+    )
+
+    // Indirect: in genealogy downline AND not directly sponsored by root
+    const indirectUserIds = downlineNodes
+      .filter((node: any) => {
+        const nodeUserId = node.userId.toString()
+        return nodeUserId !== rootUserId && !directUserIds.has(nodeUserId)
+      })
+      .map((node: any) => node.userId)
+
+    const indirectUsers = indirectUserIds.length > 0
+      ? await this.userModel
+          .find(
+            { _id: { $in: indirectUserIds } },
+            {
+              name: 1, username: 1, email: 1, role: 1,
+              membershipTier: 1, sponsorId: 1, referralCode: 1,
+              profileImage: 1, leftLegPoints: 1, rightLegPoints: 1,
+              age: 1, contact: 1, address: 1, beneficiary: 1, birthday: 1,
+              createdAt: 1,
+            },
+          )
+          .lean()
+      : []
+
+    const indirect: any[] = await Promise.all(
+      indirectUsers.map((u: any) => buildItem(u, 'indirect')),
+    )
+
+    const all = [...direct, ...indirect]
 
     return {
       rootUser: {
-        id:           rootUser._id.toString(),
-        userId:       rootUser._id.toString(),
-        name:         (rootUser as any).name ?? '',
-        username:     (rootUser as any).username,
-        email:        (rootUser as any).email,
-        role:         (rootUser as any).role,
+        id:             (rootUser as any)._id.toString(),
+        userId:         (rootUser as any)._id.toString(),
+        name:           (rootUser as any).name ?? '',
+        username:       (rootUser as any).username,
+        email:          (rootUser as any).email,
+        role:           (rootUser as any).role,
         membershipTier: (rootUser as any).membershipTier,
-        sponsorId:    (rootUser as any).sponsorId?.toString() ?? null,
-        referralCode: (rootUser as any).referralCode ?? '',
+        sponsorId:      (rootUser as any).sponsorId?.toString() ?? null,
+        referralCode:   (rootUser as any).referralCode ?? '',
       },
       counts: {
         direct:   direct.length,
         indirect: indirect.length,
-        spillover: spillover.length,
         total:    all.length,
       },
       direct,
       indirect,
-      spillover,
       all,
     }
   }
@@ -361,9 +305,11 @@ export class GenealogyService {
         related: false,
         isDirectReferral: false,
         isIndirectReferral: false,
-        isSpillover: false,
-        sponsorLevel: 0,
-        sponsorChain: [],
+        isGenealogyDownline: false,
+        sponsorId: null,
+        parentUserId: null,
+        position: null,
+        depth: 0,
         message: 'A user is not their own referral',
       }
     }
@@ -379,44 +325,20 @@ export class GenealogyService {
     if (!rootUser)   throw new NotFoundException('Root user not found')
     if (!targetUser) throw new NotFoundException('Target user not found')
 
-    let current: any = targetUser
-    let sponsorLevel = 0
-    const sponsorChain: string[] = []
-    let isDirectReferral   = false
-    let isIndirectReferral = false
-
-    while (current?.sponsorId) {
-      sponsorLevel++
-      const sponsorId = current.sponsorId.toString()
-      sponsorChain.push(sponsorId)
-
-      if (sponsorId === rootUserId) {
-        if (sponsorLevel === 1) isDirectReferral   = true
-        else                    isIndirectReferral = true
-        break
-      }
-
-      current = await this.userModel.findById(sponsorId).lean()
-      if (!current) break
-    }
+    const isDirectReferral = (targetUser as any).sponsorId?.toString() === rootUserId
 
     const isGenealogyDownline = !!targetNode?.ancestors?.some(
       (ancestorId: any) => ancestorId.toString() === rootUserId,
     )
 
-    const isSpillover =
-      isGenealogyDownline &&
-      (targetUser as any).sponsorId?.toString() !== rootUserId
+    const isIndirectReferral = isGenealogyDownline && !isDirectReferral
 
     return {
       rootUserId,
       targetUserId,
-      related: isDirectReferral || isIndirectReferral || isSpillover,
+      related:             isDirectReferral || isIndirectReferral,
       isDirectReferral,
       isIndirectReferral,
-      isSpillover,
-      sponsorLevel: isDirectReferral || isIndirectReferral ? sponsorLevel : 0,
-      sponsorChain,
       isGenealogyDownline,
       sponsorId:    (targetUser as any).sponsorId?.toString() ?? null,
       parentUserId: targetNode?.parentUserId?.toString() ?? null,
@@ -569,17 +491,8 @@ export class GenealogyService {
 
     await parentNode.save()
 
-    // ── Spillover detection → reset root's indirect counter ──────────────
-    const isSpillover = placerUser._id.toString() !== parentNode.userId.toString()
-    if (isSpillover && childNode.ancestors.length > 0) {
-      const rootUserId = childNode.ancestors[0]
-      await this.userModel.findByIdAndUpdate(rootUserId, {
-        $set: { indirectResetDepth: childNode.depth },
-      })
-    }
-
     // ── Award placement bonuses to all ancestors ──────────────────────────
-    await this.awardPlacementBonuses(childNode, membershipTier)
+    await this.awardPlacementBonuses(childNode, membershipTier, placerUser._id.toString())
 
     await this.volumeService.awardActivationVolume(newUserId.toString())
 
@@ -683,79 +596,12 @@ export class GenealogyService {
     return { sourceUserId, targetUserId, isDownline }
   }
 
-  async getSpilloverBonus(userId: string) {
-    if (!this.isValidObjectId(userId)) {
-      throw new BadRequestException('Invalid userId')
-    }
-
-    const userDoc = await this.userModel.findById(userId).select('membershipTier').lean()
-    if (!userDoc || (userDoc as any).membershipTier === MembershipTier.FREE) {
-      return {
-        userId,
-        rootUser: null,
-        spilloverCount: 0,
-        totalPoints: 0,
-        totalBonusPHP: 0,
-        pointsPerPHP: 400,
-        breakdown: [],
-      }
-    }
-
-    const { spillover, rootUser } = await this.buildReferralLists(userId)
-
-    if (spillover.length === 0) {
-      return {
-        userId,
-        rootUser,
-        spilloverCount: 0,
-        totalPoints:    0,
-        totalBonusPHP:  0,
-        pointsPerPHP:   400,
-        breakdown:      [],
-      }
-    }
-
-    const spilloverUserIds = spillover.map((s) => this.toObjectId(s.userId))
-
-    const ledgerEntries = await this.volumeLedgerModel
-      .find({
-        ownerUserId:  this.toObjectId(userId),
-        sourceUserId: { $in: spilloverUserIds },
-      })
-      .lean()
-
-    const pointsPerMember = new Map<string, number>()
-
-    for (const entry of ledgerEntries) {
-      const sourceId = entry.sourceUserId.toString()
-      pointsPerMember.set(sourceId, (pointsPerMember.get(sourceId) ?? 0) + entry.points)
-    }
-
-    const breakdown = spillover.map((member) => {
-      const points = pointsPerMember.get(member.userId) ?? 0
-      return {
-        userId:            member.userId,
-        name:              member.name,
-        username:          member.username,
-        membershipTier:    member.membershipTier,
-        depth:             member.depth,
-        pointsContributed: points,
-      }
-    })
-
-    return {
-      userId,
-      rootUser,
-      spilloverCount: spillover.length,
-      breakdown,
-    }
-  }
-
   // ── Per-referral placement bonus ─────────────────────────────────────────
 
   private async awardPlacementBonuses(
     childNode: { depth: number; ancestors: Types.ObjectId[]; userId: Types.ObjectId },
     membershipTier: MembershipTier,
+    sponsorUserId: string,
   ) {
     if (membershipTier === MembershipTier.FREE) return
 
@@ -765,7 +611,7 @@ export class GenealogyService {
       const [ancestor, ancestorNode] = await Promise.all([
         this.userModel
           .findById(ancestorObjId)
-          .select('indirectResetDepth')
+          .select('countedIndirectDepths')
           .lean(),
         this.genealogyModel
           .findOne({ userId: ancestorObjId })
@@ -775,40 +621,55 @@ export class GenealogyService {
 
       if (!ancestor || !ancestorNode) continue
 
-      const depthDiff = childNode.depth - (ancestorNode as any).depth
+      const depthDiff    = childNode.depth - (ancestorNode as any).depth
+      const isDirectRecruit = sponsorUserId === ancestorId
 
-      if (depthDiff === 1) {
-        const amount = this.DIRECT_BONUS[membershipTier] ?? 0
-        if (amount > 0) {
-          await this.walletService.credit({
-            userId:   ancestorId,
-            currency: WalletCurrency.PHP,
-            amount,
-            source:   WalletTxnSource.REFERRAL_DIRECT,
-            refKey:   `ref_direct:${ancestorId}:${childNode.userId}`,
-            note:     `Direct placement bonus — ${membershipTier} member placed`,
-            meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff },
-          })
-        }
-      } else if (depthDiff >= 2) {
-        const resetDepth: number = (ancestor as any).indirectResetDepth ?? 1
-        const baseDepth = (ancestorNode as any).depth
-        const minDepth  = baseDepth + resetDepth + 1
-        const maxDepth  = baseDepth + resetDepth + 5
+      if (isDirectRecruit) {
+        // Reset this ancestor's indirect depth window — they personally recruited this member
+        await this.userModel.findByIdAndUpdate(ancestorObjId, {
+          $set: { countedIndirectDepths: [] },
+        })
 
-        if (childNode.depth >= minDepth && childNode.depth <= maxDepth) {
-          const amount = this.INDIRECT_BONUS[membershipTier] ?? 0
+        if (depthDiff === 1) {
+          const amount = this.DIRECT_BONUS[membershipTier] ?? 0
           if (amount > 0) {
             await this.walletService.credit({
               userId:   ancestorId,
               currency: WalletCurrency.PHP,
               amount,
-              source:   WalletTxnSource.REFERRAL_INDIRECT,
-              refKey:   `ref_indirect:${ancestorId}:${childNode.userId}`,
-              note:     `Indirect placement bonus — ${membershipTier} at depth ${childNode.depth}`,
-              meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff, resetDepth },
+              source:   WalletTxnSource.REFERRAL_DIRECT,
+              refKey:   `ref_direct:${ancestorId}:${childNode.userId}`,
+              note:     `Direct placement bonus — ${membershipTier} member placed`,
+              meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff },
             })
           }
+        }
+      } else if (depthDiff >= 2) {
+        // Indirect referral — check distinct depth level tracking
+        const relativeDepth     = depthDiff
+        const countedDepths: number[] = (ancestor as any).countedIndirectDepths ?? []
+        const alreadyCounted    = countedDepths.includes(relativeDepth)
+        const canAddNewDepth    = countedDepths.length < 5
+
+        if (!alreadyCounted && !canAddNewDepth) continue  // 6th+ unseen depth — blocked
+
+        if (!alreadyCounted) {
+          await this.userModel.findByIdAndUpdate(ancestorObjId, {
+            $addToSet: { countedIndirectDepths: relativeDepth },
+          })
+        }
+
+        const amount = this.INDIRECT_BONUS[membershipTier] ?? 0
+        if (amount > 0) {
+          await this.walletService.credit({
+            userId:   ancestorId,
+            currency: WalletCurrency.PHP,
+            amount,
+            source:   WalletTxnSource.REFERRAL_INDIRECT,
+            refKey:   `ref_indirect:${ancestorId}:${childNode.userId}`,
+            note:     `Indirect placement bonus — ${membershipTier} at relative depth ${relativeDepth}`,
+            meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff, relativeDepth, countedDepthsCount: countedDepths.length + (alreadyCounted ? 0 : 1) },
+          })
         }
       }
     }

@@ -87,8 +87,8 @@ export class User {
   @Prop({ type: Types.ObjectId, ref: 'User', default: null, index: true })
   sponsorId: Types.ObjectId | null;
 
-  @Prop({ type: Number, default: 1 })
-  indirectResetDepth: number;
+  @Prop({ type: [Number], default: [] })
+  countedIndirectDepths: number[];
 
   @Prop({ default: '' })
   profileImage: string;
