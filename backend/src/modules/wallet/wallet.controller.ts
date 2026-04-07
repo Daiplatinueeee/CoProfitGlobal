@@ -15,6 +15,11 @@ export class WalletController {
     return this.walletService.getBalances(userId);
   }
 
+  @Get(':userId/income-summary')
+  incomeSummary(@Param('userId') userId: string) {
+    return this.walletService.getIncomeSummary(userId);
+  }
+
   @Get(':userId/transactions')
   transactions(@Param('userId') userId: string, @Query('limit') limit?: string) {
     return this.walletService.getTransactions(userId, limit ? Number(limit) : 50);

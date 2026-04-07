@@ -23,7 +23,7 @@ interface WalletTransaction {
   currency: string;
   type: 'credit' | 'debit';
   amount: number;
-  source: 'pairing' | 'sign5' | 'leadership' | 'admin_adjustment' | 'withdrawal';
+  source: 'pairing' | 'sign5' | 'leadership' | 'admin_adjustment' | 'withdrawal' | 'referral_direct' | 'referral_indirect' | 'spillover';
   note: string;
   postedAt: string;
   createdAt: string;
@@ -34,8 +34,12 @@ interface IncomeBreakdown {
   pairingBonus: number;
   sign5Bonus: number;
   leadershipBonus: number;
+  directReferralBonus: number;
+  indirectReferralBonus: number;
+  today: number;
+  thisWeek: number;
+  thisMonth: number;
   recentPayouts: WalletTransaction[];
-  transactions: WalletTransaction[];
 }
 
 interface WalletBalances {
@@ -47,7 +51,6 @@ interface WalletBalances {
 interface ReferralCounts {
   direct: number;
   indirect: number;
-  spillover: number;
   total: number;
 }
 
@@ -56,7 +59,6 @@ interface ReferralData {
   counts: ReferralCounts;
   direct: any[];
   indirect: any[];
-  spillover: any[];
   all: any[];
 }
 
@@ -82,32 +84,6 @@ function getAuthContext() {
   return { token, userId };
 }
 
-// ── Period income helpers ─────────────────────────────────────────────────
-
-function sumCredits(transactions: WalletTransaction[], from: Date) {
-  return transactions
-    .filter(t => t.type === 'credit' && new Date(t.postedAt) >= from)
-    .reduce((acc, t) => acc + t.amount, 0);
-}
-
-function getPeriodIncome(transactions: WalletTransaction[]) {
-  const now = new Date();
-
-  const startOfToday = new Date(now);
-  startOfToday.setHours(0, 0, 0, 0);
-
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
-  startOfWeek.setHours(0, 0, 0, 0);
-
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  return {
-    today: sumCredits(transactions, startOfToday),
-    thisWeek: sumCredits(transactions, startOfWeek),
-    thisMonth: sumCredits(transactions, startOfMonth),
-  };
-}
 
 // ── Component ─────────────────────────────────────────────────────────────
 
@@ -130,6 +106,12 @@ export default function UserDashboard() {
   const [balancesLoading, setBalancesLoading] = useState(true);
   const [referralData, setReferralData] = useState<ReferralData | null>(null);
   const [referralLoading, setReferralLoading] = useState(true);
+  const [sign5Status, setSign5Status] = useState<{
+    bronzeCount: number; silverCount: number;
+    goldCount: number; platinumCount: number;
+    timesTriggered: { bronze: number; silver: number; gold: number; platinum: number };
+  } | null>(null);
+  const [sign5StatusLoading, setSign5StatusLoading] = useState(true);
 
   // ── Fetch current user + genealogy root ──────────────────────────────
   useEffect(() => {
@@ -182,38 +164,31 @@ export default function UserDashboard() {
           return;
         }
 
-        const res = await fetch(
-          `${API_BASE_URL}/wallet/${userId}/transactions?limit=200`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        // Fetch income summary (server-side aggregation — no limit)
+        const [summaryRes, txnRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/wallet/${userId}/income-summary`,
+            { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API_BASE_URL}/wallet/${userId}/transactions?limit=10`,
+            { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
 
-        if (!res.ok) throw new Error('Failed to fetch transactions');
+        if (!summaryRes.ok) throw new Error('Failed to fetch income summary');
 
-        const txns: WalletTransaction[] = await res.json();
-
-        const phpCredits = txns.filter(
-          (t) => t.currency === 'php' && t.type === 'credit',
-        );
-
-        const sum = (source: WalletTransaction['source']) =>
-          phpCredits
-            .filter((t) => t.source === source)
-            .reduce((acc, t) => acc + t.amount, 0);
-
-        const pairingBonus = sum('pairing');
-        const sign5Bonus = sum('sign5');
-        const leadershipBonus = sum('leadership');
-        const totalIncome = pairingBonus + sign5Bonus + leadershipBonus;
-
-        const recentPayouts = phpCredits.slice(0, 4);
+        const summary = await summaryRes.json();
+        const txns: WalletTransaction[] = txnRes.ok ? await txnRes.json() : [];
+        const recentPayouts = txns.filter(t => t.currency === 'php' && t.type === 'credit').slice(0, 4);
 
         setIncome({
-          totalIncome,
-          pairingBonus,
-          sign5Bonus,
-          leadershipBonus,
+          totalIncome:           summary.totalIncome           ?? 0,
+          pairingBonus:          summary.pairingBonus          ?? 0,
+          sign5Bonus:            summary.sign5Bonus            ?? 0,
+          leadershipBonus:       summary.leadershipBonus       ?? 0,
+          directReferralBonus:   summary.directReferralBonus   ?? 0,
+          indirectReferralBonus: summary.indirectReferralBonus ?? 0,
+          today:                 summary.today                 ?? 0,
+          thisWeek:              summary.thisWeek              ?? 0,
+          thisMonth:             summary.thisMonth             ?? 0,
           recentPayouts,
-          transactions: phpCredits,
         });
       } catch (err) {
         console.error('Income fetch error:', err);
@@ -278,25 +253,98 @@ export default function UserDashboard() {
     fetchReferrals();
   }, []);
 
-  // ── Period income (Today / This Week / This Month) ───────────────────
-  const periodIncome = useMemo(
-    () => getPeriodIncome(income?.transactions ?? []),
-    [income],
-  );
+  // ── Evaluate + fetch Sign-5 status on dashboard load ────────────────────
+  useEffect(() => {
+    const evaluateAndFetchSign5 = async () => {
+      try {
+        const { token, userId } = getAuthContext();
+        if (!token || !userId) return;
+        const monthKey = new Date().toISOString().slice(0, 7);
 
-  // ── Sign-5 progress: count direct referrals by tier for current month only ──
-  const sign5Progress = useMemo(() => {
-    const currentMonthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
+        // Always evaluate first — idempotent, only credits what hasn't been paid yet.
+        // This ensures any pending bonuses (e.g. for existing referrals) are credited.
+        await fetch(`${API_BASE_URL}/sign5/evaluate`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId, monthKey }),
+        });
+
+        // Now fetch the updated status
+        const statusRes = await fetch(
+          `${API_BASE_URL}/sign5/status/${userId}?monthKey=${monthKey}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!statusRes.ok) throw new Error('Failed to fetch sign5 status');
+        const data = await statusRes.json();
+        if (data.status) {
+          // Extract timesTriggered from awards for each tier
+          const timesTriggered = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+          for (const award of data.awards ?? []) {
+            const tier = award.tier?.toLowerCase();
+            if (tier && tier in timesTriggered) {
+              timesTriggered[tier as keyof typeof timesTriggered] = award.timesTriggered ?? 0;
+            }
+          }
+          setSign5Status({
+            bronzeCount:   data.status.bronzeCount   ?? 0,
+            silverCount:   data.status.silverCount   ?? 0,
+            goldCount:     data.status.goldCount     ?? 0,
+            platinumCount: data.status.platinumCount ?? 0,
+            timesTriggered,
+          });
+        }
+
+        // Re-fetch income summary so the sign5Bonus card reflects the new credit
+        const summaryRes = await fetch(
+          `${API_BASE_URL}/wallet/${userId}/income-summary`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (summaryRes.ok) {
+          const summary = await summaryRes.json();
+          setIncome(prev => prev ? {
+            ...prev,
+            totalIncome:    summary.totalIncome    ?? prev.totalIncome,
+            sign5Bonus:     summary.sign5Bonus     ?? prev.sign5Bonus,
+            today:          summary.today          ?? prev.today,
+            thisWeek:       summary.thisWeek       ?? prev.thisWeek,
+            thisMonth:      summary.thisMonth      ?? prev.thisMonth,
+          } : prev);
+        }
+      } catch (err) {
+        console.error('Sign5 evaluate/status error:', err);
+      } finally {
+        setSign5StatusLoading(false);
+      }
+    };
+    evaluateAndFetchSign5();
+  }, []);
+
+  // ── Sign-5 progress — uses evaluated sign5 status when available,
+  //    falls back to genealogy referral counts before first evaluation ──────
+  const sign5Progress: Record<string, number> = useMemo(() => {
+    if (sign5Status) {
+      return {
+        bronze:   sign5Status.bronzeCount,
+        silver:   sign5Status.silverCount,
+        gold:     sign5Status.goldCount,
+        platinum: sign5Status.platinumCount,
+      };
+    }
+    // Fallback: count from genealogy referrals for the current month
+    const currentMonthKey = new Date().toISOString().slice(0, 7);
     const directRefs = referralData?.direct ?? [];
-    const tierCounts: Record<string, number> = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    const counts: Record<string, number> = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
     for (const ref of directRefs) {
       const joinedMonth = (ref.createdAt ?? '').slice(0, 7);
       if (joinedMonth !== currentMonthKey) continue;
       const t = (ref.membershipTier ?? '').toLowerCase();
-      if (t in tierCounts) tierCounts[t]++;
+      if (t in counts) counts[t]++;
     }
-    return tierCounts;
-  }, [referralData]);
+    return counts;
+  }, [sign5Status, referralData]);
 
   // ── Existing effects ─────────────────────────────────────────────────
   useEffect(() => {
@@ -375,7 +423,7 @@ export default function UserDashboard() {
               {incomeLoading
                 ? <Skeleton className="h-7 w-28" />
                 : <span className="text-2xl font-semibold text-gray-900">
-                  ₱{formatPhp(periodIncome.today)}
+                  ₱{formatPhp(income?.today ?? 0)}
                 </span>
               }
             </div>
@@ -385,7 +433,7 @@ export default function UserDashboard() {
               {incomeLoading
                 ? <Skeleton className="h-7 w-28" />
                 : <span className="text-2xl font-semibold text-blue-600">
-                  ₱{formatPhp(periodIncome.thisWeek)}
+                  ₱{formatPhp(income?.thisWeek ?? 0)}
                 </span>
               }
             </div>
@@ -395,7 +443,7 @@ export default function UserDashboard() {
               {incomeLoading
                 ? <Skeleton className="h-7 w-28" />
                 : <span className="text-2xl font-semibold text-indigo-600">
-                  ₱{formatPhp(periodIncome.thisMonth)}
+                  ₱{formatPhp(income?.thisMonth ?? 0)}
                 </span>
               }
             </div>
@@ -458,9 +506,27 @@ export default function UserDashboard() {
           }
         </div>
 
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Direct Referrals (PHP)</h3>
+          {incomeLoading
+            ? <Skeleton className="h-9 w-32 mb-2" />
+            : <p className="text-3xl font-bold text-gray-900 mb-2">
+              ₱{formatPhp(income?.directReferralBonus ?? 0)}
+            </p>
+          }
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Indirect Referrals (PHP)</h3>
+          {incomeLoading
+            ? <Skeleton className="h-9 w-32 mb-2" />
+            : <p className="text-3xl font-bold text-gray-900 mb-2">
+              ₱{formatPhp(income?.indirectReferralBonus ?? 0)}
+            </p>
+          }
+        </div>
+
         {[
-          'Total Income of Direct Referrals (PHP)',
-          'Total Income of Indirect Referrals (PHP)',
           'Total Income of Sales Match Bonus (PHP)',
           'Total Income of Repeat Binary Bonus (PHP)',
           'Total Income of Stairstep Bonus (PHP)',
@@ -591,11 +657,6 @@ export default function UserDashboard() {
                 </div>
                 <div className="w-px h-8 bg-gray-200" />
                 <div className="text-center">
-                  <p className="text-lg font-bold text-gray-800">{referralData?.counts.spillover ?? 0}</p>
-                  <p className="text-xs text-gray-500">Spillover</p>
-                </div>
-                <div className="w-px h-8 bg-gray-200" />
-                <div className="text-center">
                   <p className="text-lg font-bold text-gray-800">{referralData?.counts.total ?? 0}</p>
                   <p className="text-xs text-gray-500">Total</p>
                 </div>
@@ -635,9 +696,9 @@ export default function UserDashboard() {
             <h3 className="text-lg font-semibold text-gray-900">Sign-5 Progress</h3>
             <span className="text-xs text-gray-400">{new Date().toLocaleString('en-PH', { month: 'long', year: 'numeric' })}</span>
           </div>
-          <div className="space-y-3">
-            {referralLoading ? (
-              [1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-8 w-full" />)
+          <div className="space-y-4">
+            {(sign5StatusLoading || referralLoading) ? (
+              [1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-10 w-full" />)
             ) : (
               [
                 { name: 'Bronze', key: 'bronze', color: 'bg-amber-500' },
@@ -646,13 +707,23 @@ export default function UserDashboard() {
                 { name: 'Platinum', key: 'platinum', color: 'bg-slate-500' },
               ].map(({ name, key, color }) => {
                 const count = sign5Progress[key] ?? 0;
+                const timesTriggered = sign5Status?.timesTriggered?.[key as keyof NonNullable<typeof sign5Status>['timesTriggered']] ?? 0;
+                // Progress within the current cycle: resets to 0 every time 5 is hit
+                const progressInCycle = count % 5;
                 const TARGET = 5;
-                const pct = Math.min((count / TARGET) * 100, 100);
+                const pct = (progressInCycle / TARGET) * 100;
                 return (
                   <div key={name}>
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-sm font-medium text-gray-700">{name}</span>
-                      <span className="text-xs text-gray-400">{count} / {TARGET}</span>
+                      <div className="flex items-center gap-2 text-xs">
+                        {timesTriggered > 0 && (
+                          <span className="inline-flex items-center gap-1 font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                            ✓ {timesTriggered}x this month
+                          </span>
+                        )}
+                        <span className="text-gray-500">{progressInCycle} / {TARGET}</span>
+                      </div>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2">
                       <div className={`${color} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
@@ -684,7 +755,7 @@ export default function UserDashboard() {
               </div>
               <Gift className="w-12 h-12 text-rose-300" />
             </div>
-            <p className="text-xs text-rose-600 mt-3">1 GC per 5 pairs</p>
+            <p className="text-xs text-rose-600 mt-3">1 GC per 5 paired points</p>
           </div>
         </div>
 

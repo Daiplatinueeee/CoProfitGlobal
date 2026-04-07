@@ -36,7 +36,7 @@ export class PairingAward {
   @Prop({ required: true, default: 0 })
   capLimit: number;
 
-  // GC credited instead of PHP on every 5th lifetime pair (0 normally, 1 on 5th pair)
+  // GC credited per pairing: 1 GC per 5 paired points (the 5th point pays GC instead of PHP)
   @Prop({ required: true, default: 0 })
   gcAwarded: number;
 }

@@ -27,9 +27,9 @@ export class Activation {
   @Prop({ required: true })
   points: number;
 
-  // Which pin was consumed
-  @Prop({ type: Types.ObjectId, ref: 'ProductPin', required: true, index: true })
-  pinId: Types.ObjectId;
+  // Which pin was consumed (optional — not all activations have a pin)
+  @Prop({ type: Types.ObjectId, ref: 'ProductPin', index: true })
+  pinId?: Types.ObjectId;
 
   @Prop({ required: true })
   activatedAt: Date;
@@ -41,3 +41,4 @@ export const ActivationSchema = SchemaFactory.createForClass(Activation);
 ActivationSchema.index({ userId: 1, createdAt: -1 });
 ActivationSchema.index({ sponsorId: 1, createdAt: -1 });
 ActivationSchema.index({ tier: 1, createdAt: -1 });
+ActivationSchema.index({ sponsorId: 1, tier: 1, activatedAt: 1 }); // sign5 query

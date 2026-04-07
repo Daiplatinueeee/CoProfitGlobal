@@ -168,19 +168,11 @@ export class PairingService {
       const leftCarryOut = leftAvailable  - pairedPoints;
       const rightCarryOut = rightAvailable - pairedPoints;
 
-      // Increment GC pairing counter; every 5th pair gives 1 GC instead of PHP
-      const freshUser = await this.userModel
-        .findByIdAndUpdate(
-          userId,
-          { $inc: { gcPairingCounter: 1 } },
-          { returnDocument: 'after' },
-        )
-        .select('gcPairingCounter')
-        .lean();
-      // Counter is divisible by 5 on every 5th pair
-      const isGcPair = ((freshUser as any)?.gcPairingCounter ?? 0) % 5 === 0;
-      const payoutPhp = isGcPair ? 0 : pairedPoints * this.RATE_PHP_PER_POINT;
-      const gcAwarded = isGcPair ? 1 : 0;
+      // Every 5th paired point → 1 GC (that point does not pay PHP).
+      // The other 4 in each group still pay PHP. Counter resets each pairing.
+      const gcAwarded = Math.floor(pairedPoints / 5);
+      const phpPoints = pairedPoints - gcAwarded;
+      const payoutPhp = phpPoints * this.RATE_PHP_PER_POINT;
 
       // Sequential periodKey: YYYY-MM-DD-1, YYYY-MM-DD-2, …
       const seq       = await this.getDailySequence(userId, dateKey);
@@ -229,20 +221,20 @@ export class PairingService {
       ]);
 
       // ── Credit wallet ──────────────────────────────────────────────
-      if (isGcPair) {
-        // 5th pair: award 1 GC instead of PHP
+      if (gcAwarded > 0) {
         await this.walletService.credit({
           userId: userIdStr,
           currency: WalletCurrency.GC_POINTS,
-          amount: 1,
+          amount: gcAwarded,
           source: WalletTxnSource.PAIRING,
           refKey: `pairing:gc:${userIdStr}:${periodKey}`,
-          note: `GC reward — seq ${seq} (${dateKey}) | every 5th pair`,
+          note: `GC reward — seq ${seq} (${dateKey}) | ${gcAwarded} GC (every 5th point)`,
           meta: {
             periodKey,
             seq,
             membershipTier: tier,
             pairedPoints,
+            gcAwarded,
             capLimit: dailyCap,
             capUsed: capUsed + pairedPoints,
             leftAvailable,
@@ -251,7 +243,8 @@ export class PairingService {
             rightCarryOut,
           },
         });
-      } else if (payoutPhp > 0) {
+      }
+      if (payoutPhp > 0) {
         await this.walletService.credit({
           userId: userIdStr,
           currency: WalletCurrency.PHP,
@@ -260,12 +253,13 @@ export class PairingService {
           refKey: `pairing:${userIdStr}:${periodKey}`,
           note:
             `Pairing bonus — seq ${seq} (${dateKey}) | ` +
-            `${pairedPoints} pts × ₱${this.RATE_PHP_PER_POINT}`,
+            `${phpPoints} pts × ₱${this.RATE_PHP_PER_POINT}`,
           meta: {
             periodKey,
             seq,
             membershipTier: tier,
             pairedPoints,
+            phpPoints,
             capLimit: dailyCap,
             capUsed: capUsed + pairedPoints,
             ratePhpPerPoint: this.RATE_PHP_PER_POINT,
@@ -276,6 +270,11 @@ export class PairingService {
           },
         });
       }
+
+      // ── Cascade leg points to parent (topline) ────────────────────
+      this.creditParentAfterPairing(userId, pairedPoints).catch((err) =>
+        this.logger.error(`[tryPair] creditParentAfterPairing failed: ${err.message}`),
+      )
 
       const formattedAward = this.formatAward(award.toObject());
       awards.push(formattedAward);
@@ -305,6 +304,45 @@ export class PairingService {
       totalPayoutPhp,
       awards,
     };
+  }
+
+  // ── Topline cascade ───────────────────────────────────────────────────────
+
+  /**
+   * After a pairing for `userId`, credit the immediate parent's leg bucket with
+   * `pairedPoints` (on whichever leg `userId` sits on), then fire-and-forget
+   * tryPairIfPossible for the parent so points bubble up the tree.
+   */
+  private async creditParentAfterPairing(
+    userId: Types.ObjectId,
+    pairedPoints: number,
+  ): Promise<void> {
+    const node = await this.genealogyNodeModel
+      .findOne({ userId })
+      .select('parentUserId position')
+      .lean()
+
+    if (!node?.parentUserId) return   // root user — no parent to credit
+
+    const parentId = node.parentUserId as Types.ObjectId
+    const leg = (node as any).position === 'left' ? VolumeLeg.LEFT : VolumeLeg.RIGHT
+
+    await this.bucketModel.updateOne(
+      { ownerUserId: parentId, leg },
+      { $inc: { totalPoints: pairedPoints, availablePoints: pairedPoints } },
+      { upsert: true },
+    )
+
+    await this.userModel.updateOne(
+      { _id: parentId },
+      leg === VolumeLeg.LEFT
+        ? { $inc: { leftLegPoints: pairedPoints } }
+        : { $inc: { rightLegPoints: pairedPoints } },
+    )
+
+    this.tryPairIfPossible(parentId.toString()).catch((err) =>
+      this.logger.error(`[creditParentAfterPairing] cascade pair failed for ${parentId}: ${err.message}`),
+    )
   }
 
   // ── Manual / admin trigger ────────────────────────────────────────────────

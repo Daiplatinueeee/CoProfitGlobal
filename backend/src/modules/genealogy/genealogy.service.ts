@@ -630,19 +630,17 @@ export class GenealogyService {
           $set: { countedIndirectDepths: [] },
         })
 
-        if (depthDiff === 1) {
-          const amount = this.DIRECT_BONUS[membershipTier] ?? 0
-          if (amount > 0) {
-            await this.walletService.credit({
-              userId:   ancestorId,
-              currency: WalletCurrency.PHP,
-              amount,
-              source:   WalletTxnSource.REFERRAL_DIRECT,
-              refKey:   `ref_direct:${ancestorId}:${childNode.userId}`,
-              note:     `Direct placement bonus — ${membershipTier} member placed`,
-              meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff },
-            })
-          }
+        const amount = this.DIRECT_BONUS[membershipTier] ?? 0
+        if (amount > 0) {
+          await this.walletService.credit({
+            userId:   ancestorId,
+            currency: WalletCurrency.PHP,
+            amount,
+            source:   WalletTxnSource.REFERRAL_DIRECT,
+            refKey:   `ref_direct:${ancestorId}:${childNode.userId}`,
+            note:     `Direct placement bonus — ${membershipTier} member placed`,
+            meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff },
+          })
         }
       } else if (depthDiff >= 2) {
         // Indirect referral — check distinct depth level tracking
