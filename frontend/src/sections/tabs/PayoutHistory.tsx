@@ -161,7 +161,7 @@ export default function PayoutHistory() {
                       <div className="flex items-center justify-between gap-4">
                         {/* Left: icon + label + date */}
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
                             <IconComponent className="w-4 h-4 text-slate-500" />
                           </div>
                           <div className="min-w-0">
@@ -173,7 +173,7 @@ export default function PayoutHistory() {
                         </div>
 
                         {/* Right: amount + status + chevron */}
-                        <div className="flex items-center gap-4 flex-shrink-0">
+                        <div className="flex items-center gap-4 shrink-0">
                           <div className="text-right">
                             <p className="text-sm font-semibold text-slate-900">₱{transaction.amount.toLocaleString()}</p>
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusBadge(transaction.status)}`}>
