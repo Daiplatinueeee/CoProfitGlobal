@@ -14,7 +14,8 @@ import WithdrawGC from '../tabs/WithdrawGC';
 import UnilevelProducts from '../tabs/UnilevelProducts';
 import PayoutHistory from '../tabs/PayoutHistory'
 
-import baseImg from '../../assets/refs/baseImg.png'
+import baseImg from '../../assets/elmer-whitebg-removebg-preview.png'
+import Leaderboards from '../tabs/Leaderboards';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -179,15 +180,15 @@ export default function UserDashboard() {
         const recentPayouts = txns.filter(t => t.currency === 'php' && t.type === 'credit').slice(0, 4);
 
         setIncome({
-          totalIncome:           summary.totalIncome           ?? 0,
-          pairingBonus:          summary.pairingBonus          ?? 0,
-          sign5Bonus:            summary.sign5Bonus            ?? 0,
-          leadershipBonus:       summary.leadershipBonus       ?? 0,
-          directReferralBonus:   summary.directReferralBonus   ?? 0,
+          totalIncome: summary.totalIncome ?? 0,
+          pairingBonus: summary.pairingBonus ?? 0,
+          sign5Bonus: summary.sign5Bonus ?? 0,
+          leadershipBonus: summary.leadershipBonus ?? 0,
+          directReferralBonus: summary.directReferralBonus ?? 0,
           indirectReferralBonus: summary.indirectReferralBonus ?? 0,
-          today:                 summary.today                 ?? 0,
-          thisWeek:              summary.thisWeek              ?? 0,
-          thisMonth:             summary.thisMonth             ?? 0,
+          today: summary.today ?? 0,
+          thisWeek: summary.thisWeek ?? 0,
+          thisMonth: summary.thisMonth ?? 0,
           recentPayouts,
         });
       } catch (err) {
@@ -289,9 +290,9 @@ export default function UserDashboard() {
             }
           }
           setSign5Status({
-            bronzeCount:   data.status.bronzeCount   ?? 0,
-            silverCount:   data.status.silverCount   ?? 0,
-            goldCount:     data.status.goldCount     ?? 0,
+            bronzeCount: data.status.bronzeCount ?? 0,
+            silverCount: data.status.silverCount ?? 0,
+            goldCount: data.status.goldCount ?? 0,
             platinumCount: data.status.platinumCount ?? 0,
             timesTriggered,
           });
@@ -306,11 +307,11 @@ export default function UserDashboard() {
           const summary = await summaryRes.json();
           setIncome(prev => prev ? {
             ...prev,
-            totalIncome:    summary.totalIncome    ?? prev.totalIncome,
-            sign5Bonus:     summary.sign5Bonus     ?? prev.sign5Bonus,
-            today:          summary.today          ?? prev.today,
-            thisWeek:       summary.thisWeek       ?? prev.thisWeek,
-            thisMonth:      summary.thisMonth      ?? prev.thisMonth,
+            totalIncome: summary.totalIncome ?? prev.totalIncome,
+            sign5Bonus: summary.sign5Bonus ?? prev.sign5Bonus,
+            today: summary.today ?? prev.today,
+            thisWeek: summary.thisWeek ?? prev.thisWeek,
+            thisMonth: summary.thisMonth ?? prev.thisMonth,
           } : prev);
         }
       } catch (err) {
@@ -327,9 +328,9 @@ export default function UserDashboard() {
   const sign5Progress: Record<string, number> = useMemo(() => {
     if (sign5Status) {
       return {
-        bronze:   sign5Status.bronzeCount,
-        silver:   sign5Status.silverCount,
-        gold:     sign5Status.goldCount,
+        bronze: sign5Status.bronzeCount,
+        silver: sign5Status.silverCount,
+        gold: sign5Status.goldCount,
         platinum: sign5Status.platinumCount,
       };
     }
@@ -391,6 +392,7 @@ export default function UserDashboard() {
     { id: 'unilevel-package', label: 'Unilevel Products', icon: Download, underDevelopment: true },
     { id: 'withdraw-gc', label: 'Withdraw GC', icon: Download, underDevelopment: true },
     { id: 'payout-history', label: 'Payout History', icon: Download, underDevelopment: true },
+    { id: 'leaderboards', label: 'Leaderboards', icon: Download, underDevelopment: true },
   ], []);
 
   // ── Skeleton helper ───────────────────────────────────────────────────
@@ -403,16 +405,16 @@ export default function UserDashboard() {
     <div className="space-y-6 pb-6 bg-white">
 
       {/* ── Total Income Card ─────────────────────────────────────────── */}
-      <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-3xl p-8 border border-blue-100 shadow-lg flex items-center justify-between overflow-hidden relative">
+      <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-3xl border border-blue-100 shadow-lg flex items-stretch overflow-hidden relative" style={{ minHeight: '200px' }}>
 
         {/* Left: Income Content */}
-        <div className="flex-1">
+        <div className="flex-1 p-8 flex flex-col justify-center">
           <p className="text-sm font-medium text-blue-600 mb-2">Total Income</p>
 
           {incomeLoading ? (
-            <Skeleton className="h-9 w-52 mb-4" />
+            <Skeleton className="h-12 w-52 mb-4" />
           ) : (
-            <p className="text-3xl font-bold text-gray-900 mb-4">
+            <p className="text-3xl text-gray-900 mb-4">
               ₱{formatPhp(income?.totalIncome ?? 0)}
             </p>
           )}
@@ -422,7 +424,7 @@ export default function UserDashboard() {
               <span className="text-xs text-gray-600 mb-1">Today</span>
               {incomeLoading
                 ? <Skeleton className="h-7 w-28" />
-                : <span className="text-2xl font-semibold text-gray-900">
+                : <span className="text-2xl text-gray-900">
                   ₱{formatPhp(income?.today ?? 0)}
                 </span>
               }
@@ -432,7 +434,7 @@ export default function UserDashboard() {
               <span className="text-xs text-gray-600 mb-1">This Week</span>
               {incomeLoading
                 ? <Skeleton className="h-7 w-28" />
-                : <span className="text-2xl font-semibold text-blue-600">
+                : <span className="text-2xl text-blue-600">
                   ₱{formatPhp(income?.thisWeek ?? 0)}
                 </span>
               }
@@ -442,7 +444,7 @@ export default function UserDashboard() {
               <span className="text-xs text-gray-600 mb-1">This Month</span>
               {incomeLoading
                 ? <Skeleton className="h-7 w-28" />
-                : <span className="text-2xl font-semibold text-indigo-600">
+                : <span className="text-2xl text-indigo-600">
                   ₱{formatPhp(income?.thisMonth ?? 0)}
                 </span>
               }
@@ -451,22 +453,28 @@ export default function UserDashboard() {
         </div>
 
         {/* Middle: User Info */}
-        <div className="flex flex-col items-start gap-1 px-10 border-l border-blue-200 ml-6">
-          <span className="text-lg font-bold text-gray-800">{displayName}</span>
+        <div className="flex flex-col items-start justify-center gap-1.5 px-10 border-l border-blue-200">
+          <span className="text-xl text-gray-800">{displayName}</span>
           <span className="text-sm text-gray-500">{displayEmail}</span>
           <span className="text-sm text-blue-500 font-medium">www.coprofitglobal.com</span>
         </div>
 
-        {/* Right: Profile Silhouette */}
-        <div className="relative shrink-0 self-end -ml-5 -mb-8">
+        {/* Right: Profile Image — large, flush to bottom */}
+        <div className="relative shrink-0 self-end" style={{ width: '220px', height: '220px' }}>
           <img
             src={baseImg}
             alt="Profile"
-            className="h-45 w-40 object-cover object-top mr-5 scale-x-[-1]"
             style={{
-              filter: 'drop-shadow(0 4px 12px rgba(99,102,241,0.25))',
-              maskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)',
-              WebkitMaskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)'
+              position: 'absolute',
+              bottom: 0,
+              right: 40,
+              width: '220px',
+              height: '260px',
+              objectFit: 'cover',
+              objectPosition: 'top',
+              filter: 'drop-shadow(0 8px 24px rgba(99,102,241,0.30))',
+              maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
             }}
           />
         </div>
@@ -480,7 +488,7 @@ export default function UserDashboard() {
           <h3 className="text-sm font-medium text-gray-500 mb-3">Total Pairing Bonus (PHP)</h3>
           {incomeLoading
             ? <Skeleton className="h-9 w-32 mb-2" />
-            : <p className="text-3xl font-bold text-gray-900 mb-2">
+            : <p className="text-3xl text-gray-900 mb-2">
               ₱{formatPhp(income?.pairingBonus ?? 0)}
             </p>
           }
@@ -490,7 +498,7 @@ export default function UserDashboard() {
           <h3 className="text-sm font-medium text-gray-500 mb-3">Total Sign-5 Bonus (PHP)</h3>
           {incomeLoading
             ? <Skeleton className="h-9 w-32 mb-2" />
-            : <p className="text-3xl font-bold text-gray-900 mb-2">
+            : <p className="text-3xl text-gray-900 mb-2">
               ₱{formatPhp(income?.sign5Bonus ?? 0)}
             </p>
           }
@@ -500,7 +508,7 @@ export default function UserDashboard() {
           <h3 className="text-sm font-medium text-gray-500 mb-3">Total Leadership Bonus (PHP)</h3>
           {incomeLoading
             ? <Skeleton className="h-9 w-32 mb-2" />
-            : <p className="text-3xl font-bold text-gray-900 mb-2">
+            : <p className="text-3xl text-gray-900 mb-2">
               ₱{formatPhp(income?.leadershipBonus ?? 0)}
             </p>
           }
@@ -510,7 +518,7 @@ export default function UserDashboard() {
           <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Direct Referrals (PHP)</h3>
           {incomeLoading
             ? <Skeleton className="h-9 w-32 mb-2" />
-            : <p className="text-3xl font-bold text-gray-900 mb-2">
+            : <p className="text-3xl text-gray-900 mb-2">
               ₱{formatPhp(income?.directReferralBonus ?? 0)}
             </p>
           }
@@ -520,7 +528,7 @@ export default function UserDashboard() {
           <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Indirect Referrals (PHP)</h3>
           {incomeLoading
             ? <Skeleton className="h-9 w-32 mb-2" />
-            : <p className="text-3xl font-bold text-gray-900 mb-2">
+            : <p className="text-3xl text-gray-900 mb-2">
               ₱{formatPhp(income?.indirectReferralBonus ?? 0)}
             </p>
           }
@@ -538,7 +546,7 @@ export default function UserDashboard() {
                 🚧 Under Development
               </span>
             </div>
-            <p className="text-3xl font-bold text-gray-900 mb-2">₱0.00</p>
+            <p className="text-3xl text-gray-900 mb-2">₱0.00</p>
           </div>
         ))}
 
@@ -553,7 +561,7 @@ export default function UserDashboard() {
                 🚧 Under Development
               </span>
             </div>
-            <p className="text-3xl font-bold text-gray-900 mb-2">{value}</p>
+            <p className="text-3xl text-gray-900 mb-2">{value}</p>
           </div>
         ))}
 
@@ -680,7 +688,7 @@ export default function UserDashboard() {
               <p className="text-sm font-medium text-gray-700">Total Earned</p>
               {incomeLoading
                 ? <Skeleton className="h-8 w-24" />
-                : <span className="text-2xl font-bold text-gray-900">
+                : <span className="text-2xl text-gray-900">
                   ₱{formatPhp(income?.pairingBonus ?? 0)}
                 </span>
               }
@@ -689,7 +697,7 @@ export default function UserDashboard() {
         </div>
       </div>
 
-       {/* ── Sign-5 Progress — dynamic from referral data ──────────────── */}
+      {/* ── Sign-5 Progress — dynamic from referral data ──────────────── */}
       <div className="grid grid-cols-1 gap-6">
         <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -794,14 +802,15 @@ export default function UserDashboard() {
 
   const renderTabContent = () => {
     const contents: Record<string, React.ReactElement> = {
-      genealogy: <Genealogy />,
+      'genealogy': <Genealogy />,
       'pairing-history': <Pairing />,
       'payout-system': <Payout />,
       'referral-hierarchy': <ReferalsHierarchy />,
       'withdraw-gc': <WithdrawGC />,
-      subscription: <Subscription />,
+      'subscription': <Subscription />,
       'unilevel-package': <UnilevelProducts />,
       'payout-history': <PayoutHistory />,
+      'leaderboards': <Leaderboards />,
     };
     return contents[activeTab] || <div />;
   };

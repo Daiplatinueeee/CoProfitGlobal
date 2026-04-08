@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, X, ShoppingCart } from 'lucide-react';
+import { Upload, CheckCircle, ShoppingCart, X, AlertCircle } from 'lucide-react';
 
 interface Product {
     id: string;
@@ -20,7 +20,6 @@ interface MaintenancePayment {
     uploadDate: string | null;
 }
 
-
 import image1 from '../../assets/pk1.jpeg'
 import image2 from '../../assets/pk2.jpeg'
 import image3 from '../../assets/pk3.jpeg'
@@ -30,86 +29,28 @@ import image6 from '../../assets/pk6.jpg'
 import image7 from '../../assets/pk7.jpg'
 import image8 from '../../assets/pk8.jpg'
 
+const paymentMethods = [
+    { id: "gcash", name: "GCash", account: "09XX-XXXX-XXX", icon: "💳" },
+    { id: "bank", name: "Bank Transfer", account: "XX-XXXXXX-XXXX", icon: "🏦" },
+    { id: "paymaya", name: "PayMaya", account: "XXXX-XXXX-XXXX-XXXX", icon: "💰" },
+];
+
 export default function Unilevel() {
     const [products] = useState<Product[]>([
-        {
-            id: '1',
-            name: 'Starter Bundle',
-            price: 1500,
-            pv: 15,
-            description: 'Perfect for beginners',
-            image: image1,
-            features: ['Basic access', '15 PV points', 'Support']
-        },
-        {
-            id: '2',
-            name: 'Professional',
-            price: 3000,
-            pv: 30,
-            description: 'Growing your network',
-            image: image2,
-            features: ['Full access', '30 PV points', 'Priority support']
-        },
-        {
-            id: '3',
-            name: 'Premium',
-            price: 5000,
-            pv: 50,
-            description: 'For entrepreneurs',
-            image: image3,
-            features: ['Premium access', '50 PV points', '24/7 support']
-        },
-        {
-            id: '4',
-            name: 'Silver Bundle',
-            price: 7500,
-            pv: 75,
-            description: 'Enhanced benefits',
-            image: image4,
-            features: ['Premium access', '75 PV points', 'Exclusive support']
-        },
-        {
-            id: '5',
-            name: 'Gold Bundle',
-            price: 10000,
-            pv: 100,
-            description: 'Ultimate package',
-            image: image5,
-            features: ['VIP access', '100 PV points', 'Personal manager']
-        },
-        {
-            id: '6',
-            name: 'Platinum Bundle',
-            price: 10000,
-            pv: 100,
-            description: 'Ultimate package',
-            image: image6,
-            features: ['VIP access', '100 PV points', 'Personal manager']
-        },
-        {
-            id: '7',
-            name: 'Diamond Bundle',
-            price: 10000,
-            pv: 100,
-            description: 'Ultimate package',
-            image: image7,
-            features: ['VIP access', '100 PV points', 'Personal manager']
-        },
-        {
-            id: '8',
-            name: 'Elite Bundle',
-            price: 10000,
-            pv: 100,
-            description: 'Ultimate package',
-            image: image8,
-            features: ['VIP access', '100 PV points', 'Personal manager']
-        },
+        { id: '1', name: 'Starter Bundle',    price: 1500,  pv: 15,  description: 'Perfect for beginners',    image: image1, features: ['Basic access', '15 PV points', 'Support'] },
+        { id: '2', name: 'Professional',       price: 3000,  pv: 30,  description: 'Growing your network',      image: image2, features: ['Full access', '30 PV points', 'Priority support'] },
+        { id: '3', name: 'Premium',            price: 5000,  pv: 50,  description: 'For entrepreneurs',         image: image3, features: ['Premium access', '50 PV points', '24/7 support'] },
+        { id: '4', name: 'Silver Bundle',      price: 7500,  pv: 75,  description: 'Enhanced benefits',         image: image4, features: ['Premium access', '75 PV points', 'Exclusive support'] },
+        { id: '5', name: 'Gold Bundle',        price: 10000, pv: 100, description: 'Ultimate package',          image: image5, features: ['VIP access', '100 PV points', 'Personal manager'] },
+        { id: '6', name: 'Platinum Bundle',    price: 10000, pv: 100, description: 'Ultimate package',          image: image6, features: ['VIP access', '100 PV points', 'Personal manager'] },
+        { id: '7', name: 'Diamond Bundle',     price: 10000, pv: 100, description: 'Ultimate package',          image: image7, features: ['VIP access', '100 PV points', 'Personal manager'] },
+        { id: '8', name: 'Elite Bundle',       price: 10000, pv: 100, description: 'Ultimate package',          image: image8, features: ['VIP access', '100 PV points', 'Personal manager'] },
     ]);
 
     const [totalUnilevelPV, setTotalUnilevelPV] = useState(2500);
     const [maintenancePayments, setMaintenancePayments] = useState<MaintenancePayment[]>([
-        { id: '1', month: 'January 2025', status: 'completed', paymentMethod: 'Bank Transfer', proofFile: 'proof_jan_2025.pdf', uploadDate: '2025-01-10' },
-        { id: '2', month: 'February 2025', status: 'pending', paymentMethod: '', proofFile: null, uploadDate: null },
+        { id: '1', month: 'January 2025',  status: 'completed', paymentMethod: 'Bank Transfer', proofFile: 'proof_jan_2025.pdf', uploadDate: '2025-01-10' },
+        { id: '2', month: 'February 2025', status: 'pending',   paymentMethod: '',              proofFile: null,                uploadDate: null },
     ]);
 
     const [selectedMonth, setSelectedMonth] = useState('');
@@ -120,10 +61,11 @@ export default function Unilevel() {
     const [purchaseQuantity, setPurchaseQuantity] = useState(1);
     const [showPurchaseModal, setShowPurchaseModal] = useState(false);
 
+    // Maintenance form payment method (radio)
+    const [maintenancePayMethod, setMaintenancePayMethod] = useState('gcash');
+
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setUploadedFile(e.target.files[0]);
-        }
+        if (e.target.files && e.target.files[0]) setUploadedFile(e.target.files[0]);
     };
 
     const handleSubmitPayment = (monthId: string) => {
@@ -131,21 +73,11 @@ export default function Unilevel() {
             alert('Please select a payment method and upload proof');
             return;
         }
-
-        setMaintenancePayments(
-            maintenancePayments.map((payment) =>
-                payment.id === monthId
-                    ? {
-                        ...payment,
-                        status: 'completed',
-                        paymentMethod: selectedPaymentMethod,
-                        proofFile: uploadedFile.name,
-                        uploadDate: new Date().toISOString().split('T')[0],
-                    }
-                    : payment
-            )
-        );
-
+        setMaintenancePayments(maintenancePayments.map((p) =>
+            p.id === monthId
+                ? { ...p, status: 'completed', paymentMethod: selectedPaymentMethod, proofFile: uploadedFile.name, uploadDate: new Date().toISOString().split('T')[0] }
+                : p
+        ));
         setSelectedMonth('');
         setSelectedPaymentMethod('');
         setUploadedFile(null);
@@ -153,9 +85,7 @@ export default function Unilevel() {
 
     const getMaintenanceStatus = (startDay: number, endDay: number) => {
         const today = new Date().getDate();
-        if (today >= startDay && today <= endDay) {
-            return 'warning';
-        }
+        if (today >= startDay && today <= endDay) return 'warning';
         return 'normal';
     };
 
@@ -176,92 +106,65 @@ export default function Unilevel() {
 
     const handlePurchase = () => {
         if (!selectedProduct) return;
-
         const totalCost = selectedProduct.pv * purchaseQuantity;
-
         if (totalUnilevelPV < totalCost) {
             alert('Insufficient PV balance. You need ' + totalCost + ' PV but only have ' + totalUnilevelPV + ' PV.');
             return;
         }
-
         setTotalUnilevelPV(totalUnilevelPV - totalCost);
         alert(`Successfully purchased ${purchaseQuantity}x ${selectedProduct.name} for ${totalCost} PV!`);
         handleClosePurchaseModal();
     };
 
-    const getTotalPurchaseCost = () => {
-        if (!selectedProduct) return 0;
-        return selectedProduct.pv * purchaseQuantity;
-    };
+    const getTotalPurchaseCost = () => (!selectedProduct ? 0 : selectedProduct.pv * purchaseQuantity);
+    const getTotalPurchasePrice = () => (!selectedProduct ? 0 : selectedProduct.price * purchaseQuantity);
 
-    const getTotalPurchasePrice = () => {
-        if (!selectedProduct) return 0;
-        return selectedProduct.price * purchaseQuantity;
-    };
+    const tierStats = [
+        { label: "Total Unilevel PV", value: String(totalUnilevelPV), sub: "Available balance" },
+        { label: "Converted Cash",    value: `₱${convertedCash}`,     sub: "1 PV = ₱1.00" },
+        { label: "Maintenance Fee",   value: "₱1,500",                 sub: "Due 1st – 15th monthly" },
+    ];
 
     return (
-        <div className="min-h-screen bg-white">
-            <div className="max-w-6xl mx-auto px-4 md:px-8 py-12">
-                {/* Header Section */}
-                <div className="mb-10">
-                    <h1 className="text-4xl font-semibold text-gray-900">Unilevel</h1>
-                    <p className="text-gray-600 mt-2">Products and network management</p>
+        <div className="bg-white">
+            <div className="w-full max-w-7xl mx-auto px-21 py-10">
+
+                {/* Header */}
+                <div className="mb-8">
+                    <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Unilevel Products</h1>
+                    <p className="text-sm text-slate-400 mt-1">Products, PV balance, and monthly maintenance management</p>
                 </div>
 
-                {/* Stats Section */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-                    {/* Total Unilevel PV Card */}
-                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                        <p className="text-gray-600 text-sm font-medium mb-2">Total Unilevel PV</p>
-                        <p className="text-4xl font-semibold text-gray-900 mb-6">{totalUnilevelPV}</p>
-
-                        <div className="space-y-3 pt-4 border-t border-gray-200">
-                            <div className="flex items-center justify-between">
-                                <span className="text-gray-700 text-sm">Conversion Rate</span>
-                                <span className="font-medium text-gray-900">1 PV = ₱1.00</span>
-                            </div>
-                            <div>
-                                <p className="text-gray-600 text-sm mb-1">Converted Cash</p>
-                                <p className="text-2xl font-semibold text-gray-900">₱{convertedCash}</p>
-                            </div>
-                            <p className="text-xs text-gray-600 pt-2 leading-relaxed">
-                                Converted cash is added to your Available Balance. You can withdraw it on the Payout page.
-                            </p>
+                {/* Stat Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+                    {tierStats.map(stat => (
+                        <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-5 py-4">
+                            <p className="text-xs text-slate-400 mb-1">{stat.label}</p>
+                            <p className="text-2xl font-semibold text-slate-900">{stat.value}</p>
+                            <p className="text-xs text-slate-400 mt-1">{stat.sub}</p>
                         </div>
-                    </div>
-
-                    {/* Monthly Maintenance Card */}
-                    <div className={`rounded-xl p-6 border ${maintenanceDeadlineStatus === 'warning'
-                        ? 'bg-orange-50 border-orange-200'
-                        : 'bg-green-50 border-green-200'}`}>
-                        <p className={`${maintenanceDeadlineStatus === 'warning' ? 'text-orange-700' : 'text-green-700'} text-sm font-medium mb-2`}>
-                            Monthly Maintenance Fee
-                        </p>
-                        <p className="text-4xl font-semibold text-gray-900 mb-6">₱1,500</p>
-
-                        <div className="space-y-3 pt-4 border-t border-gray-200">
-                            <p className="font-medium text-gray-900 text-sm">Deadline: 1st - 15th of each month</p>
-                            <p className={`text-xs ${maintenanceDeadlineStatus === 'warning' ? 'text-orange-700' : 'text-green-700'}`}>
-                                {maintenanceDeadlineStatus === 'warning'
-                                    ? 'Payment deadline is active. Please complete your payment.'
-                                    : 'Next deadline: 1st - 15th of next month'}
-                            </p>
-                            <p className="text-xs text-gray-600 pt-2">Required to maintain your account status and network benefits</p>
-                        </div>
-                    </div>
+                    ))}
                 </div>
 
                 {/* Products Section */}
-                <div className="mb-12">
-                    <h2 className="text-2xl font-semibold text-gray-900 mb-6">Products</h2>
+                {/* <div className="mb-10">
+                    <div className="flex items-center justify-between mb-5">
+                        <div>
+                            <h2 className="text-base font-semibold text-slate-900">Available Products</h2>
+                            <p className="text-xs text-slate-400 mt-0.5">Purchase products using your PV balance</p>
+                        </div>
+                        <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
+                            {totalUnilevelPV} PV available
+                        </span>
+                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {products.map((product) => (
                             <div
                                 key={product.id}
-                                className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200 flex flex-col h-80"
+                                className="relative rounded-2xl overflow-hidden border border-slate-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                             >
-                                <div className="h-32 w-full bg-gray-100 flex items-center justify-center overflow-hidden">
+                                <div className="h-36 w-full bg-slate-100 overflow-hidden">
                                     <img
                                         src={product.image}
                                         alt={product.name}
@@ -269,251 +172,324 @@ export default function Unilevel() {
                                     />
                                 </div>
 
-                                {/* Product Content */}
-                                <div className="p-4 flex flex-col grow">
-                                    <h3 className="font-semibold text-gray-900 text-sm mb-1">{product.name}</h3>
-                                    <p className="text-xs text-gray-600 mb-4 grow">{product.description}</p>
+                                <div className="bg-white px-5 py-4">
+                                    <p className="text-base font-semibold text-slate-900">{product.name}</p>
+                                    <p className="text-2xl font-bold text-slate-900 mt-0.5">₱{product.price.toLocaleString()}</p>
 
-                                    {/* PV Badge */}
-                                    <div className="mb-3">
-                                        <span className="inline-block bg-gray-100 text-gray-900 px-2 py-1 rounded text-xs font-medium">
-                                            {product.pv} PV
-                                        </span>
-                                    </div>
+                                    <ul className="space-y-2 mt-3">
+                                        {[
+                                            { label: "PV Points", value: `${product.pv} PV` },
+                                            { label: "Description", value: product.description },
+                                        ].map((f) => (
+                                            <li key={f.label} className="flex items-center justify-between">
+                                                <span className="text-xs text-slate-400">{f.label}</span>
+                                                <span className="text-xs font-semibold text-slate-900">{f.value}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
 
-                                    {/* Price */}
-                                    <div className="border-t border-gray-200 pt-3">
-                                        <p className="text-lg font-semibold text-gray-900 mb-3">₱{product.price.toLocaleString()}</p>
-                                        <button
-                                            onClick={() => handleBuyClick(product)}
-                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-xs flex items-center justify-center gap-2"
-                                        >
-                                            <ShoppingCart className="w-3.5 h-3.5" />
-                                            Buy with PV
-                                        </button>
-                                    </div>
+                                    <button
+                                        onClick={() => handleBuyClick(product)}
+                                        className="mt-4 w-full flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-900 hover:text-white text-slate-600 text-xs font-medium py-2 rounded-lg transition-colors"
+                                    >
+                                        <ShoppingCart size={12} />
+                                        Buy with PV
+                                    </button>
                                 </div>
                             </div>
                         ))}
                     </div>
-                </div>
+                </div> */}
 
                 {/* Maintenance Payment Section */}
-                <div>
-                    <h2 className="text-2xl font-semibold text-gray-900 mb-6">Payment History</h2>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                    <div className="space-y-4">
-                        {maintenancePayments.map((payment) => (
-                            <div
-                                key={payment.id}
-                                className={`rounded-xl p-6 border ${payment.status === 'completed'
-                                    ? 'bg-green-50 border-green-200'
-                                    : payment.status === 'overdue'
-                                        ? 'bg-red-50 border-red-200'
-                                        : 'bg-orange-50 border-orange-200'
-                                    }`}
-                            >
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div>
-                                            <h3 className="font-semibold text-gray-900">{payment.month}</h3>
-                                            <p className={`text-sm font-medium ${payment.status === 'completed'
-                                                ? 'text-green-700'
-                                                : payment.status === 'overdue'
-                                                    ? 'text-red-700'
-                                                    : 'text-orange-700'
-                                                }`}>
-                                                {payment.status === 'completed' && 'Completed'}
-                                                {payment.status === 'pending' && 'Pending'}
-                                                {payment.status === 'overdue' && 'Overdue'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <p className="text-lg font-semibold text-gray-900">₱1,500</p>
+                    {/* Payment Form */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                                <div>
+                                    <h2 className="text-base font-semibold text-slate-900">Submit Maintenance</h2>
+                                    <p className="text-xs text-slate-400 mt-0.5">Monthly fee: ₱1,500</p>
                                 </div>
+                                <span className={`text-xs font-medium px-3 py-1 rounded-full flex items-center gap-1.5 ${
+                                    maintenanceDeadlineStatus === 'warning'
+                                        ? 'bg-orange-100 text-orange-700'
+                                        : 'bg-emerald-100 text-emerald-700'
+                                }`}>
+                                    <AlertCircle size={11} />
+                                    {maintenanceDeadlineStatus === 'warning' ? 'Due soon' : 'On time'}
+                                </span>
+                            </div>
 
-                                {payment.status === 'pending' && (
-                                    <div className="bg-white rounded-lg p-5 space-y-4 mt-4 border border-gray-200">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-900 mb-2">
-                                                Payment Method
-                                            </label>
-                                            <select
-                                                value={selectedMonth === payment.id ? selectedPaymentMethod : ''}
-                                                onChange={(e) => {
-                                                    setSelectedMonth(payment.id);
-                                                    setSelectedPaymentMethod(e.target.value);
-                                                }}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            <div className="px-6 py-5 space-y-4">
+                                {/* Payment Method */}
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Payment Method</label>
+                                    <div className="space-y-2">
+                                        {paymentMethods.map((method) => (
+                                            <label
+                                                key={method.id}
+                                                htmlFor={`maint-${method.id}`}
+                                                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-all ${
+                                                    maintenancePayMethod === method.id
+                                                        ? "border-slate-900 bg-slate-50"
+                                                        : "border-slate-200 hover:border-slate-300"
+                                                }`}
                                             >
-                                                <option value="">Select method</option>
-                                                <option value="bank-transfer">Bank Transfer</option>
-                                                <option value="gcash">GCash</option>
-                                                <option value="debit-card">Debit Card</option>
-                                                <option value="credit-card">Credit Card</option>
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-900 mb-2">
-                                                Upload Proof
-                                            </label>
-                                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors cursor-pointer">
                                                 <input
-                                                    type="file"
-                                                    onChange={handleFileUpload}
-                                                    className="hidden"
-                                                    id={`file-upload-${payment.id}`}
-                                                    accept=".pdf,.jpg,.jpeg,.png"
+                                                    type="radio"
+                                                    id={`maint-${method.id}`}
+                                                    name="maintenancePayMethod"
+                                                    value={method.id}
+                                                    checked={maintenancePayMethod === method.id}
+                                                    onChange={(e) => {
+                                                        setMaintenancePayMethod(e.target.value);
+                                                        setSelectedPaymentMethod(e.target.value);
+                                                    }}
+                                                    className="sr-only"
                                                 />
-                                                <label htmlFor={`file-upload-${payment.id}`} className="cursor-pointer block">
-                                                    <Upload className="w-5 h-5 text-gray-400 mx-auto mb-2" />
-                                                    <p className="text-xs font-medium text-gray-700">Click to upload</p>
-                                                    {uploadedFile && (
-                                                        <p className="text-xs text-green-700 font-medium mt-2">✓ {uploadedFile.name}</p>
-                                                    )}
-                                                </label>
-                                            </div>
-                                        </div>
+                                                <span className="text-base">{method.icon}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-slate-900">{method.name}</p>
+                                                    <p className="text-xs text-slate-400">{method.account}</p>
+                                                </div>
+                                                {maintenancePayMethod === method.id && (
+                                                    <div className="w-2 h-2 rounded-full bg-slate-900 shrink-0" />
+                                                )}
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
 
-                                        <button
-                                            onClick={() => handleSubmitPayment(payment.id)}
-                                            disabled={selectedMonth !== payment.id || !selectedPaymentMethod || !uploadedFile}
-                                            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm disabled:cursor-not-allowed"
+                                {/* File Upload */}
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Payment Proof</label>
+                                    <div className="relative">
+                                        <input type="file" onChange={handleFileUpload} className="sr-only" id="maintenanceFileInput" accept=".pdf,.jpg,.jpeg,.png" />
+                                        <label
+                                            htmlFor="maintenanceFileInput"
+                                            className="flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-lg p-5 cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-all"
                                         >
-                                            Submit
-                                        </button>
-                                    </div>
-                                )}
-
-                                {payment.status === 'completed' && (
-                                    <div className="mt-4 text-sm space-y-1">
-                                        <p className="text-gray-700">Method: <span className="font-medium text-gray-900">{payment.paymentMethod}</span></p>
-                                        <p className="text-gray-700">File: <span className="font-medium text-gray-900">{payment.proofFile}</span></p>
-                                        <p className="text-gray-700">Submitted: <span className="font-medium text-gray-900">{payment.uploadDate}</span></p>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Purchase Modal */}
-                {showPurchaseModal && selectedProduct && (
-                    <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-2xl max-w-md w-full p-6 relative">
-                            <button
-                                onClick={handleClosePurchaseModal}
-                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-
-                            <h3 className="text-2xl font-semibold text-gray-900 mb-4">Purchase Product</h3>
-
-                            <div className="mb-6">
-                                <div className="flex items-center gap-4 mb-4">
-                                    <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-                                        <img
-                                            src={selectedProduct.image}
-                                            alt={selectedProduct.name}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-                                    <div>
-                                        <h4 className="font-semibold text-gray-900">{selectedProduct.name}</h4>
-                                        <p className="text-sm text-gray-600">{selectedProduct.description}</p>
-                                        <p className="text-sm font-medium text-gray-900 mt-1">{selectedProduct.pv} PV per unit</p>
-                                    </div>
-                                </div>
-
-                                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                                    <p className="text-sm text-gray-600 mb-1">Your Available PV</p>
-                                    <p className="text-2xl font-semibold text-gray-900">{totalUnilevelPV} PV</p>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-900 mb-2">
-                                            Quantity
+                                            <Upload size={20} className="text-slate-300 mb-1.5" />
+                                            <p className="text-xs font-medium text-slate-500">Click to upload</p>
+                                            <p className="text-xs text-slate-300 mt-0.5">PNG, JPG, PDF up to 10MB</p>
                                         </label>
-                                        <div className="flex items-center gap-3">
-                                            <button
-                                                onClick={() => setPurchaseQuantity(Math.max(1, purchaseQuantity - 1))}
-                                                className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold text-gray-900 transition-colors"
-                                            >
-                                                -
-                                            </button>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                value={purchaseQuantity}
-                                                onChange={(e) => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-center text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                            />
-                                            <button
-                                                onClick={() => setPurchaseQuantity(purchaseQuantity + 1)}
-                                                className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold text-gray-900 transition-colors"
-                                            >
-                                                +
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="border-t border-gray-200 pt-4 space-y-2">
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-gray-600">Unit Price</span>
-                                            <span className="font-medium text-gray-900">₱{selectedProduct.price.toLocaleString()}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-gray-600">Unit PV</span>
-                                            <span className="font-medium text-gray-900">{selectedProduct.pv} PV</span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-gray-600">Quantity</span>
-                                            <span className="font-medium text-gray-900">{purchaseQuantity}</span>
-                                        </div>
-                                        <div className="border-t border-gray-200 pt-2 mt-2">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="font-semibold text-gray-900">Total Price</span>
-                                                <span className="text-lg font-semibold text-gray-900">₱{getTotalPurchasePrice().toLocaleString()}</span>
+                                        {uploadedFile && (
+                                            <div className="mt-2 flex items-center gap-2 text-emerald-600">
+                                                <CheckCircle size={14} />
+                                                <span className="text-xs font-medium truncate">{uploadedFile.name}</span>
                                             </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="font-semibold text-gray-900">Total PV Cost</span>
-                                                <span className="text-lg font-semibold text-blue-600">{getTotalPurchaseCost()} PV</span>
-                                            </div>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
-                            </div>
 
-                            {getTotalPurchaseCost() > totalUnilevelPV && (
-                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                                    <p className="text-sm text-red-700 font-medium">
-                                        Insufficient PV balance. You need {getTotalPurchaseCost() - totalUnilevelPV} more PV.
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className="flex gap-3">
                                 <button
-                                    onClick={handleClosePurchaseModal}
-                                    className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                                    onClick={() => {
+                                        const pending = maintenancePayments.find(p => p.status === 'pending');
+                                        if (pending) handleSubmitPayment(pending.id);
+                                    }}
+                                    disabled={!selectedPaymentMethod || !uploadedFile}
+                                    className="w-full bg-slate-900 hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-medium py-2.5 px-4 rounded-lg transition-colors disabled:cursor-not-allowed"
                                 >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handlePurchase}
-                                    disabled={getTotalPurchaseCost() > totalUnilevelPV}
-                                    className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
-                                >
-                                    Purchase
+                                    Submit Payment
                                 </button>
                             </div>
                         </div>
                     </div>
-                )}
+
+                    {/* Payment History */}
+                    <div className="lg:col-span-2">
+                        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden h-full">
+                            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                                <div>
+                                    <h2 className="text-base font-semibold text-slate-900">Payment History</h2>
+                                    <p className="text-xs text-slate-400 mt-0.5">Monthly maintenance records</p>
+                                </div>
+                                <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full flex items-center gap-1.5">
+                                    <AlertCircle size={11} />
+                                    Due 1st – 15th
+                                </span>
+                            </div>
+
+                            <div className="px-6 py-5 space-y-4">
+                                {maintenancePayments.map((payment) => (
+                                    <div
+                                        key={payment.id}
+                                        className={`rounded-xl border px-5 py-4 transition-colors ${
+                                            payment.status === 'completed'
+                                                ? 'border-slate-100 bg-slate-50'
+                                                : payment.status === 'overdue'
+                                                ? 'border-red-200 bg-red-50'
+                                                : 'border-slate-200'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div>
+                                                <p className="text-sm font-semibold text-slate-900">{payment.month}</p>
+                                                <p className={`text-xs font-medium mt-0.5 ${
+                                                    payment.status === 'completed' ? 'text-emerald-600'
+                                                    : payment.status === 'overdue'  ? 'text-red-600'
+                                                    : 'text-amber-600'
+                                                }`}>
+                                                    {payment.status === 'completed' && '✓ Completed'}
+                                                    {payment.status === 'pending'   && '⏳ Pending'}
+                                                    {payment.status === 'overdue'   && '⚠ Overdue'}
+                                                </p>
+                                            </div>
+                                            <p className="text-sm font-semibold text-slate-900">₱1,500</p>
+                                        </div>
+
+                                        {payment.status === 'completed' && (
+                                            <div className="mt-2 space-y-1">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-slate-400">Method</span>
+                                                    <span className="text-xs font-medium text-slate-900">{payment.paymentMethod}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-slate-400">File</span>
+                                                    <span className="text-xs font-medium text-slate-900">{payment.proofFile}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-slate-400">Submitted</span>
+                                                    <span className="text-xs font-medium text-slate-900">{payment.uploadDate}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+
+                                {/* Steps */}
+                                <div className="rounded-xl border border-slate-100 px-5 py-4">
+                                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3">Steps to complete payment</p>
+                                    <ol className="space-y-2">
+                                        {[
+                                            "Choose a payment method from the form on the left.",
+                                            "Send ₱1,500 to the account shown for that method.",
+                                            "Upload a screenshot or photo of your payment proof.",
+                                            "Click Submit Payment and wait for confirmation.",
+                                        ].map((step, i) => (
+                                            <li key={i} className="flex items-start gap-3 text-sm text-slate-600">
+                                                <span className="shrink-0 w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-xs font-medium flex items-center justify-center mt-0.5">
+                                                    {i + 1}
+                                                </span>
+                                                {step}
+                                            </li>
+                                        ))}
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+
+            {/* Purchase Modal */}
+            {showPurchaseModal && selectedProduct && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl border border-slate-100 max-w-md w-full p-6 relative shadow-xl">
+                        <button
+                            onClick={handleClosePurchaseModal}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <X size={18} />
+                        </button>
+
+                        <h3 className="text-base font-semibold text-slate-900 mb-5">Purchase Product</h3>
+
+                        <div className="flex items-center gap-4 mb-5">
+                            <div className="w-16 h-16 bg-slate-100 rounded-xl overflow-hidden shrink-0">
+                                <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold text-slate-900">{selectedProduct.name}</p>
+                                <p className="text-xs text-slate-400 mt-0.5">{selectedProduct.description}</p>
+                                <p className="text-xs font-medium text-slate-600 mt-1">{selectedProduct.pv} PV per unit</p>
+                            </div>
+                        </div>
+
+                        {/* PV Balance */}
+                        <div className="bg-white rounded-xl border border-slate-100 px-4 py-3 mb-5">
+                            <p className="text-xs text-slate-400 mb-0.5">Your Available PV</p>
+                            <p className="text-2xl font-semibold text-slate-900">{totalUnilevelPV} PV</p>
+                        </div>
+
+                        {/* Quantity */}
+                        <div className="mb-5">
+                            <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Quantity</label>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setPurchaseQuantity(Math.max(1, purchaseQuantity - 1))}
+                                    className="w-9 h-9 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-900 transition-colors text-sm"
+                                >
+                                    −
+                                </button>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={purchaseQuantity}
+                                    onChange={(e) => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                    className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-center text-slate-900 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent"
+                                />
+                                <button
+                                    onClick={() => setPurchaseQuantity(purchaseQuantity + 1)}
+                                    className="w-9 h-9 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-900 transition-colors text-sm"
+                                >
+                                    +
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Summary */}
+                        <div className="rounded-xl border border-slate-100 px-4 py-3 mb-5 space-y-2">
+                            {[
+                                { label: "Unit Price", value: `₱${selectedProduct.price.toLocaleString()}` },
+                                { label: "Unit PV",    value: `${selectedProduct.pv} PV` },
+                                { label: "Quantity",   value: String(purchaseQuantity) },
+                            ].map((row) => (
+                                <div key={row.label} className="flex items-center justify-between">
+                                    <span className="text-xs text-slate-400">{row.label}</span>
+                                    <span className="text-xs font-semibold text-slate-900">{row.value}</span>
+                                </div>
+                            ))}
+                            <div className="border-t border-slate-100 pt-2 mt-2 space-y-1">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-semibold text-slate-900">Total Price</span>
+                                    <span className="text-sm font-semibold text-slate-900">₱{getTotalPurchasePrice().toLocaleString()}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-semibold text-slate-900">Total PV Cost</span>
+                                    <span className="text-sm font-semibold text-slate-900">{getTotalPurchaseCost()} PV</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {getTotalPurchaseCost() > totalUnilevelPV && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 mb-4">
+                                <p className="text-xs font-medium text-red-700">
+                                    Insufficient PV. You need {getTotalPurchaseCost() - totalUnilevelPV} more PV.
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleClosePurchaseModal}
+                                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handlePurchase}
+                                disabled={getTotalPurchaseCost() > totalUnilevelPV}
+                                className="flex-1 px-4 py-2.5 bg-slate-900 hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+                            >
+                                Purchase
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

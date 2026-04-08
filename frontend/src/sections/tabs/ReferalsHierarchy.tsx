@@ -20,8 +20,6 @@ function getAuthContext() {
 
 function ReferalsHierarchy() {
   const [directReferrals, setDirectReferrals] = useState<any[]>([]);
-  const [indirectReferrals, setIndirectReferrals] = useState<any[]>([]);
-  const [spilloverReferrals, setSpilloverReferrals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,45 +30,12 @@ function ReferalsHierarchy() {
 
     fetch(`${API_BASE_URL}/genealogy/referrals/${userId}`, { headers })
       .then(r => r.json())
-      .then((referralsData) => {
-        setDirectReferrals(referralsData.direct ?? []);
-        setIndirectReferrals(referralsData.indirect ?? []);
-        setSpilloverReferrals(referralsData.spillover ?? []);
+      .then((data) => {
+        setDirectReferrals(data.direct ?? []);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
-
-  const currentMonthKey = new Date().toISOString().slice(0, 7);
-
-  const sign5Counts = {
-    bronze:   directReferrals.filter(r => r.membershipTier?.toLowerCase() === 'bronze'   && (r.createdAt ?? '').slice(0, 7) === currentMonthKey).length,
-    silver:   directReferrals.filter(r => r.membershipTier?.toLowerCase() === 'silver'   && (r.createdAt ?? '').slice(0, 7) === currentMonthKey).length,
-    gold:     directReferrals.filter(r => r.membershipTier?.toLowerCase() === 'gold'     && (r.createdAt ?? '').slice(0, 7) === currentMonthKey).length,
-    platinum: directReferrals.filter(r => r.membershipTier?.toLowerCase() === 'platinum' && (r.createdAt ?? '').slice(0, 7) === currentMonthKey).length,
-  };
-
-  const sign5Data = [
-    { rank: 'Bronze',   count: sign5Counts.bronze,   required: 5, bonus: 500  },
-    { rank: 'Silver',   count: sign5Counts.silver,   required: 5, bonus: 1500 },
-    { rank: 'Gold',     count: sign5Counts.gold,     required: 5, bonus: 2500 },
-    { rank: 'Platinum', count: sign5Counts.platinum, required: 5, bonus: 3500 },
-  ];
-
-  const groupedByLevel: Record<number, any[]> = {
-    1: directReferrals,
-    2: indirectReferrals,
-    3: spilloverReferrals,
-  };
-
-  const getLevelTitle = (level: number) => {
-    switch (level) {
-      case 1: return 'Level 1 - Direct Referrals';
-      case 2: return 'Level 2 - Indirect Referrals';
-      case 3: return 'Level 3 - Spill Over';
-      default: return '';
-    }
-  };
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—';
@@ -80,83 +45,151 @@ function ReferalsHierarchy() {
     });
   };
 
+  const getInitials = (username: string) => {
+    return username?.slice(0, 2).toUpperCase() ?? '??';
+  };
+
   if (loading) {
     return (
-      <div className="w-full max-w-6xl mx-auto p-6 flex items-center justify-center min-h-48">
-        <p className="text-slate-500 text-sm">Loading referral hierarchy...</p>
+      <div className="flex items-center justify-center min-h-64 bg-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-slate-500 animate-spin" />
+          <p className="text-slate-400 text-sm">Loading referrals...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-6 bg-white space-y-12">
-      <h2 className="text-3xl font-semibold text-slate-900 mb-8">Referral Hierarchy</h2>
+    <div className="min-h-screen bg-white">
+      <div className="w-full max-w-5xl mx-auto px-6 py-10">
 
-      {/* LEVEL 1-3 TABLES */}
-      <div className="space-y-10">
-        {([1, 2, 3] as const).map(level => {
-          const referrals = groupedByLevel[level];
-          return (
-            <div key={level}>
-              <div className="mb-4 pb-2 border-b-2 border-slate-300">
-                <h3 className="text-xl font-bold text-slate-900">{getLevelTitle(level)}</h3>
-                <p className="text-sm text-slate-500">{referrals.length} record(s)</p>
-              </div>
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
-                <table className="w-full text-sm text-left text-slate-600">
-                  <thead className="bg-slate-100 text-slate-900 font-semibold">
-                    <tr>
-                      <th className="px-6 py-4 text-center">Profile</th>
-                      <th className="px-6 py-4">Username</th>
-                      <th className="px-6 py-4">Email</th>
-                      <th className="px-6 py-4">Date Joined</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {referrals.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="px-6 py-6 text-center text-slate-400">No records found.</td>
-                      </tr>
-                    ) : (
-                      referrals.map((referral: any) => (
-                        <tr key={referral.id} className="border-t border-slate-200 hover:bg-slate-50 transition-colors">
-                          <td className="px-6 py-4 text-center">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Referral Hierarchy</h1>
+          <p className="text-sm text-slate-400 mt-1">Manage and track your direct referrals</p>
+        </div>
+
+        {/* Stat Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          {[
+            { label: 'Total Referrals', value: directReferrals.length },
+            { label: 'This Month', value: directReferrals.filter(r => (r.createdAt ?? '').slice(0, 7) === new Date().toISOString().slice(0, 7)).length },
+            { label: 'Active', value: directReferrals.filter(r => r.status === 'active').length },
+            { label: 'Pending', value: directReferrals.filter(r => r.status === 'pending').length },
+          ].map(stat => (
+            <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-5 py-4">
+              <p className="text-xs text-slate-400 mb-1">{stat.label}</p>
+              <p className="text-2xl font-semibold text-slate-900">{stat.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Table Card */}
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+
+          {/* Table Header */}
+          <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Direct Referrals</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Level 1 — {directReferrals.length} member{directReferrals.length !== 1 ? 's' : ''}</p>
+            </div>
+            <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
+              {directReferrals.length} total
+            </span>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Member</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Email</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Tier</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date Joined</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {directReferrals.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-16 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">
+                          ✦
+                        </div>
+                        <p className="text-slate-400 text-sm">No direct referrals yet</p>
+                        <p className="text-slate-300 text-xs">Share your referral link to get started</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  directReferrals.map((referral: any) => (
+                    <tr
+                      key={referral.id}
+                      className="hover:bg-slate-50 transition-colors duration-150"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {referral.profileImage ? (
                             <img
                               src={referral.profileImage || defaultLogo}
                               alt={referral.username}
-                              className="w-12 h-12 rounded-full border mx-auto object-cover"
+                              className="w-9 h-9 rounded-full object-cover border border-slate-100 shrink-0"
                             />
-                          </td>
-                          <td className="px-6 py-4 font-semibold text-slate-900">{referral.username}</td>
-                          <td className="px-6 py-4">{referral.email}</td>
-                          <td className="px-6 py-4">{formatDate(referral.createdAt)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* LEVEL 4 - SIGN 5 */}
-        <div>
-          <div className="mb-4 pb-2 border-b-2 border-slate-300">
-            <h3 className="text-xl font-bold text-slate-900">Sign 5 Bonus ( This Month )</h3>
-          </div>
-          <div className="grid md:grid-cols-4 gap-6">
-            {sign5Data.map(rank => (
-              <div key={rank.rank} className="border rounded-lg p-5 shadow-sm bg-white">
-                <h4 className="text-lg font-bold mb-2">{rank.rank}</h4>
-                <p className="text-sm text-slate-600 mb-2">{rank.count}/{rank.required} (can exceed)</p>
-                <p className="font-semibold text-green-700 text-lg">Current Bonus: ₱{rank.bonus}</p>
-              </div>
-            ))}
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-500 shrink-0">
+                              {getInitials(referral.username)}
+                            </div>
+                          )}
+                          <span className="font-medium text-slate-900">{referral.username}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-500">{referral.email}</td>
+                      <td className="px-6 py-4">
+                        {referral.membershipTier ? (
+                          <TierBadge tier={referral.membershipTier} />
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-slate-400">{formatDate(referral.createdAt)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
+
       </div>
     </div>
+  );
+}
+
+function TierBadge({ tier }: { tier: string }) {
+  const t = tier.toLowerCase();
+
+  const styles: Record<string, string> = {
+    bronze:   'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+    silver:   'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
+    gold:     'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200',
+    platinum: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+  };
+
+  const label: Record<string, string> = {
+    bronze: 'Bronze',
+    silver: 'Silver',
+    gold: 'Gold',
+    platinum: 'Platinum',
+  };
+
+  const cls = styles[t] ?? 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
+
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+      {label[t] ?? tier}
+    </span>
   );
 }
 

@@ -64,19 +64,30 @@ function formatDateTime(iso: string) {
   };
 }
 
-const TIER_COLORS: Record<string, string> = {
-  bronze:   'bg-orange-100 text-orange-700',
-  silver:   'bg-slate-100 text-slate-600',
-  gold:     'bg-yellow-100 text-yellow-700',
-  platinum: 'bg-purple-100 text-purple-700',
+const TIER_STYLES: Record<string, string> = {
+  bronze:   'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  silver:   'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
+  gold:     'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200',
+  platinum: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
 };
 
 function TierBadge({ tier }: { tier: string }) {
-  const cls = TIER_COLORS[tier?.toLowerCase()] ?? 'bg-slate-100 text-slate-600';
+  const cls = TIER_STYLES[tier?.toLowerCase()] ?? 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
   return (
-    <span className={`text-xs font-semibold px-2 py-0.5 rounded capitalize ${cls}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${cls}`}>
       {tier}
     </span>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center min-h-64 bg-white">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-slate-500 animate-spin" />
+        <p className="text-slate-400 text-sm">Loading pairing data...</p>
+      </div>
+    </div>
   );
 }
 
@@ -107,76 +118,121 @@ function MyPairings() {
     fetch_();
   }, []);
 
-  if (loading) return <div className="text-center py-16 text-slate-500">Loading...</div>;
-  if (error)   return <div className="text-center py-16 text-red-500">{error}</div>;
-  if (history.length === 0) return <div className="text-center py-16 text-slate-400">No pairing records found.</div>;
+  if (loading) return <LoadingState />;
+  if (error) return <div className="text-center py-16 text-red-400 text-sm">{error}</div>;
+
+  const totalPaired = history.reduce((sum, { award }) => sum + award.pairedPoints, 0);
+  const totalPayout = history.reduce((sum, { award }) => sum + award.payoutPhp, 0);
+  const totalGc = history.reduce((sum, { award }) => sum + award.gcAwarded, 0);
+  const thisMonth = history.filter(({ award }) =>
+    (award.createdAt ?? '').slice(0, 7) === new Date().toISOString().slice(0, 7)
+  ).length;
 
   return (
-    <div className="space-y-4">
-      {history.map(({ award, state }) => {
-        const { date, time } = formatDateTime(award.createdAt);
-        const leftPoints  = state?.leftAvailable  ?? award.pairedPoints;
-        const rightPoints = state?.rightAvailable ?? award.pairedPoints;
-
-        return (
-          <div
-            key={award.id}
-            className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6 border border-slate-200"
-          >
-            <div className="mb-4 pb-4 border-b border-slate-200 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
-                {date} • {time}
-              </p>
-              <span className="text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded">
-                {award.cycle}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-6">
-              <div className="flex-1">
-                <div className="bg-blue-50 rounded-lg p-5 border border-blue-100">
-                  <p className="text-xs font-semibold text-blue-600 uppercase mb-2">Left Leg</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-bold text-blue-600">{leftPoints.toLocaleString()}</span>
-                    <span className="text-sm text-slate-500">pts</span>
-                  </div>
-                  {state && <p className="text-xs text-slate-400 mt-1">Carry out: {state.leftCarryOut.toLocaleString()}</p>}
-                </div>
-              </div>
-
-              <div className="text-2xl text-slate-300 font-light">|</div>
-
-              <div className="flex-1">
-                <div className="bg-green-50 rounded-lg p-5 border border-green-100">
-                  <p className="text-xs font-semibold text-green-600 uppercase mb-2">Right Leg</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-bold text-green-600">{rightPoints.toLocaleString()}</span>
-                    <span className="text-sm text-slate-500">pts</span>
-                  </div>
-                  {state && <p className="text-xs text-slate-400 mt-1">Carry out: {state.rightCarryOut.toLocaleString()}</p>}
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center justify-center min-w-fit">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Paired Points</p>
-                <p className="text-sm font-bold text-slate-700 mb-2">{award.pairedPoints.toLocaleString()} pts</p>
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Payout</p>
-                {award.gcAwarded > 0 ? (
-                  <div className="bg-linear-to-br from-emerald-100 to-emerald-50 rounded-lg px-6 py-4 border border-emerald-300 flex flex-col items-center">
-                    <p className="text-2xl font-bold text-emerald-600">+{award.gcAwarded} GC</p>
-                    <p className="text-xs text-emerald-500 mt-1">Every 5th pair</p>
-                  </div>
-                ) : (
-                  <div className="bg-linear-to-br from-purple-100 to-purple-50 rounded-lg px-6 py-4 border border-purple-200">
-                    <p className="text-2xl font-bold text-purple-600">₱{formatPhp(award.payoutPhp)}</p>
-                  </div>
-                )}
-                {state && <p className="text-xs text-slate-400 mt-2">Cap: {state.capUsed}/{state.capLimit}</p>}
-              </div>
-            </div>
+    <div>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        {[
+          { label: 'Total Records', value: history.length },
+          { label: 'This Month', value: thisMonth },
+          { label: 'Total Points Paired', value: totalPaired.toLocaleString() },
+          { label: 'Total GC Awarded', value: totalGc },
+        ].map(stat => (
+          <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-5 py-4">
+            <p className="text-xs text-slate-400 mb-1">{stat.label}</p>
+            <p className="text-2xl font-semibold text-slate-900">{stat.value}</p>
           </div>
-        );
-      })}
+        ))}
+      </div>
+
+      {/* Table Card */}
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+
+        {/* Table Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">My Pairing History</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{history.length} record{history.length !== 1 ? 's' : ''} found</p>
+          </div>
+          <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
+            ₱{formatPhp(totalPayout)} total
+          </span>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Cycle</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Left Leg</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Right Leg</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Paired Points</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Payout</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Cap</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {history.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">
+                        ✦
+                      </div>
+                      <p className="text-slate-400 text-sm">No pairing records yet</p>
+                      <p className="text-slate-300 text-xs">Records will appear once pairings are processed</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                history.map(({ award, state }) => {
+                  const { date, time } = formatDateTime(award.createdAt);
+                  const leftPoints = state?.leftAvailable ?? award.pairedPoints;
+                  const rightPoints = state?.rightAvailable ?? award.pairedPoints;
+
+                  return (
+                    <tr
+                      key={award.id}
+                      className="hover:bg-slate-50 transition-colors duration-150"
+                    >
+                      <td className="px-6 py-4">
+                        <p className="text-slate-900 font-medium">{date}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{time}</p>
+                      </td>
+                      <td className="px-6 py-4 text-slate-500">{award.cycle}</td>
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-blue-600">{leftPoints.toLocaleString()} pts</p>
+                        {state && <p className="text-xs text-slate-400 mt-0.5">Carry: {state.leftCarryOut.toLocaleString()}</p>}
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-green-600">{rightPoints.toLocaleString()} pts</p>
+                        {state && <p className="text-xs text-slate-400 mt-0.5">Carry: {state.rightCarryOut.toLocaleString()}</p>}
+                      </td>
+                      <td className="px-6 py-4 font-medium text-slate-900">
+                        {award.pairedPoints.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4">
+                        {award.gcAwarded > 0 ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                            +{award.gcAwarded} GC
+                          </span>
+                        ) : (
+                          <span className="font-medium text-slate-900">₱{formatPhp(award.payoutPhp)}</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-slate-400">
+                        {state ? `${state.capUsed}/${state.capLimit}` : '—'}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -208,74 +264,127 @@ function DownlinePairings() {
     fetch_();
   }, []);
 
-  if (loading) return <div className="text-center py-16 text-slate-500">Loading...</div>;
-  if (error)   return <div className="text-center py-16 text-red-500">{error}</div>;
-  if (history.length === 0) return <div className="text-center py-16 text-slate-400">No downline pairing records found.</div>;
+  if (loading) return <LoadingState />;
+  if (error) return <div className="text-center py-16 text-red-400 text-sm">{error}</div>;
+
+  const totalPaired = history.reduce((sum, { award }) => sum + award.pairedPoints, 0);
+  const totalPayout = history.reduce((sum, { award }) => sum + award.payoutPhp, 0);
+  const uniqueMembers = new Set(history.map(h => h.username)).size;
+  const thisMonth = history.filter(({ award }) =>
+    (award.createdAt ?? '').slice(0, 7) === new Date().toISOString().slice(0, 7)
+  ).length;
+
+  const getInitials = (username: string) => username?.slice(0, 2).toUpperCase() ?? '??';
 
   return (
-    <div className="space-y-4">
-      {history.map(({ award, username, membershipTier, depth, position }) => {
-        const { date, time } = formatDateTime(award.createdAt);
-
-        return (
-          <div
-            key={award.id}
-            className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6 border border-slate-200"
-          >
-            {/* Header */}
-            <div className="mb-4 pb-4 border-b border-slate-200 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
-                {date} • {time}
-              </p>
-              <span className="text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded">
-                {award.cycle}
-              </span>
-            </div>
-
-            {/* Member + Tree info + Payout */}
-            <div className="flex items-center justify-between gap-6">
-              {/* Member info */}
-              <div className="flex-1">
-                <div className="bg-slate-50 rounded-lg p-5 border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Member</p>
-                  <p className="text-lg font-bold text-slate-900 mb-2">{username}</p>
-                  <TierBadge tier={membershipTier} />
-                </div>
-              </div>
-
-              <div className="text-2xl text-slate-300 font-light">|</div>
-
-              {/* Tree depth */}
-              <div className="flex-1">
-                <div className="bg-indigo-50 rounded-lg p-5 border border-indigo-100">
-                  <p className="text-xs font-semibold text-indigo-600 uppercase mb-2">Tree Position</p>
-                  <p className="text-3xl font-bold text-indigo-600">Level {depth}</p>
-                  {position && (
-                    <p className="text-xs text-slate-500 mt-1 capitalize">{position} leg</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Payout */}
-              <div className="flex flex-col items-center justify-center min-w-fit">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Paired Points</p>
-                <p className="text-sm font-bold text-slate-700 mb-2">{award.pairedPoints.toLocaleString()} pts</p>
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Payout</p>
-                {award.gcAwarded > 0 ? (
-                  <div className="bg-linear-to-br from-emerald-100 to-emerald-50 rounded-lg px-6 py-4 border border-emerald-300 flex flex-col items-center">
-                    <p className="text-2xl font-bold text-emerald-600">+{award.gcAwarded} GC</p>
-                    <p className="text-xs text-emerald-500 mt-1">Every 5th pair</p>
-                  </div>
-                ) : (
-                  <div className="bg-linear-to-br from-purple-100 to-purple-50 rounded-lg px-6 py-4 border border-purple-200">
-                    <p className="text-2xl font-bold text-purple-600">₱{formatPhp(award.payoutPhp)}</p>
-                  </div>
-                )}
-              </div>
-            </div>
+    <div>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        {[
+          { label: 'Total Records', value: history.length },
+          { label: 'This Month', value: thisMonth },
+          { label: 'Unique Members', value: uniqueMembers },
+          { label: 'Total Points Paired', value: totalPaired.toLocaleString() },
+        ].map(stat => (
+          <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-5 py-4">
+            <p className="text-xs text-slate-400 mb-1">{stat.label}</p>
+            <p className="text-2xl font-semibold text-slate-900">{stat.value}</p>
           </div>
-        );
-      })}
+        ))}
+      </div>
+
+      {/* Table Card */}
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+
+        {/* Table Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Downline Pairing History</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{history.length} record{history.length !== 1 ? 's' : ''} from {uniqueMembers} member{uniqueMembers !== 1 ? 's' : ''}</p>
+          </div>
+          <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
+            ₱{formatPhp(totalPayout)} total
+          </span>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Member</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Tier</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Cycle</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Tree Position</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Paired Points</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Payout</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {history.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">
+                        ✦
+                      </div>
+                      <p className="text-slate-400 text-sm">No downline pairing records found</p>
+                      <p className="text-slate-300 text-xs">Records will appear once your downline generates pairings</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                history.map(({ award, username, membershipTier, depth, position }) => {
+                  const { date, time } = formatDateTime(award.createdAt);
+
+                  return (
+                    <tr
+                      key={award.id}
+                      className="hover:bg-slate-50 transition-colors duration-150"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-500 shrink-0">
+                            {getInitials(username)}
+                          </div>
+                          <span className="font-medium text-slate-900">{username}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <TierBadge tier={membershipTier} />
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-slate-900">{date}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{time}</p>
+                      </td>
+                      <td className="px-6 py-4 text-slate-500">{award.cycle}</td>
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-slate-900">Level {depth}</p>
+                        {position && (
+                          <p className="text-xs text-slate-400 mt-0.5 capitalize">{position} leg</p>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 font-medium text-slate-900">
+                        {award.pairedPoints.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4">
+                        {award.gcAwarded > 0 ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                            +{award.gcAwarded} GC
+                          </span>
+                        ) : (
+                          <span className="font-medium text-slate-900">₱{formatPhp(award.payoutPhp)}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -286,35 +395,43 @@ function Pairing() {
   const [activeTab, setActiveTab] = useState<'mine' | 'downline'>('mine');
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-6 bg-white rounded-lg">
-      <h2 className="text-3xl font-semibold text-slate-900 mb-6">Pairing History</h2>
+    <div className="min-h-screen bg-white">
+      <div className="w-full max-w-6xl mx-auto px-21 py-10">
 
-      {/* Tab Toggle */}
-      <div className="flex gap-2 mb-8 border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('mine')}
-          className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-            activeTab === 'mine'
-              ? 'border-purple-600 text-purple-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          My Pairings
-        </button>
-        <button
-          onClick={() => setActiveTab('downline')}
-          className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-            activeTab === 'downline'
-              ? 'border-purple-600 text-purple-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Downline Pairings
-        </button>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Pairing History</h1>
+          <p className="text-sm text-slate-400 mt-1">Track binary pairing rewards across your network</p>
+        </div>
+
+        {/* Tab Toggle */}
+        <div className="flex gap-2 mb-8 border-b border-slate-100">
+          <button
+            onClick={() => setActiveTab('mine')}
+            className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'mine'
+                ? 'border-slate-900 text-slate-900'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            My Pairings
+          </button>
+          <button
+            onClick={() => setActiveTab('downline')}
+            className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'downline'
+                ? 'border-slate-900 text-slate-900'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            Downline Pairings
+          </button>
+        </div>
+
+        {activeTab === 'mine'     && <MyPairings />}
+        {activeTab === 'downline' && <DownlinePairings />}
+
       </div>
-
-      {activeTab === 'mine'     && <MyPairings />}
-      {activeTab === 'downline' && <DownlinePairings />}
     </div>
   );
 }
