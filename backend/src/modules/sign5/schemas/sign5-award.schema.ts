@@ -23,22 +23,12 @@ export class Sign5Award {
   @Prop({ required: true, default: 0 })
   referralsCount: number;
 
-  // 0 or 1 only
-  // becomes 1 once the user reaches at least 5 direct activations of this tier in the month
+  // how many complete sets of 5 direct referrals have been paid out this month
   @Prop({ required: true, default: 0 })
-  cashSetPaid: number;
-
-  // number of referrals beyond the first 5
-  @Prop({ required: true, default: 0 })
-  gcReferralCountPaid: number;
+  timesTriggered: number;
 
   @Prop({ required: true, default: 0 })
   cashAmountPhp: number;
-
-  // current implementation:
-  // gcPointsAmount = gcReferralCountPaid * tierRewardValue
-  @Prop({ required: true, default: 0 })
-  gcPointsAmount: number;
 
   @Prop({ type: Date, required: true })
   awardedAt: Date;

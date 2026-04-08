@@ -6,13 +6,12 @@ import { ActivationsService } from './activations.service';
 
 import { Activation, ActivationSchema } from './schemas/activation.schema';
 import { GenealogyModule } from '../genealogy/genealogy.module';
+import { Sign5Module } from '../sign5/sign5.module';
 
 @Module({
   imports: [
-    // We need GenealogyService
     GenealogyModule,
-
-    // Activation audit model
+    Sign5Module,
     MongooseModule.forFeature([{ name: Activation.name, schema: ActivationSchema }]),
   ],
   controllers: [ActivationsController],

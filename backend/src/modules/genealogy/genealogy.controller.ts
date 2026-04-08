@@ -58,9 +58,4 @@ export class GenealogyController {
     return this.genealogyService.getReferralRelation(rootUserId, targetUserId)
   }
 
-  @Get(':userId/spillover-bonus')
-  async getSpilloverBonus(@Param('userId') userId: string) {
-    return this.genealogyService.getSpilloverBonus(userId)
-  }
-
 }

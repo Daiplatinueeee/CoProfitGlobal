@@ -53,10 +53,7 @@ function Payout() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -75,179 +72,190 @@ function Payout() {
 
   const availableCurrent = 25000 - totalWithdrawn - totalPending;
 
-  const getStatusBadgeColor = (status: string) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-50 text-green-700 border-green-200';
+        return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
       case 'pending':
-        return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+        return 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200';
       default:
-        return 'bg-slate-50 text-slate-700 border-slate-200';
+        return 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
     }
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-6 bg-white min-h-screen">
-      <h1 className="text-3xl font-semibold text-slate-900 mb-8">Payout Management</h1>
+    <div className="min-h-screen bg-white">
+      <div className="w-full max-w-7xl mx-auto px-21 py-10">
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {/* Total Withdrawn */}
-        <div className="bg-white rounded-lg shadow-md border border-slate-200 p-6 hover:shadow-lg transition-shadow">
-          <p className="text-sm font-semibold text-slate-500 uppercase mb-2 tracking-wide">
-            Total Withdrawn
-          </p>
-          <p className="text-4xl font-bold text-blue-600 mb-1">${totalWithdrawn.toLocaleString()}</p>
-          <p className="text-xs text-slate-500">Completed withdrawals</p>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Payout Management</h1>
+          <p className="text-sm text-slate-400 mt-1">Request and track your withdrawal history</p>
         </div>
 
-        {/* Total Pending */}
-        <div className="bg-white rounded-lg shadow-md border border-slate-200 p-6 hover:shadow-lg transition-shadow">
-          <p className="text-sm font-semibold text-slate-500 uppercase mb-2 tracking-wide">
-            Total Pending
-          </p>
-          <p className="text-4xl font-bold text-yellow-600 mb-1">${totalPending.toLocaleString()}</p>
-          <p className="text-xs text-slate-500">Awaiting processing</p>
+        {/* Stat Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          {[
+            { label: 'Total Withdrawn', value: `₱${totalWithdrawn.toLocaleString()}`, sub: 'Completed withdrawals' },
+            { label: 'Total Pending', value: `₱${totalPending.toLocaleString()}`, sub: 'Awaiting processing' },
+            { label: 'Available Balance', value: `₱${availableCurrent.toLocaleString()}`, sub: 'Ready to withdraw' },
+          ].map(stat => (
+            <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-5 py-4">
+              <p className="text-xs text-slate-400 mb-1">{stat.label}</p>
+              <p className="text-2xl font-semibold text-slate-900">{stat.value}</p>
+              <p className="text-xs text-slate-400 mt-1">{stat.sub}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Available Current */}
-        <div className="bg-white rounded-lg shadow-md border border-slate-200 p-6 hover:shadow-lg transition-shadow">
-          <p className="text-sm font-semibold text-slate-500 uppercase mb-2 tracking-wide">
-            Available Current
-          </p>
-          <p className="text-4xl font-bold text-green-600 mb-1">${availableCurrent.toLocaleString()}</p>
-          <p className="text-xs text-slate-500">Ready to withdraw</p>
-        </div>
-      </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Request Withdrawal Form */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-md border border-slate-200 p-6">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6">Request Withdrawal</h2>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Amount */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Amount</label>
-                <input
-                  type="number"
-                  name="amount"
-                  value={formData.amount}
-                  onChange={handleInputChange}
-                  placeholder="Enter amount"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
+          {/* Request Withdrawal Form */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Request Withdrawal</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Fill in your payout details</p>
+                </div>
               </div>
 
-              {/* Payment Method */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Payment Method</label>
-                <select
-                  name="paymentMethod"
-                  value={formData.paymentMethod}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
+              <div className="px-6 py-5 space-y-4">
+                {/* Amount */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Amount</label>
+                  <input
+                    type="number"
+                    name="amount"
+                    value={formData.amount}
+                    onChange={handleInputChange}
+                    placeholder="Enter amount"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
+                    required
+                  />
+                </div>
+
+                {/* Payment Method */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Payment Method</label>
+                  <select
+                    name="paymentMethod"
+                    value={formData.paymentMethod}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900"
+                    required
+                  >
+                    <option value="">Select a method</option>
+                    <option value="bank">Bank Transfer</option>
+                    <option value="wallet">Digital Wallet</option>
+                    <option value="check">Check</option>
+                    <option value="crypto">Cryptocurrency</option>
+                  </select>
+                </div>
+
+                {/* Account Name */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Account Name</label>
+                  <input
+                    type="text"
+                    name="accountName"
+                    value={formData.accountName}
+                    onChange={handleInputChange}
+                    placeholder="Enter account name"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
+                    required
+                  />
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Instructions or Notes</label>
+                  <textarea
+                    name="notes"
+                    value={formData.notes}
+                    onChange={handleInputChange}
+                    placeholder="Add any special instructions..."
+                    rows={4}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300 resize-none"
+                  />
+                </div>
+
+                {/* Submit */}
+                <button
+                  onClick={handleSubmit}
+                  className="w-full bg-slate-900 hover:bg-slate-700 text-white text-sm font-medium py-2.5 px-4 rounded-lg transition-colors"
                 >
-                  <option value="">Select a method</option>
-                  <option value="bank">Bank Transfer</option>
-                  <option value="wallet">Digital Wallet</option>
-                  <option value="check">Check</option>
-                  <option value="crypto">Cryptocurrency</option>
-                </select>
+                  Submit Request
+                </button>
               </div>
-
-              {/* Account Name */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Account Name</label>
-                <input
-                  type="text"
-                  name="accountName"
-                  value={formData.accountName}
-                  onChange={handleInputChange}
-                  placeholder="Enter account name"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              {/* Instructions/Notes */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Instructions or Notes</label>
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleInputChange}
-                  placeholder="Add any special instructions..."
-                  rows={4}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                />
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-              >
-                Submit Request
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {/* Withdrawal History */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
-            <div className="p-6 border-b border-slate-200">
-              <h2 className="text-2xl font-bold text-slate-900">Withdrawal History</h2>
             </div>
+          </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left font-semibold text-slate-700">Date & Time</th>
-                    <th className="px-6 py-3 text-left font-semibold text-slate-700">Requested</th>
-                    <th className="px-6 py-3 text-right font-semibold text-slate-700">Amount</th>
-                    <th className="px-6 py-3 text-right font-semibold text-slate-700">VAT</th>
-                    <th className="px-6 py-3 text-right font-semibold text-slate-700">Total</th>
-                    <th className="px-6 py-3 text-center font-semibold text-slate-700">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {withdrawals.map((withdrawal) => (
-                    <tr key={withdrawal.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 text-slate-900">
-                        <div className="font-semibold">{withdrawal.date}</div>
-                        <div className="text-xs text-slate-500">{withdrawal.time}</div>
-                      </td>
-                      <td className="px-6 py-4 text-slate-700">{withdrawal.requestedDate}</td>
-                      <td className="px-6 py-4 text-right text-slate-900 font-semibold">
-                        ${withdrawal.requestAmount.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 text-right text-slate-900 font-semibold">
-                        ${withdrawal.vat.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 text-right text-slate-900 font-bold">
-                        ${withdrawal.totalAmount.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span
-                          className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border capitalize ${getStatusBadgeColor(
-                            withdrawal.status
-                          )}`}
-                        >
-                          {withdrawal.status}
-                        </span>
-                      </td>
+          {/* Withdrawal History */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+
+              {/* Table Header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Withdrawal History</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">{withdrawals.length} record{withdrawals.length !== 1 ? 's' : ''}</p>
+                </div>
+                <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
+                  {withdrawals.filter(w => w.status === 'completed').length} completed
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date & Time</th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Requested</th>
+                      <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Amount</th>
+                      <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">VAT</th>
+                      <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Total</th>
+                      <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {withdrawals.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-16 text-center">
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">
+                              ✦
+                            </div>
+                            <p className="text-slate-400 text-sm">No withdrawal records yet</p>
+                            <p className="text-slate-300 text-xs">Submit a request to get started</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      withdrawals.map((w) => (
+                        <tr key={w.id} className="hover:bg-slate-50 transition-colors duration-150">
+                          <td className="px-6 py-4">
+                            <p className="font-medium text-slate-900">{w.date}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{w.time}</p>
+                          </td>
+                          <td className="px-6 py-4 text-slate-500">{w.requestedDate}</td>
+                          <td className="px-6 py-4 text-right text-slate-900">₱{w.requestAmount.toLocaleString()}</td>
+                          <td className="px-6 py-4 text-right text-slate-500">₱{w.vat.toLocaleString()}</td>
+                          <td className="px-6 py-4 text-right font-semibold text-slate-900">₱{w.totalAmount.toLocaleString()}</td>
+                          <td className="px-6 py-4 text-center">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${getStatusBadge(w.status)}`}>
+                              {w.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>

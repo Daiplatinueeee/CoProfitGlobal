@@ -35,6 +35,10 @@ export class PairingAward {
   // Bronze=3, Silver=16, Gold=30, Platinum=50
   @Prop({ required: true, default: 0 })
   capLimit: number;
+
+  // GC credited per pairing: 1 GC per 5 paired points (the 5th point pays GC instead of PHP)
+  @Prop({ required: true, default: 0 })
+  gcAwarded: number;
 }
 
 export const PairingAwardSchema = SchemaFactory.createForClass(PairingAward);

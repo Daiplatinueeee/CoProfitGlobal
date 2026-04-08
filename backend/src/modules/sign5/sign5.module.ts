@@ -7,8 +7,8 @@ import { Sign5Service } from './sign5.service';
 import { Sign5Status, Sign5StatusSchema } from './schemas/sign5-status.schema';
 import { Sign5Award, Sign5AwardSchema } from './schemas/sign5-award.schema';
 
-// We read activations
-import { Activation, ActivationSchema } from '../activations/schemas/activation.schema';
+// We query users for direct referral counts
+import { User, UserSchema } from '../users/schemas/user.schema';
 
 // We post to wallet
 import { WalletModule } from '../wallet/wallet.module';
@@ -19,7 +19,7 @@ import { WalletModule } from '../wallet/wallet.module';
     MongooseModule.forFeature([
       { name: Sign5Status.name, schema: Sign5StatusSchema },
       { name: Sign5Award.name, schema: Sign5AwardSchema },
-      { name: Activation.name, schema: ActivationSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [Sign5Controller],

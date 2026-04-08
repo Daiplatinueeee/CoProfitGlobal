@@ -38,9 +38,60 @@ export class WalletService {
 
     for (const r of rows) map[r.currency] = r.balance;
 
-    console.log(`[wallet:getBalances] userId=${userId} balances=${JSON.stringify(map)}`);
 
     return { userId, balances: map };
+  }
+
+  async getIncomeSummary(userId: string) {
+    const uid = this.toObjectId(userId);
+    const now = new Date();
+
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const rows = await this.txnModel.aggregate([
+      {
+        $match: {
+          userId: uid,
+          currency: WalletCurrency.PHP,
+          type: WalletTxnType.CREDIT,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalIncome:          { $sum: '$amount' },
+          pairingBonus:         { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.PAIRING] },           '$amount', 0] } },
+          sign5Bonus:           { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.SIGN5] },             '$amount', 0] } },
+          leadershipBonus:      { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.LEADERSHIP] },        '$amount', 0] } },
+          directReferralBonus:  { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.REFERRAL_DIRECT] },   '$amount', 0] } },
+          indirectReferralBonus:{ $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.REFERRAL_INDIRECT] }, '$amount', 0] } },
+          today:    { $sum: { $cond: [{ $gte: ['$postedAt', startOfToday] }, '$amount', 0] } },
+          thisWeek: { $sum: { $cond: [{ $gte: ['$postedAt', startOfWeek] },  '$amount', 0] } },
+          thisMonth:{ $sum: { $cond: [{ $gte: ['$postedAt', startOfMonth] }, '$amount', 0] } },
+        },
+      },
+    ]);
+
+    const s = rows[0];
+    return {
+      userId,
+      totalIncome:           s?.totalIncome           ?? 0,
+      pairingBonus:          s?.pairingBonus          ?? 0,
+      sign5Bonus:            s?.sign5Bonus            ?? 0,
+      leadershipBonus:       s?.leadershipBonus       ?? 0,
+      directReferralBonus:   s?.directReferralBonus   ?? 0,
+      indirectReferralBonus: s?.indirectReferralBonus ?? 0,
+      today:                 s?.today                 ?? 0,
+      thisWeek:              s?.thisWeek              ?? 0,
+      thisMonth:             s?.thisMonth             ?? 0,
+    };
   }
 
   async getTransactions(userId: string, limit = 50) {
@@ -141,6 +192,12 @@ export class WalletService {
       });
       console.log(`[wallet:credit] 📝 Transaction saved — txnId=${txn._id}`);
     } catch (err: any) {
+      if (err?.code === 11000) {
+        // Race condition: another concurrent call beat us to the insert — treat as already posted
+        console.warn(`[wallet:credit] ⚠ Duplicate insert race — refKey=${params.refKey}`);
+        const balances = await this.getBalances(params.userId);
+        return { message: 'Already posted', ...balances };
+      }
       console.error(`[wallet:credit] ✖ Failed to save transaction — ${err.message}`);
       throw err;
     }
@@ -239,6 +296,12 @@ export class WalletService {
       });
       console.log(`[wallet:debit] 📝 Transaction saved — txnId=${txn._id}`);
     } catch (err: any) {
+      if (err?.code === 11000) {
+        // Race condition: another concurrent call beat us to the insert — treat as already posted
+        console.warn(`[wallet:debit] ⚠ Duplicate insert race — refKey=${params.refKey}`);
+        const balances = await this.getBalances(params.userId);
+        return { message: 'Already posted', ...balances };
+      }
       console.error(`[wallet:debit] ✖ Failed to save transaction — ${err.message}`);
       throw err;
     }

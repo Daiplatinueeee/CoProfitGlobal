@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model, Types } from 'mongoose'
 
@@ -6,13 +6,17 @@ import { ActivateMemberDto } from './dto/activate-member.dto'
 import { Activation, ActivationDocument } from './schemas/activation.schema'
 
 import { GenealogyService } from '../genealogy/genealogy.service'
+import { Sign5Service } from '../sign5/sign5.service'
 import { MembershipTier } from '../users/schemas/user.schema'
 import { GenealogySide } from '../genealogy/schema/genealogy-node.schema'
 
 @Injectable()
 export class ActivationsService {
+  private readonly logger = new Logger(ActivationsService.name)
+
   constructor(
     private readonly genealogyService: GenealogyService,
+    private readonly sign5Service: Sign5Service,
     @InjectModel(Activation.name)
     private readonly activationModel: Model<ActivationDocument>,
   ) {}
@@ -45,15 +49,24 @@ export class ActivationsService {
       throw new BadRequestException('leg is required')
     }
 
-    if (!dto.username) {
-      throw new BadRequestException('username is required')
+    if (!dto.name) {
+      throw new BadRequestException('name is required')
     }
 
     const result = await this.genealogyService.placeMember({
       parentUserId: dto.parentUserId,
-      leg: dto.leg as GenealogySide,
-      username: dto.username,
+      leg:          dto.leg as GenealogySide,
       placerUserId: dto.placerUserId,
+      name:         dto.name,
+      username:     dto.username,
+      email:        dto.email,
+      password:     dto.password,
+      packagePin:   dto.packagePin,
+      age:          dto.age,
+      contact:      dto.contact,
+      address:      dto.address,
+      beneficiary:  dto.beneficiary,
+      birthday:     dto.birthday,
     })
 
     if (!result.membershipTier) {
@@ -73,6 +86,11 @@ export class ActivationsService {
       pinId: dto.pinId ? this.toObjectId(dto.pinId) : undefined,
       activatedAt: new Date(),
     })
+
+    // Evaluate Sign5 for the sponsor — fire-and-forget so it never blocks placement
+    this.sign5Service.evaluateForUser(dto.sponsorId).catch((err) =>
+      this.logger.error(`[sign5] Auto-evaluate failed for sponsor ${dto.sponsorId}: ${err.message}`),
+    )
 
     return {
       message: 'Placed + recorded activation',

@@ -167,15 +167,30 @@ export class VolumeService {
       points: number
     }> = []
 
-    // ── Walk path and credit each ancestor's bucket ───────────────────
-    for (let i = 0; i < fullPath.length - 1; i++) {
+    // ── Credit only the immediate parent's bucket ────────────────────
+    // Topline users (grandparent and above) receive leg points only when
+    // a pairing happens below them (handled in PairingService), not from placements.
+    const parentIndex = fullPath.length - 2
+    if (parentIndex < 0) {
+      return {
+        sourceUserId,
+        points,
+        membershipTier,
+        awardedTo: [],
+        skipped: false,
+        message: 'Source user has no parent to credit',
+      }
+    }
+
+    {
+      const i = parentIndex
       const ancestorUserId   = fullPath[i]
       const nextUserIdInPath = fullPath[i + 1]
 
       const ancestorNode: any = ancestorNodeMap.get(ancestorUserId)
       if (!ancestorNode) {
         this.logger.warn(`[volume] Ancestor node not found for userId=${ancestorUserId}, skipping`)
-        continue
+        return { sourceUserId, points, membershipTier, awardedTo, skipped: false, message: 'Parent node not found' }
       }
 
       // Determine which leg the next node sits on

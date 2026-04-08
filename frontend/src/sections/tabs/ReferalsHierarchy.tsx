@@ -1,150 +1,162 @@
-import pic1 from './../../assets/refs/Logo.webp';
-import pic2 from './../../assets/refs/Logo.webp';
-import pic3 from './../../assets/refs/Logo.webp';
-import pic4 from './../../assets/refs/Logo.webp';
-import pic5 from './../../assets/refs/Logo.webp';
-import pic6 from './../../assets/refs/Logo.webp';
-import pic7 from './../../assets/refs/Logo.webp';
-import pic8 from './../../assets/refs/Logo.webp';
+import { useEffect, useState } from 'react';
+import defaultLogo from './../../assets/refs/Logo.webp';
+
+const API_BASE_URL = 'http://localhost:3000';
+
+function getAuthContext() {
+  const token = localStorage.getItem('accessToken');
+  let userId = localStorage.getItem('userId');
+  if (!userId) {
+    const str = localStorage.getItem('user');
+    if (str) {
+      try {
+        const obj = JSON.parse(str);
+        userId = obj.id ?? obj._id ?? obj.userId;
+      } catch {}
+    }
+  }
+  return { token, userId };
+}
 
 function ReferalsHierarchy() {
-  const referralsData = [
-    { id: 1, level: 1, username: "john_doe", email: "john.doe@gmail.com", profilePicture: pic1, dateTime: "2025-02-22T14:30:00", isActive: true },
-    { id: 2, level: 1, username: "jane_smith", email: "jane.smith@gmail.com", profilePicture: pic2, dateTime: "2025-02-21T10:15:00", isActive: true },
-    { id: 3, level: 2, username: "mike_johnson", email: "mike.johnson@gmail.com", profilePicture: pic3, dateTime: "2025-02-18T09:45:00", isActive: true },
-    { id: 4, level: 3, username: "alex_turner", email: "alex.turner@gmail.com", profilePicture: pic4, dateTime: "2025-02-16T12:20:00", isActive: false },
-  ];
+  const [directReferrals, setDirectReferrals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const pairingBonusData = [
-    {
-      id: 1, level: 4, dateTime: "2025-02-15T16:00:00",
-      leftUser: { username: "emma_left", profilePicture: pic5 },
-      rightUser: { username: "liam_right", profilePicture: pic6 },
-      totalBonus: 250, isActive: true
-    },
-    {
-      id: 2, level: 4, dateTime: "2025-02-14T11:30:00",
-      leftUser: { username: "noah_left", profilePicture: pic7 },
-      rightUser: { username: "olivia_right", profilePicture: pic8 },
-      totalBonus: 180, isActive: false
-    },
-  ];
+  useEffect(() => {
+    const { token, userId } = getAuthContext();
+    if (!token || !userId) return;
 
-  const sign5Data = [
-    { rank: "Bronze", count: 0, required: 5, bonus: 500 },
-    { rank: "Silver", count: 0, required: 5, bonus: 1500 },
-    { rank: "Gold", count: 0, required: 5, bonus: 2500 },
-    { rank: "Platinum", count: 0, required: 5, bonus: 3500 },
-  ];
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  const leadershipBonusData = pairingBonusData.map(pair => ({
-    id: pair.id,
-    dateTime: pair.dateTime,
-    leadershipBonus: pair.totalBonus * 0.2,
-    isActive: pair.isActive,
-  }));
+    fetch(`${API_BASE_URL}/genealogy/referrals/${userId}`, { headers })
+      .then(r => r.json())
+      .then((data) => {
+        setDirectReferrals(data.direct ?? []);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
-  const groupedByLevel = referralsData.reduce((acc, referral) => {
-    if (!acc[referral.level]) acc[referral.level] = [];
-    acc[referral.level].push(referral);
-    return acc;
-  }, {} as Record<number, typeof referralsData>);
-
-  const getLevelTitle = (level: string) => {
-    switch (level) {
-      case "1": return "Level 1 - Direct Referrals";
-      case "2": return "Level 2 - Indirect Referrals";
-      case "3": return "Level 3 - Spill Over";
-      default: return "";
-    }
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
   };
 
-  const formatDateTime = (dateTime: string) =>
-    new Date(dateTime).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const getInitials = (username: string) => {
+    return username?.slice(0, 2).toUpperCase() ?? '??';
+  };
 
-  const getStatusBadge = (isActive: boolean) => (
-    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${isActive ? "bg-green-100 text-green-800" : "bg-slate-200 text-slate-700"}`}>
-      {isActive ? "Active" : "Inactive"}
-    </span>
-  );
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64 bg-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-slate-500 animate-spin" />
+          <p className="text-slate-400 text-sm">Loading referrals...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-6 bg-white space-y-12">
-      <h2 className="text-3xl font-semibold text-slate-900 mb-8">Referral Hierarchy</h2>
+    <div className="min-h-screen bg-white">
+      <div className="w-full max-w-5xl mx-auto px-6 py-10">
 
-      {/* LEVEL 1-3 TABLES */}
-      <div className="space-y-10">
-        {Object.entries(groupedByLevel).map(([level, referrals]) => (
-          <div key={level}>
-            <div className="mb-4 pb-2 border-b-2 border-slate-300">
-              <h3 className="text-xl font-bold text-slate-900">{getLevelTitle(level)}</h3>
-              <p className="text-sm text-slate-500">{referrals.length} record(s)</p>
-            </div>
-            <div className="overflow-x-auto rounded-lg border border-slate-200">
-              <table className="w-full text-sm text-left text-slate-600">
-                <thead className="bg-slate-100 text-slate-900 font-semibold">
-                  <tr>
-                    <th className="px-6 py-4 text-center">Profile</th>
-                    <th className="px-6 py-4">Username</th>
-                    <th className="px-6 py-4">Email</th>
-                    <th className="px-6 py-4">Date & Time</th>
-                    <th className="px-6 py-4">Account Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {referrals.map(referral => (
-                    <tr key={referral.id} className="border-t border-slate-200 hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 text-center"><img src={referral.profilePicture} alt={referral.username} className="w-12 h-12 rounded-full border mx-auto" /></td>
-                      <td className="px-6 py-4 font-semibold text-slate-900">{referral.username}</td>
-                      <td className="px-6 py-4">{referral.email}</td>
-                      <td className="px-6 py-4">{formatDateTime(referral.dateTime)}</td>
-                      <td className="px-6 py-4">{getStatusBadge(referral.isActive)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ))}
-
-        {/* LEVEL 4 - SIGN 5 */}
-        <div>
-          <div className="mb-4 pb-2 border-b-2 border-slate-300">
-            <h3 className="text-xl font-bold text-slate-900">Level 4 - Sign 5 Bonus</h3>
-          </div>
-          <div className="grid md:grid-cols-4 gap-6">
-            {sign5Data.map(rank => (
-              <div key={rank.rank} className="border rounded-lg p-5 shadow-sm bg-white">
-                <h4 className="text-lg font-bold mb-2">{rank.rank}</h4>
-                <p className="text-sm text-slate-600 mb-2">{rank.count}/{rank.required} (can exceed)</p>
-                <p className="font-semibold text-green-700 text-lg">Current Bonus: ₱{rank.bonus}</p>
-              </div>
-            ))}
-          </div>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Referral Hierarchy</h1>
+          <p className="text-sm text-slate-400 mt-1">Manage and track your direct referrals</p>
         </div>
 
-        {/* LEVEL 5 - LEADERSHIP BONUS */}
-        <div>
-          <div className="mb-4 pb-2 border-b-2 border-slate-300">
-            <h3 className="text-xl font-bold text-slate-900">Level 5 - Leadership Bonus (20%)</h3>
+        {/* Stat Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          {[
+            { label: 'Total Referrals', value: directReferrals.length },
+            { label: 'This Month', value: directReferrals.filter(r => (r.createdAt ?? '').slice(0, 7) === new Date().toISOString().slice(0, 7)).length },
+            { label: 'Active', value: directReferrals.filter(r => r.status === 'active').length },
+            { label: 'Pending', value: directReferrals.filter(r => r.status === 'pending').length },
+          ].map(stat => (
+            <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-5 py-4">
+              <p className="text-xs text-slate-400 mb-1">{stat.label}</p>
+              <p className="text-2xl font-semibold text-slate-900">{stat.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Table Card */}
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+
+          {/* Table Header */}
+          <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Direct Referrals</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Level 1 — {directReferrals.length} member{directReferrals.length !== 1 ? 's' : ''}</p>
+            </div>
+            <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
+              {directReferrals.length} total
+            </span>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full text-sm text-left text-slate-600">
-              <thead className="bg-slate-100 text-slate-900 font-semibold">
-                <tr>
-                  <th className="px-6 py-4">Date & Time</th>
-                  <th className="px-6 py-4">Leadership Bonus (20%)</th>
-                  <th className="px-6 py-4">Account Status</th>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Member</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Email</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Tier</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date Joined</th>
                 </tr>
               </thead>
-              <tbody>
-                {leadershipBonusData.map(item => (
-                  <tr key={item.id} className="border-t border-slate-200 hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">{formatDateTime(item.dateTime)}</td>
-                    <td className="px-6 py-4 font-bold text-blue-700">₱{item.leadershipBonus}</td>
-                    <td className="px-6 py-4">{getStatusBadge(item.isActive)}</td>
+              <tbody className="divide-y divide-slate-50">
+                {directReferrals.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-16 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">
+                          ✦
+                        </div>
+                        <p className="text-slate-400 text-sm">No direct referrals yet</p>
+                        <p className="text-slate-300 text-xs">Share your referral link to get started</p>
+                      </div>
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  directReferrals.map((referral: any) => (
+                    <tr
+                      key={referral.id}
+                      className="hover:bg-slate-50 transition-colors duration-150"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {referral.profileImage ? (
+                            <img
+                              src={referral.profileImage || defaultLogo}
+                              alt={referral.username}
+                              className="w-9 h-9 rounded-full object-cover border border-slate-100 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-500 shrink-0">
+                              {getInitials(referral.username)}
+                            </div>
+                          )}
+                          <span className="font-medium text-slate-900">{referral.username}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-500">{referral.email}</td>
+                      <td className="px-6 py-4">
+                        {referral.membershipTier ? (
+                          <TierBadge tier={referral.membershipTier} />
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-slate-400">{formatDate(referral.createdAt)}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -152,6 +164,32 @@ function ReferalsHierarchy() {
 
       </div>
     </div>
+  );
+}
+
+function TierBadge({ tier }: { tier: string }) {
+  const t = tier.toLowerCase();
+
+  const styles: Record<string, string> = {
+    bronze:   'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+    silver:   'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
+    gold:     'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200',
+    platinum: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+  };
+
+  const label: Record<string, string> = {
+    bronze: 'Bronze',
+    silver: 'Silver',
+    gold: 'Gold',
+    platinum: 'Platinum',
+  };
+
+  const cls = styles[t] ?? 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
+
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+      {label[t] ?? tier}
+    </span>
   );
 }
 

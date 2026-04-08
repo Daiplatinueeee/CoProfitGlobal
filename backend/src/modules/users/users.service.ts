@@ -166,7 +166,7 @@ export class UsersService {
     const updated = await this.userModel.findByIdAndUpdate(
       userId,
       { $set: { membershipTier } },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!updated) {

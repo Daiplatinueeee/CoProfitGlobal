@@ -6,6 +6,7 @@ import { PairingState, PairingStateDocument } from './schemas/pairing-state.sche
 import { PairingAward, PairingAwardDocument } from './schemas/pairing-award.schema';
 import { VolumeBucket, VolumeBucketDocument, VolumeLeg } from '../volume/schemas/volume-bucket.schema';
 import { User, UserDocument, MembershipTier } from '../users/schemas/user.schema';
+import { GenealogyNode, GenealogyNodeDocument } from '../genealogy/schema/genealogy-node.schema';
 import { WalletService } from '../wallet/wallet.service';
 import { WalletCurrency, WalletTxnSource } from '../wallet/schemas/wallet-transaction.schema';
 
@@ -31,6 +32,7 @@ export class PairingService {
    * Bronze = 3, Silver = 16, Gold = 30, Platinum = 50
    */
   private readonly TIER_CAP_MAP: Record<MembershipTier, number> = {
+    [MembershipTier.FREE]:     0,
     [MembershipTier.BRONZE]:   3,
     [MembershipTier.SILVER]:   16,
     [MembershipTier.GOLD]:     30,
@@ -49,6 +51,9 @@ export class PairingService {
 
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+
+    @InjectModel(GenealogyNode.name)
+    private readonly genealogyNodeModel: Model<GenealogyNodeDocument>,
 
     private readonly walletService: WalletService,
   ) {}
@@ -157,19 +162,17 @@ export class PairingService {
       const rightAvailable = rightBucket?.availablePoints ?? 0;
       const pairable       = Math.min(leftAvailable, rightAvailable);
 
-      if (pairable <= 0) {
-        this.logger.debug(
-          `[tryPair] ${userIdStr} — not enough points on both legs ` +
-          `(L=${leftAvailable}, R=${rightAvailable})`,
-        );
-        break;
-      }
-
       // How many pairs can we do this pass?
       const pairedPoints = Math.min(pairable, capRemaining);
-      const payoutPhp    = pairedPoints * this.RATE_PHP_PER_POINT;
+      if (pairedPoints <= 0) break;
       const leftCarryOut = leftAvailable  - pairedPoints;
       const rightCarryOut = rightAvailable - pairedPoints;
+
+      // Every 5th paired point → 1 GC (that point does not pay PHP).
+      // The other 4 in each group still pay PHP. Counter resets each pairing.
+      const gcAwarded = Math.floor(pairedPoints / 5);
+      const phpPoints = pairedPoints - gcAwarded;
+      const payoutPhp = phpPoints * this.RATE_PHP_PER_POINT;
 
       // Sequential periodKey: YYYY-MM-DD-1, YYYY-MM-DD-2, …
       const seq       = await this.getDailySequence(userId, dateKey);
@@ -213,26 +216,50 @@ export class PairingService {
           payoutPhp,
           ratePhpPerPoint: this.RATE_PHP_PER_POINT,
           capLimit: dailyCap,
+          gcAwarded,
         }),
       ]);
 
-      // ── Credit PHP wallet ──────────────────────────────────────────
+      // ── Credit wallet ──────────────────────────────────────────────
+      if (gcAwarded > 0) {
+        await this.walletService.credit({
+          userId: userIdStr,
+          currency: WalletCurrency.GC_POINTS,
+          amount: gcAwarded,
+          source: WalletTxnSource.PAIRING,
+          refKey: `pairing:gc:${userIdStr}:${periodKey}`,
+          note: `GC reward — seq ${seq} (${dateKey}) | ${gcAwarded} GC (every 5th point)`,
+          meta: {
+            periodKey,
+            seq,
+            membershipTier: tier,
+            pairedPoints,
+            gcAwarded,
+            capLimit: dailyCap,
+            capUsed: capUsed + pairedPoints,
+            leftAvailable,
+            rightAvailable,
+            leftCarryOut,
+            rightCarryOut,
+          },
+        });
+      }
       if (payoutPhp > 0) {
         await this.walletService.credit({
           userId: userIdStr,
           currency: WalletCurrency.PHP,
           amount: payoutPhp,
           source: WalletTxnSource.PAIRING,
-          // refKey is globally unique — prevents double-posting
           refKey: `pairing:${userIdStr}:${periodKey}`,
           note:
             `Pairing bonus — seq ${seq} (${dateKey}) | ` +
-            `${pairedPoints} pts × ₱${this.RATE_PHP_PER_POINT}`,
+            `${phpPoints} pts × ₱${this.RATE_PHP_PER_POINT}`,
           meta: {
             periodKey,
             seq,
             membershipTier: tier,
             pairedPoints,
+            phpPoints,
             capLimit: dailyCap,
             capUsed: capUsed + pairedPoints,
             ratePhpPerPoint: this.RATE_PHP_PER_POINT,
@@ -243,6 +270,11 @@ export class PairingService {
           },
         });
       }
+
+      // ── Cascade leg points to parent (topline) ────────────────────
+      this.creditParentAfterPairing(userId, pairedPoints).catch((err) =>
+        this.logger.error(`[tryPair] creditParentAfterPairing failed: ${err.message}`),
+      )
 
       const formattedAward = this.formatAward(award.toObject());
       awards.push(formattedAward);
@@ -272,6 +304,45 @@ export class PairingService {
       totalPayoutPhp,
       awards,
     };
+  }
+
+  // ── Topline cascade ───────────────────────────────────────────────────────
+
+  /**
+   * After a pairing for `userId`, credit the immediate parent's leg bucket with
+   * `pairedPoints` (on whichever leg `userId` sits on), then fire-and-forget
+   * tryPairIfPossible for the parent so points bubble up the tree.
+   */
+  private async creditParentAfterPairing(
+    userId: Types.ObjectId,
+    pairedPoints: number,
+  ): Promise<void> {
+    const node = await this.genealogyNodeModel
+      .findOne({ userId })
+      .select('parentUserId position')
+      .lean()
+
+    if (!node?.parentUserId) return   // root user — no parent to credit
+
+    const parentId = node.parentUserId as Types.ObjectId
+    const leg = (node as any).position === 'left' ? VolumeLeg.LEFT : VolumeLeg.RIGHT
+
+    await this.bucketModel.updateOne(
+      { ownerUserId: parentId, leg },
+      { $inc: { totalPoints: pairedPoints, availablePoints: pairedPoints } },
+      { upsert: true },
+    )
+
+    await this.userModel.updateOne(
+      { _id: parentId },
+      leg === VolumeLeg.LEFT
+        ? { $inc: { leftLegPoints: pairedPoints } }
+        : { $inc: { rightLegPoints: pairedPoints } },
+    )
+
+    this.tryPairIfPossible(parentId.toString()).catch((err) =>
+      this.logger.error(`[creditParentAfterPairing] cascade pair failed for ${parentId}: ${err.message}`),
+    )
   }
 
   // ── Manual / admin trigger ────────────────────────────────────────────────
@@ -330,6 +401,90 @@ export class PairingService {
     };
   }
 
+  // ── Downline History ─────────────────────────────────────────────────────
+
+  async getDownlineHistory(rootUserIdStr: string, limit = 100) {
+    const rootUserId = this.toObjectId(rootUserIdStr);
+
+    const downlineNodes = await this.genealogyNodeModel
+      .find({ ancestors: rootUserId })
+      .select('userId depth position')
+      .lean();
+
+    if (downlineNodes.length === 0) return [];
+
+    const depthMap = new Map<string, { depth: number; position: string | null }>();
+    const downlineUserIds: Types.ObjectId[] = [];
+
+    for (const node of downlineNodes) {
+      const uid = (node as any).userId.toString();
+      depthMap.set(uid, { depth: (node as any).depth, position: (node as any).position ?? null });
+      downlineUserIds.push((node as any).userId);
+    }
+
+    const awards = await this.awardModel
+      .find({ userId: { $in: downlineUserIds } })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    if (awards.length === 0) return [];
+
+    const uniqueUserIds = [...new Set(awards.map((a) => a.userId.toString()))];
+    const users = await this.userModel
+      .find({ _id: { $in: uniqueUserIds.map((id) => new Types.ObjectId(id)) } })
+      .select('username membershipTier')
+      .lean();
+
+    const userMap = new Map<string, any>(
+      (users as any[]).map((u) => [u._id.toString(), u]),
+    );
+
+    return awards.map((award) => {
+      const uid = award.userId.toString();
+      const user = userMap.get(uid);
+      const genealogy = depthMap.get(uid);
+      return {
+        award: this.formatAward(award),
+        username: user?.username ?? uid,
+        membershipTier: user?.membershipTier ?? award.membershipTier,
+        depth: genealogy?.depth ?? 0,
+        position: genealogy?.position ?? null,
+      };
+    });
+  }
+
+  // ── History ───────────────────────────────────────────────────────────────
+
+  async getHistory(userIdStr: string, limit = 50) {
+    const userId = this.toObjectId(userIdStr);
+
+    const [awards, states] = await Promise.all([
+      this.awardModel
+        .find({ userId })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .lean(),
+      this.stateModel
+        .find({ userId })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .lean(),
+    ]);
+
+    const stateMap = new Map<string, any>(
+      states.map((s) => [s.periodKey, s]),
+    );
+
+    return awards.map((award) => {
+      const state = stateMap.get(award.periodKey);
+      return {
+        award: this.formatAward(award),
+        state: state ? this.formatState(state) : null,
+      };
+    });
+  }
+
   // ── Formatters ────────────────────────────────────────────────────────────
 
   formatState(s: any) {
@@ -362,6 +517,7 @@ export class PairingService {
       payoutPhp:       a.payoutPhp,
       ratePhpPerPoint: a.ratePhpPerPoint,
       capLimit:        a.capLimit,
+      gcAwarded:       a.gcAwarded ?? 0,
       createdAt:       a.createdAt,
     };
   }

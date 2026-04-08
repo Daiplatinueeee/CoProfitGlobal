@@ -1,4 +1,5 @@
-import { X, AlertCircle, ShieldCheck, Link2 } from "lucide-react";
+import React from "react";
+import { X, AlertCircle, ShieldCheck } from "lucide-react";
 
 interface FormData {
   name: string;
@@ -102,6 +103,18 @@ function maskPackagePin(raw: string): string {
   const letters = upper.slice(0, 2).replace(/[^A-Z]/g, "");
   const digits = upper.slice(letters.length).replace(/[^0-9]/g, "").slice(0, 4);
   return letters + digits;
+}
+
+/** Calculates age in full years from a date string (YYYY-MM-DD), relative to 2026. */
+function calculateAgeFromBirthday(bday: string): number | null {
+  if (!bday) return null;
+  const birth = new Date(bday);
+  if (isNaN(birth.getTime())) return null;
+  const ref = new Date(2026, new Date().getMonth(), new Date().getDate());
+  let age = ref.getFullYear() - birth.getFullYear();
+  const monthDiff = ref.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && ref.getDate() < birth.getDate())) age--;
+  return age >= 0 ? age : null;
 }
 
 function CreateUserModal({
@@ -214,34 +227,17 @@ function CreateUserModal({
                 )}
               </div>
 
-              {/* Age */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Age *</label>
-                <input
-                  type="number"
-                  value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                  className={`w-full px-4 py-2.5 text-sm rounded-xl transition-all ${
-                    formErrors.age
-                      ? "border-2 border-red-400 bg-red-50 focus:ring-red-100"
-                      : "border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white"
-                  } focus:outline-none focus:ring-1`}
-                  placeholder="25"
-                />
-                {formErrors.age && (
-                  <div className="flex items-center gap-1 mt-2 text-red-600 text-xs">
-                    <AlertCircle className="w-4 h-4" /> {formErrors.age}
-                  </div>
-                )}
-              </div>
-
               {/* Birthday */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Birthday *</label>
                 <input
                   type="date"
                   value={formData.bday}
-                  onChange={(e) => setFormData({ ...formData, bday: e.target.value })}
+                  onChange={(e) => {
+                    const newBday = e.target.value;
+                    const computedAge = calculateAgeFromBirthday(newBday);
+                    setFormData({ ...formData, bday: newBday, age: computedAge !== null ? String(computedAge) : "" });
+                  }}
                   className={`w-full px-4 py-2.5 text-sm rounded-xl transition-all ${
                     formErrors.bday
                       ? "border-2 border-red-400 bg-red-50 focus:ring-red-100"
@@ -251,6 +247,16 @@ function CreateUserModal({
                 {formErrors.bday && (
                   <div className="flex items-center gap-1 mt-2 text-red-600 text-xs">
                     <AlertCircle className="w-4 h-4" /> {formErrors.bday}
+                  </div>
+                )}
+                {formData.bday && calculateAgeFromBirthday(formData.bday) !== null && (
+                  <div className="flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-100">
+                    <svg className="w-3.5 h-3.5 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z" />
+                    </svg>
+                    <p className="text-xs text-blue-600">
+                      Age: <span className="font-semibold">{calculateAgeFromBirthday(formData.bday)} years old</span> as of 2026
+                    </p>
                   </div>
                 )}
               </div>
@@ -393,77 +399,74 @@ function CreateUserModal({
               {/* Tier badge / legend */}
               <div>
                 {displayTier ? (
-                  <div
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 ${displayTier.border} ${displayTier.bg} transition-all ${
-                      !tier ? "opacity-60" : ""
-                    }`}
-                  >
-                    <span className={`w-3 h-3 rounded-full shrink-0 ${displayTier.dot}`} />
-                    <div>
-                      <p className={`text-sm font-semibold ${displayTier.color}`}>
-                        {displayTier.label} Account
-                      </p>
-                      <p className="text-xs text-gray-500">{displayTier.description}</p>
-                      {!tier && (
-                        <p className="text-xs text-gray-400 italic">Complete PIN to confirm</p>
-                      )}
+                  <div className="space-y-2">
+                    <div
+                      className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 transition-all ${
+                        tier
+                          ? `${displayTier.border} ${displayTier.bg} shadow-sm`
+                          : `${displayTier.border} ${displayTier.bg} opacity-60`
+                      }`}
+                    >
+                      <span className={`w-3 h-3 rounded-full shrink-0 ${displayTier.dot}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className={`text-sm font-semibold ${displayTier.color}`}>
+                            {displayTier.label} Account
+                          </p>
+                          {tier ? (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${displayTier.bg} ${displayTier.color} border ${displayTier.border}`}>
+                              ✓ Confirmed
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400 border border-gray-200">
+                              Preview
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">{displayTier.description}</p>
+                        {!tier && (
+                          <p className="text-xs text-gray-400 italic mt-0.5">Complete PIN to confirm</p>
+                        )}
+                      </div>
+                    </div>
+                    {/* All tiers legend shown below for context */}
+                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                      {Object.entries(TIER_MAP).map(([key, t]) => (
+                        <div
+                          key={key}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                            displayTier.label === t.label
+                              ? `${t.border} ${t.bg} border-2`
+                              : "border-gray-100 bg-gray-50 opacity-50"
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${t.dot}`} />
+                          <span className={`text-xs font-medium ${t.color}`}>{t.label}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(TIER_MAP).map(([key, t]) => (
-                      <div
-                        key={key}
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50"
-                      >
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${t.dot}`} />
-                        <span className={`text-xs font-medium ${t.color}`}>{t.label}</span>
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-400 mb-1">Enter a PIN prefix to detect tier:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(TIER_MAP).map(([key, t]) => (
+                        <div
+                          key={key}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50"
+                        >
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${t.dot}`} />
+                          <span className={`text-xs font-medium ${t.color}`}>{t.label}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* ── Referral Link ── */}
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">
-              Referral
-            </h3>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Referral Link
-                <span className="ml-1.5 text-gray-400 font-normal text-xs">(optional)</span>
-              </label>
-              <div className="relative">
-                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                <input
-                  type="url"
-                  value={formData.sponsorReferralCode ?? ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sponsorReferralCode: e.target.value })
-                  }
-                  className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-xl transition-all ${
-                    formErrors.sponsorReferralCode
-                      ? "border-2 border-red-400 bg-red-50 focus:ring-red-100"
-                      : "border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white"
-                  } focus:outline-none focus:ring-1`}
-                  placeholder="https://example.com/ref/ABC123"
-                />
-              </div>
-              {formErrors.sponsorReferralCode ? (
-                <div className="flex items-center gap-1 mt-2 text-red-600 text-xs">
-                  <AlertCircle className="w-4 h-4" /> {formErrors.sponsorReferralCode}
-                </div>
-              ) : (
-                <p className="text-xs text-gray-400 mt-1.5">
-                  Paste the referral link of the person who referred this user.
-                </p>
-              )}
-            </div>
-          </div>
         </div>
 
         {/* Actions */}
