@@ -32,10 +32,6 @@ const leaderboardData: LeaderboardEntry[] = [
   { rank: 10, name: 'Felix Bautista', referrals: 14, earnings: 33100, avatar: felix },
 ];
 
-function avatarUrl(name: string, bg: string, size = 128) {
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bg}&color=fff&bold=true&size=${size}&rounded=true`;
-}
-
 const PODIUM_ORDER = [1, 0, 2]; // 2nd | 1st | 3rd
 
 const podiumMeta = [

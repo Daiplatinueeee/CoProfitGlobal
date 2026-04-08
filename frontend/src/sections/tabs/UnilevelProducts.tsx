@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, CheckCircle, ShoppingCart, X, AlertCircle } from 'lucide-react';
+import { Upload, CheckCircle, X, AlertCircle } from 'lucide-react';
 
 interface Product {
     id: string;
@@ -36,7 +36,7 @@ const paymentMethods = [
 ];
 
 export default function Unilevel() {
-    const [products] = useState<Product[]>([
+    const [] = useState<Product[]>([
         { id: '1', name: 'Starter Bundle',    price: 1500,  pv: 15,  description: 'Perfect for beginners',    image: image1, features: ['Basic access', '15 PV points', 'Support'] },
         { id: '2', name: 'Professional',       price: 3000,  pv: 30,  description: 'Growing your network',      image: image2, features: ['Full access', '30 PV points', 'Priority support'] },
         { id: '3', name: 'Premium',            price: 5000,  pv: 50,  description: 'For entrepreneurs',         image: image3, features: ['Premium access', '50 PV points', '24/7 support'] },
@@ -53,7 +53,7 @@ export default function Unilevel() {
         { id: '2', month: 'February 2025', status: 'pending',   paymentMethod: '',              proofFile: null,                uploadDate: null },
     ]);
 
-    const [selectedMonth, setSelectedMonth] = useState('');
+    const [, setSelectedMonth] = useState('');
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
@@ -91,12 +91,6 @@ export default function Unilevel() {
 
     const convertedCash = (totalUnilevelPV * 1).toFixed(2);
     const maintenanceDeadlineStatus = getMaintenanceStatus(1, 15);
-
-    const handleBuyClick = (product: Product) => {
-        setSelectedProduct(product);
-        setPurchaseQuantity(1);
-        setShowPurchaseModal(true);
-    };
 
     const handleClosePurchaseModal = () => {
         setShowPurchaseModal(false);
@@ -145,61 +139,6 @@ export default function Unilevel() {
                         </div>
                     ))}
                 </div>
-
-                {/* Products Section */}
-                {/* <div className="mb-10">
-                    <div className="flex items-center justify-between mb-5">
-                        <div>
-                            <h2 className="text-base font-semibold text-slate-900">Available Products</h2>
-                            <p className="text-xs text-slate-400 mt-0.5">Purchase products using your PV balance</p>
-                        </div>
-                        <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
-                            {totalUnilevelPV} PV available
-                        </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {products.map((product) => (
-                            <div
-                                key={product.id}
-                                className="relative rounded-2xl overflow-hidden border border-slate-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
-                            >
-                                <div className="h-36 w-full bg-slate-100 overflow-hidden">
-                                    <img
-                                        src={product.image}
-                                        alt={product.name}
-                                        className="h-full w-full object-cover"
-                                    />
-                                </div>
-
-                                <div className="bg-white px-5 py-4">
-                                    <p className="text-base font-semibold text-slate-900">{product.name}</p>
-                                    <p className="text-2xl font-bold text-slate-900 mt-0.5">₱{product.price.toLocaleString()}</p>
-
-                                    <ul className="space-y-2 mt-3">
-                                        {[
-                                            { label: "PV Points", value: `${product.pv} PV` },
-                                            { label: "Description", value: product.description },
-                                        ].map((f) => (
-                                            <li key={f.label} className="flex items-center justify-between">
-                                                <span className="text-xs text-slate-400">{f.label}</span>
-                                                <span className="text-xs font-semibold text-slate-900">{f.value}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-
-                                    <button
-                                        onClick={() => handleBuyClick(product)}
-                                        className="mt-4 w-full flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-900 hover:text-white text-slate-600 text-xs font-medium py-2 rounded-lg transition-colors"
-                                    >
-                                        <ShoppingCart size={12} />
-                                        Buy with PV
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div> */}
 
                 {/* Maintenance Payment Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
