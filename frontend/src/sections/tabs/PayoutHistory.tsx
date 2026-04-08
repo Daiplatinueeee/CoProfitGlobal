@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronDown, TrendingUp, Gift, Users, Award, Zap } from 'lucide-react';
+
+const API_BASE_URL = 'http://localhost:3000';
 
 interface PayoutTransaction {
   id: string;
@@ -10,62 +12,89 @@ interface PayoutTransaction {
   details?: string;
 }
 
-type FilterType = 'all' | 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus';
+type FilterType = 'all' | PayoutTransaction['type'];
 
-const payoutTypeConfig = {
-  withdraw: { label: 'Withdraw', icon: TrendingUp, badge: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
-  sign5_bonus: { label: 'Sign5 Bonus', icon: Gift, badge: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200' },
-  leadership_bonus: { label: 'Leadership Bonus', icon: Award, badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
-  direct_referral: { label: 'Direct Referral', icon: Users, badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
-  indirect_referral: { label: 'Indirect Referral', icon: Users, badge: 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200' },
-  pairing_bonus: { label: 'Pairing Bonus', icon: Zap, badge: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
+// Map backend WalletTxnSource values → frontend type keys
+const SOURCE_MAP: Record<string, PayoutTransaction['type']> = {
+  pairing:            'pairing_bonus',
+  sign5:              'sign5_bonus',
+  leadership:         'leadership_bonus',
+  referral_direct:    'direct_referral',
+  referral_indirect:  'indirect_referral',
+  withdrawal:         'withdraw',
+};
+
+const payoutTypeConfig: Record<PayoutTransaction['type'], { label: string; icon: any; badge: string }> = {
+  withdraw:          { label: 'Withdraw',          icon: TrendingUp, badge: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
+  sign5_bonus:       { label: 'Sign5 Bonus',        icon: Gift,       badge: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200' },
+  leadership_bonus:  { label: 'Leadership Bonus',   icon: Award,      badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
+  direct_referral:   { label: 'Direct Referral',    icon: Users,      badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
+  indirect_referral: { label: 'Indirect Referral',  icon: Users,      badge: 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200' },
+  pairing_bonus:     { label: 'Pairing Bonus',      icon: Zap,        badge: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
 };
 
 const statusBadge = (status: string) => {
   switch (status) {
     case 'completed': return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
-    case 'pending': return 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200';
-    default: return 'bg-red-50 text-red-700 ring-1 ring-red-200';
+    case 'pending':   return 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200';
+    default:          return 'bg-red-50 text-red-700 ring-1 ring-red-200';
   }
 };
 
 export default function PayoutHistory() {
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('all');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedId, setExpandedId]         = useState<string | null>(null);
+  const [searchQuery, setSearchQuery]       = useState('');
+  const [transactions, setTransactions]     = useState<PayoutTransaction[]>([]);
+  const [loading, setLoading]               = useState(true);
 
-  const [transactions] = useState<PayoutTransaction[]>([
-    { id: '1', type: 'pairing_bonus', amount: 500, date: '2025-02-20', status: 'completed', details: 'Pairing bonus from left leg and right leg pairing' },
-    { id: '2', type: 'direct_referral', amount: 1200, date: '2025-02-18', status: 'completed', details: 'Commissions from 3 direct referrals' },
-    { id: '3', type: 'withdraw', amount: 5000, date: '2025-02-15', status: 'completed', details: 'Bank transfer withdrawal' },
-    { id: '4', type: 'leadership_bonus', amount: 2500, date: '2025-02-10', status: 'completed', details: 'Monthly leadership bonus for tier 3' },
-    { id: '5', type: 'sign5_bonus', amount: 3000, date: '2025-02-08', status: 'completed', details: '5 pairing bonuses (5/5 cap reached)' },
-    { id: '6', type: 'indirect_referral', amount: 800, date: '2025-02-05', status: 'completed', details: 'Commissions from indirect network' },
-    { id: '7', type: 'pairing_bonus', amount: 600, date: '2025-02-01', status: 'completed', details: 'Pairing bonus from balanced network' },
-    { id: '8', type: 'withdraw', amount: 3000, date: '2025-01-28', status: 'completed', details: 'GCash withdrawal' },
-    { id: '9', type: 'direct_referral', amount: 1500, date: '2025-01-25', status: 'completed', details: 'Commissions from 2 direct referrals' },
-    { id: '10', type: 'leadership_bonus', amount: 2500, date: '2025-01-20', status: 'pending', details: 'Monthly leadership bonus for tier 3' },
-  ]);
+  useEffect(() => {
+    const token  = localStorage.getItem('accessToken');
+    const userId = localStorage.getItem('userId') ?? (() => {
+      try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.id ?? ''; } catch { return ''; }
+    })();
+
+    fetch(`${API_BASE_URL}/wallet/${userId}/transactions?limit=200`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((json: any[]) => {
+        if (!Array.isArray(json)) return;
+        const mapped: PayoutTransaction[] = json
+          .filter((t) => SOURCE_MAP[t.source])
+          .map((t) => ({
+            id:      t.id,
+            type:    SOURCE_MAP[t.source],
+            amount:  t.amount,
+            date:    t.createdAt ?? t.postedAt,
+            status:  t.type === 'debit' ? 'completed' : 'completed', // credits are completed; withdrawals use withdrawal module status
+            details: t.note ?? '',
+          }));
+        setTransactions(mapped);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const filteredTransactions = transactions
     .filter((t) => selectedFilter === 'all' || t.type === selectedFilter)
     .filter((t) =>
       searchQuery.trim() === '' ||
       payoutTypeConfig[t.type].label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (t.details ?? '').toLowerCase().includes(searchQuery.toLowerCase())
+      (t.details ?? '').toLowerCase().includes(searchQuery.toLowerCase()),
     );
 
   const totalCompleted = filteredTransactions.reduce((sum, t) => sum + (t.status === 'completed' ? t.amount : 0), 0);
-  const totalPending = filteredTransactions.reduce((sum, t) => sum + (t.status === 'pending' ? t.amount : 0), 0);
+  const totalPending   = filteredTransactions.reduce((sum, t) => sum + (t.status === 'pending'   ? t.amount : 0), 0);
 
   const filterOptions: { value: FilterType; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'withdraw', label: 'Withdraw' },
-    { value: 'sign5_bonus', label: 'Sign5 Bonus' },
-    { value: 'leadership_bonus', label: 'Leadership Bonus' },
-    { value: 'direct_referral', label: 'Direct Referral' },
+    { value: 'all',               label: 'All' },
+    { value: 'withdraw',          label: 'Withdraw' },
+    { value: 'sign5_bonus',       label: 'Sign5 Bonus' },
+    { value: 'leadership_bonus',  label: 'Leadership Bonus' },
+    { value: 'direct_referral',   label: 'Direct Referral' },
     { value: 'indirect_referral', label: 'Indirect Referral' },
-    { value: 'pairing_bonus', label: 'Pairing Bonus' },
+    { value: 'pairing_bonus',     label: 'Pairing Bonus' },
   ];
 
   return (
@@ -95,19 +124,19 @@ export default function PayoutHistory() {
         {/* Transaction List Card */}
         <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
 
-          {/* Card Header */}
           <div className="px-6 py-5 border-b border-slate-100 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-semibold text-slate-900">Transactions</h2>
-                <p className="text-xs text-slate-400 mt-0.5">{filteredTransactions.length} record{filteredTransactions.length !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {filteredTransactions.length} record{filteredTransactions.length !== 1 ? 's' : ''}
+                </p>
               </div>
               <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
                 {filteredTransactions.filter((t) => t.status === 'completed').length} completed
               </span>
             </div>
 
-            {/* Search */}
             <input
               type="text"
               placeholder="Search transactions..."
@@ -116,7 +145,6 @@ export default function PayoutHistory() {
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
             />
 
-            {/* Filters */}
             <div className="flex flex-wrap gap-2">
               {filterOptions.map((option) => (
                 <button
@@ -134,23 +162,22 @@ export default function PayoutHistory() {
             </div>
           </div>
 
-          {/* Transaction Rows */}
           <div className="divide-y divide-slate-50">
-            {filteredTransactions.length === 0 ? (
+            {loading ? (
+              <div className="px-6 py-12 text-center text-sm text-slate-400">Loading…</div>
+            ) : filteredTransactions.length === 0 ? (
               <div className="px-6 py-16 text-center">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">
-                    ✦
-                  </div>
+                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">✦</div>
                   <p className="text-slate-400 text-sm">No transactions found</p>
                   <p className="text-slate-300 text-xs">Try adjusting your filters or search</p>
                 </div>
               </div>
             ) : (
               filteredTransactions.map((transaction) => {
-                const config = payoutTypeConfig[transaction.type];
+                const config      = payoutTypeConfig[transaction.type];
                 const IconComponent = config.icon;
-                const isExpanded = expandedId === transaction.id;
+                const isExpanded  = expandedId === transaction.id;
 
                 return (
                   <div key={transaction.id} className="hover:bg-slate-50 transition-colors duration-150">
@@ -159,7 +186,6 @@ export default function PayoutHistory() {
                       className="w-full text-left px-6 py-4"
                     >
                       <div className="flex items-center justify-between gap-4">
-                        {/* Left: icon + label + date */}
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
                             <IconComponent className="w-4 h-4 text-slate-500" />
@@ -172,7 +198,6 @@ export default function PayoutHistory() {
                           </div>
                         </div>
 
-                        {/* Right: amount + status + chevron */}
                         <div className="flex items-center gap-4 shrink-0">
                           <div className="text-right">
                             <p className="text-sm font-semibold text-slate-900">₱{transaction.amount.toLocaleString()}</p>
@@ -180,9 +205,7 @@ export default function PayoutHistory() {
                               {transaction.status}
                             </span>
                           </div>
-                          <ChevronDown
-                            className={`w-4 h-4 text-slate-300 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-                          />
+                          <ChevronDown className={`w-4 h-4 text-slate-300 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                         </div>
                       </div>
                     </button>
@@ -211,15 +234,15 @@ export default function PayoutHistory() {
             <p className="text-xs text-slate-400 mt-0.5">Understanding your payout categories</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 divide-y divide-slate-50 sm:divide-y-0">
-            {[
-              { type: 'direct_referral', desc: 'Commission from your direct downline members' },
+            {([
+              { type: 'direct_referral',   desc: 'Commission from your direct downline members' },
               { type: 'indirect_referral', desc: 'Commissions from network members below your direct referrals' },
-              { type: 'pairing_bonus', desc: 'Bonus earned when left and right legs are balanced (max 5/day)' },
-              { type: 'leadership_bonus', desc: 'Monthly bonus for maintaining your team structure and tier level' },
-              { type: 'sign5_bonus', desc: 'Special bonus when you complete 5 successful pairings (5/5 cap)' },
-              { type: 'withdraw', desc: 'Your cash withdrawals from your available balance' },
-            ].map(({ type, desc }) => {
-              const config = payoutTypeConfig[type as keyof typeof payoutTypeConfig];
+              { type: 'pairing_bonus',     desc: 'Bonus earned when left and right legs are balanced' },
+              { type: 'leadership_bonus',  desc: 'Monthly bonus for maintaining your team structure and tier level' },
+              { type: 'sign5_bonus',       desc: 'Special bonus when you complete 5 successful pairings' },
+              { type: 'withdraw',          desc: 'Your cash withdrawals from your available balance' },
+            ] as { type: PayoutTransaction['type']; desc: string }[]).map(({ type, desc }) => {
+              const config = payoutTypeConfig[type];
               return (
                 <div key={type} className="px-6 py-4 flex items-start gap-3">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-0.5 ${config.badge}`}>

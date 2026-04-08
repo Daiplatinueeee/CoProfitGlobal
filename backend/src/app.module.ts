@@ -18,6 +18,8 @@ import { PairingModule } from './modules/pairing/pairing.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { Sign5Module } from './modules/sign5/sign5.module';
 import { LeadershipModule } from './modules/leadership/leadership.module';
+import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
+import { WithdrawalModule } from './modules/withdrawal/withdrawal.module';
 import { PeriodsModule } from './modules/periods/periods.module';
 
 require('node:dns/promises').setServers(['1.1.1.1', '8.8.8.8']);
@@ -47,6 +49,8 @@ require('node:dns/promises').setServers(['1.1.1.1', '8.8.8.8']);
     WalletModule,
     Sign5Module,
     LeadershipModule,
+    LeaderboardModule,
+    WithdrawalModule,
     PeriodsModule,
   ],
   controllers: [AppController],
