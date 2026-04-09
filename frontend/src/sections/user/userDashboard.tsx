@@ -1,8 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Home, TrendingUp, Gift, Lock, Wallet, ShoppingBag,
-  Network, Download, AlertCircle, LogOut, ChevronLeft, Construction,
+  Home, TrendingUp, Gift, Lock, Wallet, Leaf,
+  Network, AlertCircle, LogOut, ChevronLeft, Construction,
+  Combine,
+  BanknoteArrowDown,
+  HandCoins,
+  Spotlight,
+  User,
 } from 'lucide-react';
 
 import Genealogy from '../tabs/Genealogy';
@@ -15,7 +20,9 @@ import UnilevelProducts from '../tabs/UnilevelProducts';
 import PayoutHistory from '../tabs/PayoutHistory'
 
 import baseImg from '../../assets/elmer-whitebg-removebg-preview.png'
+import baseImgCenter from '../../assets/logoWithName.png'
 import Leaderboards from '../tabs/Leaderboards';
+import ViewMyAccount from '../tabs/ViewMyAccount';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -91,7 +98,6 @@ function getAuthContext() {
 export default function UserDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [, setProfileModalOpen] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const navigate = useNavigate();
@@ -113,6 +119,10 @@ export default function UserDashboard() {
     timesTriggered: { bronze: number; silver: number; gold: number; platinum: number };
   } | null>(null);
   const [sign5StatusLoading, setSign5StatusLoading] = useState(true);
+
+  // ── Leaderboard rank state ───────────────────────────────────────────
+  const [userRank, setUserRank] = useState<{ rank: number | null; totalParticipants: number } | null>(null);
+  const [rankLoading, setRankLoading] = useState(true);
 
   // ── Fetch current user + genealogy root ──────────────────────────────
   useEffect(() => {
@@ -254,6 +264,30 @@ export default function UserDashboard() {
     fetchReferrals();
   }, []);
 
+  // ── Fetch leaderboard rank ───────────────────────────────────────────
+  useEffect(() => {
+    const fetchUserRank = async () => {
+      try {
+        const { token, userId } = getAuthContext();
+        if (!token || !userId) return;
+
+        const res = await fetch(
+          `${API_BASE_URL}/leaderboard/rank/${userId}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) throw new Error('Failed to fetch user rank');
+
+        const data = await res.json();
+        setUserRank(data);
+      } catch (err) {
+        console.error('Rank fetch error:', err);
+      } finally {
+        setRankLoading(false);
+      }
+    };
+    fetchUserRank();
+  }, []);
+
   // ── Evaluate + fetch Sign-5 status on dashboard load ────────────────────
   useEffect(() => {
     const evaluateAndFetchSign5 = async () => {
@@ -375,12 +409,6 @@ export default function UserDashboard() {
   // ── Dynamic profile display ──────────────────────────────────────────
   const displayName = currentUser?.name || currentUser?.username || 'User';
   const displayEmail = currentUser?.email || '';
-  const profileInitials = displayName
-    .split(' ')
-    .map((w: string) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2) || 'U';
 
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -388,11 +416,12 @@ export default function UserDashboard() {
     { id: 'referral-hierarchy', label: 'Referral Hierarchy', icon: Lock },
     { id: 'pairing-history', label: 'Pairing History', icon: TrendingUp },
     { id: 'payout-system', label: 'Payout System', icon: Wallet, underDevelopment: true },
-    { id: 'subscription', label: 'Subscription', icon: ShoppingBag, underDevelopment: true },
-    { id: 'unilevel-package', label: 'Unilevel Products', icon: Download, underDevelopment: true },
-    { id: 'withdraw-gc', label: 'Withdraw GC', icon: Download, underDevelopment: true },
-    { id: 'payout-history', label: 'Payout History', icon: Download, underDevelopment: true },
-    { id: 'leaderboards', label: 'Leaderboards', icon: Download, underDevelopment: true },
+    { id: 'subscription', label: 'Subscription', icon: Leaf, underDevelopment: true },
+    { id: 'unilevel-package', label: 'Unilevel Products', icon: Combine, underDevelopment: true },
+    { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown, underDevelopment: true },
+    { id: 'payout-history', label: 'Payout History', icon: HandCoins, underDevelopment: true },
+    { id: 'leaderboards', label: 'Leaderboards', icon: Spotlight, underDevelopment: true },
+    { id: 'viewaccount', label: 'View Account', icon: User, underDevelopment: true },
   ], []);
 
   // ── Skeleton helper ───────────────────────────────────────────────────
@@ -405,65 +434,95 @@ export default function UserDashboard() {
     <div className="space-y-6 pb-6 bg-white">
 
       {/* ── Total Income Card ─────────────────────────────────────────── */}
-      <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-3xl border border-blue-100 shadow-lg flex items-stretch overflow-hidden relative" style={{ minHeight: '200px' }}>
-
+      <div className="relative bg-black rounded-3xl shadow-2xl flex items-stretch overflow-hidden border border-yellow-500/20" style={{ minHeight: '220px' }}>
         {/* Left: Income Content */}
-        <div className="flex-1 p-8 flex flex-col justify-center">
-          <p className="text-sm font-medium text-blue-600 mb-2">Total Income</p>
+        <div className="flex-1 p-8 flex flex-col justify-center relative z-10">
+
+          {/* Rank badge */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 backdrop-blur-sm rounded-full px-3 py-1">
+              <span className="text-yellow-400 text-sm">🏆</span>
+              {rankLoading ? (
+                <span className="text-xs text-yellow-300/60 animate-pulse">Loading rank...</span>
+              ) : userRank?.rank ? (
+                <>
+                  <span className="text-xs font-semibold text-yellow-200/80 uppercase tracking-wider">Rank</span>
+                  <span className="text-sm font-bold text-yellow-400">#{userRank.rank}</span>
+                  <span className="text-xs text-yellow-300/50">of {userRank.totalParticipants.toLocaleString()}</span>
+                </>
+              ) : (
+                <span className="text-xs text-yellow-300/60">Unranked</span>
+              )}
+            </div>
+          </div>
+
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-500/70 mb-1">Total Income</p>
 
           {incomeLoading ? (
-            <Skeleton className="h-12 w-52 mb-4" />
+            <div className="h-12 w-52 bg-yellow-500/10 animate-pulse rounded-xl mb-4" />
           ) : (
-            <p className="text-3xl text-gray-900 mb-4">
+            <p className="text-4xl font-bold text-yellow-400 mb-4 tracking-tight" style={{ textShadow: '0 0 40px rgba(234,179,8,0.4)' }}>
               ₱{formatPhp(income?.totalIncome ?? 0)}
             </p>
           )}
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-5">
             <div className="flex flex-col">
-              <span className="text-xs text-gray-600 mb-1">Today</span>
+              <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">Today</span>
               {incomeLoading
-                ? <Skeleton className="h-7 w-28" />
-                : <span className="text-2xl text-gray-900">
-                  ₱{formatPhp(income?.today ?? 0)}
-                </span>
+                ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
+                : <span className="text-xl font-semibold text-white/80">₱{formatPhp(income?.today ?? 0)}</span>
               }
             </div>
-            <div className="w-px h-12 bg-blue-200" />
+            <div className="w-px h-10 bg-yellow-500/20" />
             <div className="flex flex-col">
-              <span className="text-xs text-gray-600 mb-1">This Week</span>
+              <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">This Week</span>
               {incomeLoading
-                ? <Skeleton className="h-7 w-28" />
-                : <span className="text-2xl text-blue-600">
-                  ₱{formatPhp(income?.thisWeek ?? 0)}
-                </span>
+                ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
+                : <span className="text-xl font-semibold text-yellow-300">₱{formatPhp(income?.thisWeek ?? 0)}</span>
               }
             </div>
-            <div className="w-px h-12 bg-blue-200" />
+            <div className="w-px h-10 bg-yellow-500/20" />
             <div className="flex flex-col">
-              <span className="text-xs text-gray-600 mb-1">This Month</span>
+              <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">This Month</span>
               {incomeLoading
-                ? <Skeleton className="h-7 w-28" />
-                : <span className="text-2xl text-indigo-600">
-                  ₱{formatPhp(income?.thisMonth ?? 0)}
-                </span>
+                ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
+                : <span className="text-xl font-semibold text-yellow-400">₱{formatPhp(income?.thisMonth ?? 0)}</span>
               }
             </div>
           </div>
         </div>
 
-        {/* Middle: User Info */}
-        <div className="flex flex-col items-start justify-center gap-1.5 px-10 border-l border-blue-200">
-          <span className="text-xl text-gray-800">{displayName}</span>
-          <span className="text-sm text-gray-500">{displayEmail}</span>
-          <span className="text-sm text-blue-500 font-medium">www.coprofitglobal.com</span>
+        {/* Center: Profile Image — flush to bottom */}
+        <div className="relative shrink-0 self-end z-10 flex items-end justify-center" style={{ width: '200px', height: '220px' }}>
+          <img
+            src={baseImgCenter}
+            alt="Profile Center"
+            style={{
+              position: 'absolute',
+              top: 1,
+              bottom: 0,
+              right: 90,
+              width: '200px',
+              height: '250px',
+              objectFit: 'cover',
+              objectPosition: 'top',
+            }}
+          />
+        </div>
+
+        {/* Right: User Info */}
+        <div className="flex flex-col items-start justify-center gap-2 px-8 border-l border-yellow-500/15 relative z-10">
+          <span className="text-xl font-semibold text-white">{displayName}</span>
+          <span className="text-sm text-white/50">{displayEmail}</span>
+          <span className="text-sm text-yellow-400 font-medium">www.coprofitglobal.com</span>
         </div>
 
         {/* Right: Profile Image — large, flush to bottom */}
-        <div className="relative shrink-0 self-end" style={{ width: '220px', height: '220px' }}>
+        <div className="relative shrink-0 self-end z-10" style={{ width: '220px', height: '220px' }}>
           <img
             src={baseImg}
-            alt="Profile"
+            alt="Profile Right"
             style={{
               position: 'absolute',
               bottom: 0,
@@ -472,7 +531,7 @@ export default function UserDashboard() {
               height: '260px',
               objectFit: 'cover',
               objectPosition: 'top',
-              filter: 'drop-shadow(0 8px 24px rgba(99,102,241,0.30))',
+              filter: 'drop-shadow(0 8px 40px rgba(234,179,8,0.35))',
               maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
               WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
             }}
@@ -811,6 +870,7 @@ export default function UserDashboard() {
       'unilevel-package': <UnilevelProducts />,
       'payout-history': <PayoutHistory />,
       'leaderboards': <Leaderboards />,
+      'viewaccount': <ViewMyAccount />,
     };
     return contents[activeTab] || <div />;
   };
@@ -916,20 +976,7 @@ export default function UserDashboard() {
           </nav>
 
           <div className={`border-t border-gray-100 p-4 space-y-3 ${sidebarOpen ? 'block' : 'hidden lg:flex lg:flex-col'}`}>
-            <button
-              onClick={() => setProfileModalOpen(true)}
-              className={`flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition active:bg-gray-100 ${sidebarOpen ? 'w-full' : 'w-full lg:justify-center'}`}
-            >
-              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center shrink-0">
-                <span className="text-sm font-bold text-yellow-500">{profileInitials}</span>
-              </div>
-              {sidebarOpen && (
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
-                  <p className="text-xs text-gray-500 truncate">{displayEmail}</p>
-                </div>
-              )}
-            </button>
+        
             {sidebarOpen ? (
               <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm">
                 <LogOut className="w-4 h-4 shrink-0" />
@@ -943,7 +990,7 @@ export default function UserDashboard() {
             {/* Copyright Footer */}
             <div className="px-4 py-2.5 bg-transparent text-center">
               <p className="text-[12px] text-gray-400 text-center leading-relaxed">
-                v1.0.0 &nbsp;·&nbsp; © 2025 CoProfitGlobal.
+                v1.0.1 &nbsp;·&nbsp; © 2026 CoProfitGlobal.
               </p>
             </div>
           </div>

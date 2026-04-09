@@ -2,14 +2,22 @@ import { useEffect, useState } from 'react';
 
 const API_BASE_URL = 'http://localhost:3000';
 
+interface ReferralCounts {
+  direct: number;
+  indirect: number;
+  total: number;
+}
+
 interface LeaderboardEntry {
   rank: number;
+  userId: string;
   name: string;
   username: string;
   referrals: number;
   earnings: number;
   avatar: string | null;
   membershipTier: string;
+  referralCounts?: ReferralCounts;
 }
 
 function avatarUrl(name: string, bg: string, size = 128) {
@@ -50,11 +58,14 @@ const medalBadgeClass = [
 ];
 
 export default function Leaderboards() {
-  const [activeTab, setActiveTab] = useState<'referrals' | 'earnings'>('earnings');
+  const [activeTab] = useState<'referrals' | 'earnings'>('earnings');
   const [data, setData] = useState<LeaderboardEntry[]>([]);
   const [totalParticipants, setTotalParticipants] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [referralMap, setReferralMap] = useState<Record<string, ReferralCounts>>({});
+  const [referralsLoading, setReferralsLoading] = useState(false);
 
+  // Fetch leaderboard entries
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
     setLoading(true);
@@ -69,6 +80,37 @@ export default function Leaderboards() {
       .catch(() => { setData([]); setTotalParticipants(0); })
       .finally(() => setLoading(false));
   }, [activeTab]);
+
+  // Once entries are loaded, fetch referral counts for each user in parallel
+  useEffect(() => {
+    if (data.length === 0) return;
+
+    const token = localStorage.getItem('accessToken');
+    setReferralsLoading(true);
+
+    Promise.all(
+      data.map((entry) =>
+        fetch(`${API_BASE_URL}/genealogy/referrals/${entry.userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((res) => res.json())
+          .then((json) => ({
+            userId: entry.userId,
+            counts: (json.counts ?? { direct: 0, indirect: 0, total: 0 }) as ReferralCounts,
+          }))
+          .catch(() => ({
+            userId: entry.userId,
+            counts: { direct: 0, indirect: 0, total: 0 } as ReferralCounts,
+          }))
+      )
+    )
+      .then((results) => {
+        const map: Record<string, ReferralCounts> = {};
+        results.forEach(({ userId, counts }) => { map[userId] = counts; });
+        setReferralMap(map);
+      })
+      .finally(() => setReferralsLoading(false));
+  }, [data]);
 
   const top3 = data.slice(0, 3);
   const totalEarnings = data.reduce((s, e) => s + e.earnings, 0);
@@ -118,6 +160,7 @@ export default function Leaderboards() {
                   const meta = podiumMeta[podIdx];
                   if (!entry) return null;
                   const imgSrc = entry.avatar || avatarUrl(entry.name, 'f59e0b');
+                  const rc = referralMap[entry.userId];
 
                   return (
                     <div key={entry.rank} className="flex flex-col items-center gap-3 flex-1 max-w-37.5">
@@ -141,7 +184,17 @@ export default function Leaderboards() {
                       <div className="text-center">
                         <p className={`${meta.nameSize} font-semibold text-slate-900 leading-snug`}>{entry.name}</p>
                         <p className="text-xs text-slate-500 mt-0.5">₱{entry.earnings.toLocaleString()}</p>
-                        <p className="text-xs text-slate-300 mt-0.5">{entry.referrals} referrals</p>
+                        {rc ? (
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            <span className="text-green-600 font-medium">{rc.direct}D</span>
+                            {' · '}
+                            <span className="text-blue-500 font-medium">{rc.indirect}I</span>
+                            {' · '}
+                            {rc.total} total
+                          </p>
+                        ) : (
+                          <p className="text-xs text-slate-300 mt-0.5">{entry.referrals} referrals</p>
+                        )}
                       </div>
 
                       {/* Podium block */}
@@ -164,23 +217,9 @@ export default function Leaderboards() {
               <h2 className="text-base font-semibold text-slate-900">Full Rankings</h2>
               <p className="text-xs text-slate-400 mt-0.5">{data.length} shown of {totalParticipants.toLocaleString()} participants</p>
             </div>
-
-            {/* Sort toggle */}
-            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-              {(['earnings', 'referrals'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                    activeTab === tab
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
-            </div>
+            {referralsLoading && (
+              <span className="text-xs text-slate-300 animate-pulse">Loading referral data…</span>
+            )}
           </div>
 
           {loading ? (
@@ -194,7 +233,9 @@ export default function Leaderboards() {
                   <tr className="bg-slate-50 border-b border-slate-100">
                     <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide w-16">Rank</th>
                     <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Member</th>
-                    <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Referrals</th>
+                    <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Direct</th>
+                    <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Indirect</th>
+                    <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Total Refs</th>
                     <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Earnings</th>
                     <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Award</th>
                   </tr>
@@ -202,6 +243,7 @@ export default function Leaderboards() {
                 <tbody className="divide-y divide-slate-50">
                   {data.map((entry, i) => {
                     const imgSrc = entry.avatar || avatarUrl(entry.name, '94a3b8');
+                    const rc = referralMap[entry.userId];
                     return (
                       <tr key={entry.rank} className="hover:bg-slate-50 transition-colors duration-150">
                         <td className="px-6 py-3.5">
@@ -219,7 +261,30 @@ export default function Leaderboards() {
                             <span className="font-medium text-slate-900">{entry.name}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-3.5 text-right text-slate-700 font-medium">{entry.referrals}</td>
+                        {/* Direct referrals */}
+                        <td className="px-6 py-3.5 text-right">
+                          {referralsLoading && !rc ? (
+                            <span className="inline-block w-8 h-3 bg-slate-100 rounded animate-pulse" />
+                          ) : (
+                            <span className="font-medium text-green-600">{rc?.direct ?? 0}</span>
+                          )}
+                        </td>
+                        {/* Indirect referrals */}
+                        <td className="px-6 py-3.5 text-right">
+                          {referralsLoading && !rc ? (
+                            <span className="inline-block w-8 h-3 bg-slate-100 rounded animate-pulse" />
+                          ) : (
+                            <span className="font-medium text-blue-500">{rc?.indirect ?? 0}</span>
+                          )}
+                        </td>
+                        {/* Total referrals */}
+                        <td className="px-6 py-3.5 text-right text-slate-700 font-medium">
+                          {referralsLoading && !rc ? (
+                            <span className="inline-block w-8 h-3 bg-slate-100 rounded animate-pulse" />
+                          ) : (
+                            rc?.total ?? entry.referrals
+                          )}
+                        </td>
                         <td className="px-6 py-3.5 text-right font-semibold text-slate-900">₱{entry.earnings.toLocaleString()}</td>
                         <td className="px-6 py-3.5 text-center">
                           {i < 3 ? (
