@@ -415,12 +415,12 @@ export default function UserDashboard() {
     { id: 'genealogy', label: 'Genealogy', icon: Network },
     { id: 'referral-hierarchy', label: 'Referral Hierarchy', icon: Lock },
     { id: 'pairing-history', label: 'Pairing History', icon: TrendingUp },
-    { id: 'payout-system', label: 'Payout System', icon: Wallet, underDevelopment: true },
+    { id: 'payout-system', label: 'Payout System', icon: Wallet  },
     { id: 'subscription', label: 'Subscription', icon: Leaf, underDevelopment: true },
     { id: 'unilevel-package', label: 'Unilevel Products', icon: Combine, underDevelopment: true },
-    { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown, underDevelopment: true },
-    { id: 'payout-history', label: 'Payout History', icon: HandCoins, underDevelopment: true },
-    { id: 'leaderboards', label: 'Leaderboards', icon: Spotlight, underDevelopment: true },
+    { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown },
+    { id: 'payout-history', label: 'Payout History', icon: HandCoins},
+    { id: 'leaderboards', label: 'Leaderboards', icon: Spotlight },
     { id: 'viewaccount', label: 'View Account', icon: User, underDevelopment: true },
   ], []);
 

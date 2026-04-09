@@ -160,7 +160,7 @@ export default function Leaderboards() {
                   const meta = podiumMeta[podIdx];
                   if (!entry) return null;
                   const imgSrc = entry.avatar || avatarUrl(entry.name, 'f59e0b');
-                  const rc = referralMap[entry.userId];
+                 
 
                   return (
                     <div key={entry.rank} className="flex flex-col items-center gap-3 flex-1 max-w-37.5">
@@ -184,17 +184,7 @@ export default function Leaderboards() {
                       <div className="text-center">
                         <p className={`${meta.nameSize} font-semibold text-slate-900 leading-snug`}>{entry.name}</p>
                         <p className="text-xs text-slate-500 mt-0.5">₱{entry.earnings.toLocaleString()}</p>
-                        {rc ? (
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            <span className="text-green-600 font-medium">{rc.direct}D</span>
-                            {' · '}
-                            <span className="text-blue-500 font-medium">{rc.indirect}I</span>
-                            {' · '}
-                            {rc.total} total
-                          </p>
-                        ) : (
-                          <p className="text-xs text-slate-300 mt-0.5">{entry.referrals} referrals</p>
-                        )}
+                        
                       </div>
 
                       {/* Podium block */}

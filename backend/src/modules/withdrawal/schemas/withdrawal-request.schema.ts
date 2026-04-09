@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+import { WalletCurrency } from '../../wallet/schemas/wallet-transaction.schema';
 
 export type WithdrawalRequestDocument = HydratedDocument<WithdrawalRequest>;
 
@@ -15,19 +16,27 @@ export class WithdrawalRequest {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
   userId: Types.ObjectId;
 
+  @Prop({
+    type: String,
+    enum: Object.values(WalletCurrency),
+    default: WalletCurrency.PHP,
+    index: true,
+  })
+  currency: WalletCurrency;
+
   @Prop({ required: true })
   amount: number;
 
-  @Prop({ required: true })
+  @Prop({ default: 0 })
   vat: number;
 
-  @Prop({ required: true })
+  @Prop({ default: 0 })
   totalAmount: number;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   paymentMethod: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   accountName: string;
 
   @Prop({ default: '' })
@@ -50,3 +59,4 @@ export class WithdrawalRequest {
 
 export const WithdrawalRequestSchema = SchemaFactory.createForClass(WithdrawalRequest);
 WithdrawalRequestSchema.index({ userId: 1, createdAt: -1 });
+WithdrawalRequestSchema.index({ currency: 1, status: 1 });

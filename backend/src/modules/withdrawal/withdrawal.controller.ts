@@ -19,21 +19,24 @@ export class WithdrawalController {
   }
 
   /**
-   * GET /withdrawal/my
-   * Returns the current user's withdrawal history.
+   * GET /withdrawal/my?currency=gc_points
+   * Returns the current user's withdrawal history, optionally filtered by currency.
    */
   @Get('my')
-  myWithdrawals(@Request() req: any) {
-    return this.withdrawalService.getMyWithdrawals(req.user.sub);
+  myWithdrawals(@Request() req: any, @Query('currency') currency?: string) {
+    return this.withdrawalService.getMyWithdrawals(req.user.sub, currency as any);
   }
 
   /**
-   * GET /withdrawal/all?status=pending
-   * Admin: list all withdrawal requests, optionally filtered by status.
+   * GET /withdrawal/all?status=pending&currency=gc_points
+   * Admin: list all withdrawal requests, optionally filtered by status and currency.
    */
   @Get('all')
-  allRequests(@Query('status') status?: string) {
-    return this.withdrawalService.getAllRequests(status as WithdrawalStatus | undefined);
+  allRequests(@Query('status') status?: string, @Query('currency') currency?: string) {
+    return this.withdrawalService.getAllRequests(
+      status as WithdrawalStatus | undefined,
+      currency as any,
+    );
   }
 
   /**

@@ -1,42 +1,79 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Clock, Check, X } from 'lucide-react';
+
+const API_BASE_URL = 'http://localhost:3000';
 
 interface WithdrawalRecord {
   id: string;
   amount: number;
-  date: string;
-  time: string;
-  status: 'pending' | 'completed' | 'failed';
+  status: string;
+  createdAt: string;
 }
 
-const INITIAL_DATA: WithdrawalRecord[] = [
-  { id: '1', amount: 1000, date: '04/08/2026', time: '16:45', status: 'pending' },
-  { id: '2', amount: 750,  date: '04/07/2026', time: '10:30', status: 'pending' },
-  { id: '3', amount: 2500, date: '04/05/2026', time: '08:15', status: 'pending' },
-  { id: '4', amount: 300,  date: '04/03/2026', time: '13:55', status: 'pending' },
-  { id: '5', amount: 600,  date: '04/01/2026', time: '17:20', status: 'pending' },
-];
-
 function PendingWithdrawGC() {
-  const [records, setRecords] = useState<WithdrawalRecord[]>(INITIAL_DATA);
+  const [records, setRecords]   = useState<WithdrawalRecord[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [actionError, setActionError] = useState('');
 
-  const pendingRecords = records.filter((r) => r.status === 'pending');
-  const totalPendingGC = pendingRecords.reduce((sum, r) => sum + r.amount, 0);
-  const oldestDate = pendingRecords.length
-    ? pendingRecords[pendingRecords.length - 1].date
+  const token = localStorage.getItem('accessToken');
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res  = await fetch(`${API_BASE_URL}/withdrawal/all?currency=gc_points&status=pending`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      setRecords(Array.isArray(json) ? json : []);
+    } catch {
+      // keep defaults
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handleApprove = async (id: string) => {
+    setActionError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/withdrawal/${id}/approve`, {
+        method:  'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        setActionError(json?.message ?? 'Failed to approve request.');
+      } else {
+        await fetchData();
+      }
+    } catch {
+      setActionError('Network error. Please try again.');
+    }
+  };
+
+  const handleDecline = async (id: string) => {
+    setActionError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/withdrawal/${id}/reject`, {
+        method:  'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        setActionError(json?.message ?? 'Failed to reject request.');
+      } else {
+        await fetchData();
+      }
+    } catch {
+      setActionError('Network error. Please try again.');
+    }
+  };
+
+  const totalPendingGC = records.reduce((sum, r) => sum + r.amount, 0);
+  const oldestDate = records.length
+    ? new Date(records[records.length - 1].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : '—';
-
-  const handleApprove = (id: string) => {
-    setRecords((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'completed' } : r))
-    );
-  };
-
-  const handleDecline = (id: string) => {
-    setRecords((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'failed' } : r))
-    );
-  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -51,24 +88,9 @@ function PendingWithdrawGC() {
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {[
-            {
-              label: 'Pending Requests',
-              value: `${pendingRecords.length}`,
-              valueSuffix: '',
-              sub: 'Awaiting admin approval',
-            },
-            {
-              label: 'Total GC Held',
-              value: totalPendingGC.toLocaleString(),
-              valueSuffix: 'GC',
-              sub: 'Combined pending amount',
-            },
-            {
-              label: 'Oldest Request',
-              value: oldestDate,
-              valueSuffix: '',
-              sub: 'Earliest pending submission',
-            },
+            { label: 'Pending Requests', value: `${records.length}`,              valueSuffix: '',   sub: 'Awaiting admin approval' },
+            { label: 'Total GC Held',    value: totalPendingGC.toLocaleString(),  valueSuffix: 'GC', sub: 'Combined pending amount' },
+            { label: 'Oldest Request',   value: oldestDate,                        valueSuffix: '',   sub: 'Earliest pending submission' },
           ].map((stat) => (
             <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-5 py-4">
               <p className="text-xs text-slate-400 mb-1">{stat.label}</p>
@@ -83,15 +105,18 @@ function PendingWithdrawGC() {
           ))}
         </div>
 
+        {actionError && (
+          <p className="mb-4 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{actionError}</p>
+        )}
+
         {/* Table Card */}
         <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
 
-          {/* Card Header */}
           <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Pending Requests</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                {pendingRecords.length} record{pendingRecords.length !== 1 ? 's' : ''} awaiting action
+                {records.length} record{records.length !== 1 ? 's' : ''} awaiting action
               </p>
             </div>
             <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200 px-3 py-1 rounded-full">
@@ -100,7 +125,6 @@ function PendingWithdrawGC() {
             </span>
           </div>
 
-          {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -114,7 +138,11 @@ function PendingWithdrawGC() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {pendingRecords.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">Loading…</td>
+                  </tr>
+                ) : records.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center gap-2">
@@ -125,15 +153,19 @@ function PendingWithdrawGC() {
                     </td>
                   </tr>
                 ) : (
-                  pendingRecords.map((record, index) => (
+                  records.map((record, index) => (
                     <tr key={record.id} className="hover:bg-slate-50 transition-colors duration-150">
                       <td className="px-6 py-4 text-slate-400 text-xs">{index + 1}</td>
                       <td className="px-6 py-4 font-semibold text-slate-900">
                         {record.amount.toLocaleString()}{' '}
                         <span className="text-slate-400 font-normal text-xs">GC</span>
                       </td>
-                      <td className="px-6 py-4 text-slate-500">{record.date}</td>
-                      <td className="px-6 py-4 text-slate-500">{record.time}</td>
+                      <td className="px-6 py-4 text-slate-500">
+                        {new Date(record.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </td>
+                      <td className="px-6 py-4 text-slate-500">
+                        {new Date(record.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      </td>
                       <td className="px-6 py-4 text-center">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200">
                           <Clock className="w-3 h-3" />
