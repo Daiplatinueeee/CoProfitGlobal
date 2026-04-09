@@ -421,7 +421,7 @@ export default function UserDashboard() {
     { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown },
     { id: 'payout-history', label: 'Payout History', icon: HandCoins},
     { id: 'leaderboards', label: 'Leaderboards', icon: Spotlight },
-    { id: 'viewaccount', label: 'View Account', icon: User, underDevelopment: true },
+    { id: 'viewaccount', label: 'View Account', icon: User, },
   ], []);
 
   // ── Skeleton helper ───────────────────────────────────────────────────
