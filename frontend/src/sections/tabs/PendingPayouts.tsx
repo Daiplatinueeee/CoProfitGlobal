@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Clock, Check, X } from 'lucide-react';
+
+const API_BASE_URL = 'http://localhost:3000';
 
 interface WithdrawalRecord {
   id: string;
@@ -9,91 +11,77 @@ interface WithdrawalRecord {
   paymentMethod: string;
   accountName: string;
   notes: string;
-  status: 'pending' | 'completed' | 'rejected';
+  status: string;
   createdAt: string;
 }
 
-const INITIAL_DATA: WithdrawalRecord[] = [
-  {
-    id: '1',
-    amount: 2000,
-    vat: 200,
-    totalAmount: 2200,
-    paymentMethod: 'bank',
-    accountName: 'Maria Santos',
-    notes: 'Please process ASAP',
-    status: 'pending',
-    createdAt: '2026-04-08T16:45:00Z',
-  },
-  {
-    id: '2',
-    amount: 1500,
-    vat: 150,
-    totalAmount: 1650,
-    paymentMethod: 'wallet',
-    accountName: 'Maria Santos',
-    notes: '',
-    status: 'pending',
-    createdAt: '2026-04-07T10:30:00Z',
-  },
-  {
-    id: '3',
-    amount: 5000,
-    vat: 500,
-    totalAmount: 5500,
-    paymentMethod: 'bank',
-    accountName: 'Maria Santos',
-    notes: 'BDO savings account',
-    status: 'pending',
-    createdAt: '2026-04-05T08:15:00Z',
-  },
-  {
-    id: '4',
-    amount: 800,
-    vat: 80,
-    totalAmount: 880,
-    paymentMethod: 'check',
-    accountName: 'Maria Santos',
-    notes: '',
-    status: 'pending',
-    createdAt: '2026-04-03T13:55:00Z',
-  },
-  {
-    id: '5',
-    amount: 3200,
-    vat: 320,
-    totalAmount: 3520,
-    paymentMethod: 'wallet',
-    accountName: 'Maria Santos',
-    notes: 'GCash number on file',
-    status: 'pending',
-    createdAt: '2026-04-01T17:20:00Z',
-  },
-];
-
 function PendingPayouts() {
-  const [records, setRecords] = useState<WithdrawalRecord[]>(INITIAL_DATA);
+  const [records, setRecords]     = useState<WithdrawalRecord[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [actionError, setActionError] = useState('');
 
-  const pendingRecords = records.filter((w) => w.status === 'pending');
-  const totalHeld  = pendingRecords.reduce((sum, w) => sum + w.totalAmount, 0);
-  const totalVat   = pendingRecords.reduce((sum, w) => sum + w.vat, 0);
-  const oldestDate = pendingRecords.length
-    ? new Date(pendingRecords[pendingRecords.length - 1].createdAt).toLocaleDateString('en-US', {
+  const token = localStorage.getItem('accessToken');
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res  = await fetch(`${API_BASE_URL}/withdrawal/all?currency=php&status=pending`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      setRecords(Array.isArray(json) ? json : []);
+    } catch {
+      // keep defaults
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handleApprove = async (id: string) => {
+    setActionError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/withdrawal/${id}/approve`, {
+        method:  'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        setActionError(json?.message ?? 'Failed to approve request.');
+      } else {
+        await fetchData();
+      }
+    } catch {
+      setActionError('Network error. Please try again.');
+    }
+  };
+
+  const handleDecline = async (id: string) => {
+    setActionError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/withdrawal/${id}/reject`, {
+        method:  'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        setActionError(json?.message ?? 'Failed to reject request.');
+      } else {
+        await fetchData();
+      }
+    } catch {
+      setActionError('Network error. Please try again.');
+    }
+  };
+
+  const totalHeld  = records.reduce((sum, r) => sum + r.totalAmount, 0);
+  const totalVat   = records.reduce((sum, r) => sum + r.vat, 0);
+  const oldestDate = records.length
+    ? new Date(records[records.length - 1].createdAt).toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric',
       })
     : '—';
-
-  const handleApprove = (id: string) => {
-    setRecords((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, status: 'completed' } : w))
-    );
-  };
-
-  const handleDecline = (id: string) => {
-    setRecords((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, status: 'rejected' } : w))
-    );
-  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -110,7 +98,7 @@ function PendingPayouts() {
           {[
             {
               label: 'Pending Requests',
-              value: `${pendingRecords.length}`,
+              value: `${records.length}`,
               sub: 'Awaiting admin approval',
             },
             {
@@ -132,6 +120,10 @@ function PendingPayouts() {
           ))}
         </div>
 
+        {actionError && (
+          <p className="mb-4 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{actionError}</p>
+        )}
+
         {/* Table Card */}
         <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
 
@@ -140,7 +132,7 @@ function PendingPayouts() {
             <div>
               <h2 className="text-base font-semibold text-slate-900">Pending Requests</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                {pendingRecords.length} record{pendingRecords.length !== 1 ? 's' : ''} awaiting action
+                {records.length} record{records.length !== 1 ? 's' : ''} awaiting action
               </p>
             </div>
             <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200 px-3 py-1 rounded-full">
@@ -165,7 +157,11 @@ function PendingPayouts() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {pendingRecords.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-400">Loading…</td>
+                  </tr>
+                ) : records.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center gap-2">
@@ -176,7 +172,7 @@ function PendingPayouts() {
                     </td>
                   </tr>
                 ) : (
-                  pendingRecords.map((w) => (
+                  records.map((w) => (
                     <tr key={w.id} className="hover:bg-slate-50 transition-colors duration-150">
                       <td className="px-6 py-4">
                         <p className="font-medium text-slate-900">
@@ -190,8 +186,8 @@ function PendingPayouts() {
                           })}
                         </p>
                       </td>
-                      <td className="px-6 py-4 text-slate-500 capitalize">{w.paymentMethod}</td>
-                      <td className="px-6 py-4 text-slate-500">{w.accountName}</td>
+                      <td className="px-6 py-4 text-slate-500 capitalize">{w.paymentMethod || '—'}</td>
+                      <td className="px-6 py-4 text-slate-500">{w.accountName || '—'}</td>
                       <td className="px-6 py-4 text-right text-slate-900">₱{w.amount.toLocaleString()}</td>
                       <td className="px-6 py-4 text-right text-slate-500">₱{w.vat.toLocaleString()}</td>
                       <td className="px-6 py-4 text-right font-semibold text-slate-900">₱{w.totalAmount.toLocaleString()}</td>
