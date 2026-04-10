@@ -20,24 +20,9 @@ interface LeaderboardEntry {
   referralCounts?: ReferralCounts;
 }
 
-<<<<<<< HEAD
-const leaderboardData: LeaderboardEntry[] = [
-  { rank: 1, name: 'Maria Santos', referrals: 48, earnings: 124500, avatar: maria },
-  { rank: 2, name: 'Juan dela Cruz', referrals: 41, earnings: 98300, avatar: juan },
-  { rank: 3, name: 'Ana Reyes', referrals: 37, earnings: 87600, avatar: ana },
-  { rank: 4, name: 'Carlo Mendoza', referrals: 33, earnings: 74200, avatar: carlo },
-  { rank: 5, name: 'Liza Fernandez', referrals: 29, earnings: 68900, avatar: liza },
-  { rank: 6, name: 'Marco Villanueva', referrals: 26, earnings: 61400, avatar: marco },
-  { rank: 7, name: 'Rosa Aquino', referrals: 22, earnings: 54800, avatar: rosa },
-  { rank: 8, name: 'Diego Castillo', referrals: 19, earnings: 47300, avatar: diego },
-  { rank: 9, name: 'Elena Torres', referrals: 16, earnings: 39700, avatar: elena },
-  { rank: 10, name: 'Felix Bautista', referrals: 14, earnings: 33100, avatar: felix },
-];
-=======
 function avatarUrl(name: string, bg: string, size = 128) {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bg}&color=fff&bold=true&size=${size}&rounded=true`;
 }
->>>>>>> Development
 
 const PODIUM_ORDER = [1, 0, 2]; // 2nd | 1st | 3rd
 

@@ -70,9 +70,6 @@ interface ReferralData {
   all: any[];
 }
 
-<<<<<<< HEAD
-const API_BASE_URL = 'https://coprofitglobal-production.up.railway.app';
-=======
 const CONSTRUCTION_KEYFRAMES = `
   @keyframes crane-swing {
     0%,100% { transform: rotate(-5deg); }
@@ -298,7 +295,6 @@ function WelcomeConstructionScene() {
 }
 
 const API_BASE_URL = 'http://localhost:3000';
->>>>>>> Development
 
 const formatPhp = (amount: number) =>
   amount.toLocaleString('en-PH', { minimumFractionDigits: 2 });
