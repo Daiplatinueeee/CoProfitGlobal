@@ -46,7 +46,7 @@ function InfoField({ label, value }: { label: string; value?: string }) {
   return (
     <div>
       <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">{label}</p>
-      <p className="text-sm text-slate-900 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 min-h-[38px] flex items-center">
+      <p className="text-sm text-slate-900 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 min-h-9.5 flex items-center">
         {value || <span className="text-slate-300">—</span>}
       </p>
     </div>
@@ -75,7 +75,7 @@ function EditField({
         name={name}
         value={value}
         onChange={onChange}
-        className="w-full text-sm text-slate-900 px-3 py-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 min-h-[38px]"
+        className="w-full text-sm text-slate-900 px-3 py-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 min-h-9.5"
       />
     </div>
   );
@@ -121,7 +121,7 @@ function ChangePhotoModal({
             <img src={previewSrc} alt="Profile preview" className="w-full h-full object-cover" />
           </div>
           <div className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex gap-3 items-start">
-            <span className="text-amber-500 text-base mt-0.5 flex-shrink-0">💡</span>
+            <span className="text-amber-500 text-base mt-0.5 shrink-0">💡</span>
             <div>
               <p className="text-xs font-semibold text-amber-700 mb-0.5">Photo Tip</p>
               <p className="text-xs text-amber-600 leading-relaxed">
@@ -633,7 +633,7 @@ function ViewMyAccount() {
                   <div className="px-6 py-5 flex items-center gap-4">
                     {profile.beneficiary ? (
                       <>
-                        <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-white font-semibold text-sm shrink-0">
                           {profile.beneficiary[0].toUpperCase()}
                         </div>
                         <div>
@@ -727,7 +727,7 @@ function ViewMyAccount() {
                       />
                       <div>
                         <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Age</p>
-                        <p className="text-sm text-slate-500 px-3 py-2 border border-slate-100 rounded-lg bg-slate-50 min-h-[38px] flex items-center">
+                        <p className="text-sm text-slate-500 px-3 py-2 border border-slate-100 rounded-lg bg-slate-50 min-h-9.5 flex items-center">
                           {draft.age ?? '—'} <span className="text-slate-300 ml-1 text-xs">(auto-calculated)</span>
                         </p>
                       </div>

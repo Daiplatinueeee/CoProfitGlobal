@@ -1,18 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Lock, LogOut, ChevronLeft, FileText, Users, ClipboardClock, User } from 'lucide-react';
+import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock } from 'lucide-react';
 
 import GeneratePin from '../tabs/GeneratePin';
 import UsersOverview from '../tabs/UsersOverview';
-import ViewMyAccount from '../tabs/ViewMyAccount';
 import PendingPayouts from '../tabs/PendingPayouts';
 import PendingWithdrawGC from '../tabs/PendingWithdrawGC';
 
-/* ──────────────────────────────────────────────────────────────────────────
-   KEYFRAMES — only things Tailwind cannot express natively
-   (variable-driven spark offsets, repeating-gradient tape, complex
-   multi-stop transforms, delayed build-up sequence, etc.)
-────────────────────────────────────────────────────────────────────────── */
 const KEYFRAMES = `
   @keyframes crane-swing {
     0%,100% { transform: rotate(-5deg); }
@@ -380,7 +374,6 @@ export default function AdminDashboard() {
     { id: 'users', label: 'Users Overview', icon: Users },
     { id: 'pendingPayouts', label: 'Pending Payouts', icon: ClipboardClock },
     { id: 'pendingWithdrawGC', label: 'Pending Withdrawals (GC)', icon: ClipboardClock },
-    { id: 'viewaccount', label: 'My Account', icon: User },
   ], []);
 
   const renderTabContent = () => {
@@ -389,7 +382,6 @@ export default function AdminDashboard() {
       'users': <UsersOverview />,
       'pendingPayouts': <PendingPayouts />,
       'pendingWithdrawGC': <PendingWithdrawGC />,
-      'viewaccount': <ViewMyAccount />,
     };
     return map[activeTab] ?? <div />;
   };
