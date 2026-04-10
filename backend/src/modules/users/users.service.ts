@@ -3,9 +3,11 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import * as bcrypt from 'bcrypt';
 import {
   User,
   UserDocument,
@@ -261,5 +263,63 @@ export class UsersService {
       { _id: userId },
       { $set: { refreshSessions: [] } },
     );
+  }
+
+  // ✅ Update editable profile fields
+  async updateProfile(
+    userId: string,
+    data: {
+      name?: string;
+      username?: string;
+      email?: string;
+      contact?: string;
+      address?: string;
+      beneficiary?: string;
+      birthday?: string;
+      age?: number | null;
+      profileImage?: string;
+    },
+  ) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
+
+    const allowedFields: Record<string, unknown> = {};
+    if (data.name !== undefined)         allowedFields.name = data.name.trim();
+    if (data.username !== undefined)     allowedFields.username = data.username.trim();
+    if (data.email !== undefined)        allowedFields.email = data.email.toLowerCase().trim();
+    if (data.contact !== undefined)      allowedFields.contact = data.contact;
+    if (data.address !== undefined)      allowedFields.address = data.address;
+    if (data.beneficiary !== undefined)  allowedFields.beneficiary = data.beneficiary;
+    if (data.birthday !== undefined)     allowedFields.birthday = data.birthday;
+    if (data.age !== undefined)          allowedFields.age = data.age;
+    if (data.profileImage !== undefined) allowedFields.profileImage = data.profileImage;
+
+    const updated = await this.userModel.findByIdAndUpdate(
+      userId,
+      { $set: allowedFields },
+      { returnDocument: 'after' },
+    );
+
+    if (!updated) throw new NotFoundException('User not found');
+    return updated;
+  }
+
+  // ✅ Change password (verifies current password first)
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
+
+    const user = await this.userModel.findById(userId).select('+passwordHash');
+    if (!user) throw new NotFoundException('User not found');
+
+    const valid = await bcrypt.compare(currentPassword, (user as any).passwordHash);
+    if (!valid) throw new UnauthorizedException('Current password is incorrect');
+
+    const rounds = 10;
+    const newHash = await bcrypt.hash(newPassword, rounds);
+
+    await this.userModel.updateOne({ _id: userId }, { $set: { passwordHash: newHash } });
   }
 }

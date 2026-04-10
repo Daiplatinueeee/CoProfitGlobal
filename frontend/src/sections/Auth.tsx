@@ -8,7 +8,7 @@ import bg from "../assets/Gradient Loop Background - Dev Ashish Deval (1080p, h2
 import ForgotPasswordModal from './tabs/ForgotPassword';
 
 export default function AuthPage() {
-    const [isSignIn, ] = useState(true);
+    const [isSignIn,] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -25,7 +25,7 @@ export default function AuthPage() {
 
     // On mount: restore saved credentials if Remember Me was previously checked
     useEffect(() => {
-        const savedEmail    = localStorage.getItem('rememberedEmail');
+        const savedEmail = localStorage.getItem('rememberedEmail');
         const savedPassword = localStorage.getItem('rememberedPassword');
         if (savedEmail && savedPassword) {
             setRememberMe(true);
@@ -38,6 +38,14 @@ export default function AuthPage() {
         setFormData((prev) => ({
             ...prev,
             [name]: value,
+        }));
+    };
+
+    const fillAdminCredentials = () => {
+        setFormData((prev) => ({
+            ...prev,
+            email: 'admin@coprofitglobal.com',
+            password: 'coprofitglobal123',
         }));
     };
 
@@ -74,7 +82,7 @@ export default function AuthPage() {
 
             // Remember Me — save or clear credentials
             if (rememberMe) {
-                localStorage.setItem('rememberedEmail',    formData.email);
+                localStorage.setItem('rememberedEmail', formData.email);
                 localStorage.setItem('rememberedPassword', formData.password);
             } else {
                 localStorage.removeItem('rememberedEmail');
@@ -257,6 +265,22 @@ export default function AuthPage() {
                                 >
                                     Forgot Password?
                                 </a>
+                            </div>
+                        )}
+
+                        {/* Auto Fill Admin Button */}
+                        {isSignIn && (
+                            <div className="text-center">
+                                <button
+                                    type="button"
+                                    onClick={fillAdminCredentials}
+                                    className="text-xs text-gray-400 hover:text-yellow-500 transition-colors duration-300 mt-10"
+                                >
+                                    Click here to use Admin Credentials (Testing Only)
+                                </button>
+                                <p className="text-[13px] text-gray-500 mt-1">
+                                    Click to fill in admin credentials for testing purposes. The admin account is very long omaygad
+                                </p>
                             </div>
                         )}
 

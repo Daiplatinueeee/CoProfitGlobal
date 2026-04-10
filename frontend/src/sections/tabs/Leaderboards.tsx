@@ -1,24 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import maria from '../../assets/celso.webp';
-import juan from '../../assets/celso.webp';
-import ana from '../../assets/elmer-whitebg-removebg-preview.png';
-import carlo from '../../assets/celso.webp';
-import liza from '../../assets/ms1.jpg';
-import marco from '../../assets/pk1.jpeg';
-import rosa from '../../assets/ms2.jpg';
-import diego from '../../assets/pk3.jpeg';
-import elena from '../../assets/glende.webp';
-import felix from '../../assets/ms1.webp';
+const API_BASE_URL = 'http://localhost:3000';
+
+interface ReferralCounts {
+  direct: number;
+  indirect: number;
+  total: number;
+}
 
 interface LeaderboardEntry {
   rank: number;
+  userId: string;
   name: string;
+  username: string;
   referrals: number;
   earnings: number;
-  avatar: string;
+  avatar: string | null;
+  membershipTier: string;
+  referralCounts?: ReferralCounts;
 }
 
+<<<<<<< HEAD
 const leaderboardData: LeaderboardEntry[] = [
   { rank: 1, name: 'Maria Santos', referrals: 48, earnings: 124500, avatar: maria },
   { rank: 2, name: 'Juan dela Cruz', referrals: 41, earnings: 98300, avatar: juan },
@@ -31,6 +33,11 @@ const leaderboardData: LeaderboardEntry[] = [
   { rank: 9, name: 'Elena Torres', referrals: 16, earnings: 39700, avatar: elena },
   { rank: 10, name: 'Felix Bautista', referrals: 14, earnings: 33100, avatar: felix },
 ];
+=======
+function avatarUrl(name: string, bg: string, size = 128) {
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bg}&color=fff&bold=true&size=${size}&rounded=true`;
+}
+>>>>>>> Development
 
 const PODIUM_ORDER = [1, 0, 2]; // 2nd | 1st | 3rd
 
@@ -66,16 +73,63 @@ const medalBadgeClass = [
 ];
 
 export default function Leaderboards() {
-  const [activeTab] = useState<'referrals' | 'earnings'>('referrals');
+  const [activeTab] = useState<'referrals' | 'earnings'>('earnings');
+  const [data, setData] = useState<LeaderboardEntry[]>([]);
+  const [totalParticipants, setTotalParticipants] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [referralMap, setReferralMap] = useState<Record<string, ReferralCounts>>({});
+  const [referralsLoading, setReferralsLoading] = useState(false);
 
-  const sorted = [...leaderboardData].sort((a, b) =>
-    activeTab === 'referrals' ? b.referrals - a.referrals : b.earnings - a.earnings
-  );
+  // Fetch leaderboard entries
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    setLoading(true);
+    fetch(`${API_BASE_URL}/leaderboard?sortBy=${activeTab}&limit=50`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        setData(Array.isArray(json.entries) ? json.entries : []);
+        setTotalParticipants(json.totalParticipants ?? 0);
+      })
+      .catch(() => { setData([]); setTotalParticipants(0); })
+      .finally(() => setLoading(false));
+  }, [activeTab]);
 
-  const top3 = sorted.slice(0, 3);
+  // Once entries are loaded, fetch referral counts for each user in parallel
+  useEffect(() => {
+    if (data.length === 0) return;
 
-  const totalEarnings = leaderboardData.reduce((s, e) => s + e.earnings, 0);
-  const totalReferrals = leaderboardData.reduce((s, e) => s + e.referrals, 0);
+    const token = localStorage.getItem('accessToken');
+    setReferralsLoading(true);
+
+    Promise.all(
+      data.map((entry) =>
+        fetch(`${API_BASE_URL}/genealogy/referrals/${entry.userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((res) => res.json())
+          .then((json) => ({
+            userId: entry.userId,
+            counts: (json.counts ?? { direct: 0, indirect: 0, total: 0 }) as ReferralCounts,
+          }))
+          .catch(() => ({
+            userId: entry.userId,
+            counts: { direct: 0, indirect: 0, total: 0 } as ReferralCounts,
+          }))
+      )
+    )
+      .then((results) => {
+        const map: Record<string, ReferralCounts> = {};
+        results.forEach(({ userId, counts }) => { map[userId] = counts; });
+        setReferralMap(map);
+      })
+      .finally(() => setReferralsLoading(false));
+  }, [data]);
+
+  const top3 = data.slice(0, 3);
+  const totalEarnings = data.reduce((s, e) => s + e.earnings, 0);
+  const totalReferrals = data.reduce((s, e) => s + e.referrals, 0);
 
   return (
     <div className="min-h-screen bg-white">
@@ -90,7 +144,7 @@ export default function Leaderboards() {
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {[
-            { label: 'Total Participants', value: leaderboardData.length.toString(), sub: 'Active members' },
+            { label: 'Total Participants', value: totalParticipants.toLocaleString(), sub: 'Active members' },
             { label: 'Total Referrals', value: totalReferrals.toLocaleString(), sub: 'Combined network' },
             { label: 'Total Earnings', value: `₱${totalEarnings.toLocaleString()}`, sub: 'All time payouts' },
           ].map((stat) => (
@@ -110,46 +164,53 @@ export default function Leaderboards() {
           </div>
 
           <div className="px-6 pt-8 pb-10">
-            <div className="flex items-end justify-center gap-6 sm:gap-10">
-              {PODIUM_ORDER.map((dataIdx, podIdx) => {
-                const entry = top3[dataIdx];
-                const meta = podiumMeta[podIdx];
-                if (!entry) return null;
+            {loading ? (
+              <p className="text-center text-sm text-slate-400 py-8">Loading…</p>
+            ) : top3.length === 0 ? (
+              <p className="text-center text-sm text-slate-400 py-8">No data yet</p>
+            ) : (
+              <div className="flex items-end justify-center gap-6 sm:gap-10">
+                {PODIUM_ORDER.map((dataIdx, podIdx) => {
+                  const entry = top3[dataIdx];
+                  const meta = podiumMeta[podIdx];
+                  if (!entry) return null;
+                  const imgSrc = entry.avatar || avatarUrl(entry.name, 'f59e0b');
+                 
 
-                return (
-                  <div key={entry.rank} className="flex flex-col items-center gap-3 flex-1 max-w-37.5">
+                  return (
+                    <div key={entry.rank} className="flex flex-col items-center gap-3 flex-1 max-w-37.5">
 
-                    {/* Avatar */}
-                    <div className={`rounded-full ${meta.ringClass} relative`}>
-                      <img
-                        src={entry.avatar}
-                        alt={entry.name}
-                        className={`${meta.avatarSize} rounded-full object-cover block`}
-                      />
-                      {/* Medal badge */}
-                      <span
-                        className="absolute -bottom-1 -right-1 text-lg leading-none"
-                        aria-label={`${dataIdx === 0 ? '1st' : dataIdx === 1 ? '2nd' : '3rd'} place`}
-                      >
-                        {medals[dataIdx]}
-                      </span>
+                      {/* Avatar */}
+                      <div className={`rounded-full ${meta.ringClass} relative`}>
+                        <img
+                          src={imgSrc}
+                          alt={entry.name}
+                          className={`${meta.avatarSize} rounded-full object-cover block`}
+                        />
+                        <span
+                          className="absolute -bottom-1 -right-1 text-lg leading-none"
+                          aria-label={`${dataIdx === 0 ? '1st' : dataIdx === 1 ? '2nd' : '3rd'} place`}
+                        >
+                          {medals[dataIdx]}
+                        </span>
+                      </div>
+
+                      {/* Info */}
+                      <div className="text-center">
+                        <p className={`${meta.nameSize} font-semibold text-slate-900 leading-snug`}>{entry.name}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">₱{entry.earnings.toLocaleString()}</p>
+                        
+                      </div>
+
+                      {/* Podium block */}
+                      <div className={`w-full rounded-xl flex items-center justify-center ${meta.blockClass}`}>
+                        <span className="text-xs font-semibold text-slate-400">{meta.label}</span>
+                      </div>
                     </div>
-
-                    {/* Info */}
-                    <div className="text-center">
-                      <p className={`${meta.nameSize} font-semibold text-slate-900 leading-snug`}>{entry.name}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">₱{entry.earnings.toLocaleString()}</p>
-                      <p className="text-xs text-slate-300 mt-0.5">{entry.referrals} referrals</p>
-                    </div>
-
-                    {/* Podium block */}
-                    <div className={`w-full rounded-xl flex items-center justify-center ${meta.blockClass}`}>
-                      <span className="text-xs font-semibold text-slate-400">{meta.label}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -159,55 +220,93 @@ export default function Leaderboards() {
           <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Full Rankings</h2>
-              <p className="text-xs text-slate-400 mt-0.5">{leaderboardData.length} participants</p>
+              <p className="text-xs text-slate-400 mt-0.5">{data.length} shown of {totalParticipants.toLocaleString()} participants</p>
             </div>
+            {referralsLoading && (
+              <span className="text-xs text-slate-300 animate-pulse">Loading referral data…</span>
+            )}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide w-16">Rank</th>
-                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Member</th>
-                  <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Referrals</th>
-                  <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Earnings</th>
-                  <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Award</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {sorted.map((entry, i) => (
-                  <tr key={entry.rank} className="hover:bg-slate-50 transition-colors duration-150">
-                    <td className="px-6 py-3.5">
-                      <span className={`text-sm font-semibold ${i < 3 ? 'text-slate-900' : 'text-slate-300'}`}>
-                        #{i + 1}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={entry.avatar}
-                          alt={entry.name}
-                          className="w-8 h-8 rounded-full object-cover shrink-0"
-                        />
-                        <span className="font-medium text-slate-900">{entry.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3.5 text-right text-slate-700 font-medium">{entry.referrals}</td>
-                    <td className="px-6 py-3.5 text-right font-semibold text-slate-900">₱{entry.earnings.toLocaleString()}</td>
-                    <td className="px-6 py-3.5 text-center">
-                      {i < 3 ? (
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${medalBadgeClass[i]}`}>
-                          {medals[i]} {['Gold', 'Silver', 'Bronze'][i]}
-                        </span>
-                      ) : (
-                        <span className="text-slate-200 text-xs select-none">—</span>
-                      )}
-                    </td>
+          {loading ? (
+            <p className="text-center text-sm text-slate-400 py-12">Loading…</p>
+          ) : data.length === 0 ? (
+            <p className="text-center text-sm text-slate-400 py-12">No data yet</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide w-16">Rank</th>
+                    <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Member</th>
+                    <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Direct</th>
+                    <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Indirect</th>
+                    <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Total Refs</th>
+                    <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Earnings</th>
+                    <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Award</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {data.map((entry, i) => {
+                    const imgSrc = entry.avatar || avatarUrl(entry.name, '94a3b8');
+                    const rc = referralMap[entry.userId];
+                    return (
+                      <tr key={entry.rank} className="hover:bg-slate-50 transition-colors duration-150">
+                        <td className="px-6 py-3.5">
+                          <span className={`text-sm font-semibold ${i < 3 ? 'text-slate-900' : 'text-slate-300'}`}>
+                            #{i + 1}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={imgSrc}
+                              alt={entry.name}
+                              className="w-8 h-8 rounded-full object-cover shrink-0"
+                            />
+                            <span className="font-medium text-slate-900">{entry.name}</span>
+                          </div>
+                        </td>
+                        {/* Direct referrals */}
+                        <td className="px-6 py-3.5 text-right">
+                          {referralsLoading && !rc ? (
+                            <span className="inline-block w-8 h-3 bg-slate-100 rounded animate-pulse" />
+                          ) : (
+                            <span className="font-medium text-green-600">{rc?.direct ?? 0}</span>
+                          )}
+                        </td>
+                        {/* Indirect referrals */}
+                        <td className="px-6 py-3.5 text-right">
+                          {referralsLoading && !rc ? (
+                            <span className="inline-block w-8 h-3 bg-slate-100 rounded animate-pulse" />
+                          ) : (
+                            <span className="font-medium text-blue-500">{rc?.indirect ?? 0}</span>
+                          )}
+                        </td>
+                        {/* Total referrals */}
+                        <td className="px-6 py-3.5 text-right text-slate-700 font-medium">
+                          {referralsLoading && !rc ? (
+                            <span className="inline-block w-8 h-3 bg-slate-100 rounded animate-pulse" />
+                          ) : (
+                            rc?.total ?? entry.referrals
+                          )}
+                        </td>
+                        <td className="px-6 py-3.5 text-right font-semibold text-slate-900">₱{entry.earnings.toLocaleString()}</td>
+                        <td className="px-6 py-3.5 text-center">
+                          {i < 3 ? (
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${medalBadgeClass[i]}`}>
+                              {medals[i]} {['Gold', 'Silver', 'Bronze'][i]}
+                            </span>
+                          ) : (
+                            <span className="text-slate-200 text-xs select-none">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
       </div>

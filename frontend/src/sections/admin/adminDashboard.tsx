@@ -1,15 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Lock, LogOut, ChevronLeft, FileText } from 'lucide-react';
+import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock } from 'lucide-react';
 
 import GeneratePin from '../tabs/GeneratePin';
 import UsersOverview from '../tabs/UsersOverview';
+import PendingPayouts from '../tabs/PendingPayouts';
+import PendingWithdrawGC from '../tabs/PendingWithdrawGC';
 
-/* ──────────────────────────────────────────────────────────────────────────
-   KEYFRAMES — only things Tailwind cannot express natively
-   (variable-driven spark offsets, repeating-gradient tape, complex
-   multi-stop transforms, delayed build-up sequence, etc.)
-────────────────────────────────────────────────────────────────────────── */
 const KEYFRAMES = `
   @keyframes crane-swing {
     0%,100% { transform: rotate(-5deg); }
@@ -53,7 +50,7 @@ const KEYFRAMES = `
   }
   @keyframes prog-fill {
     from { width: 0%;  }
-    to   { width: 10%; }
+    to   { width: 60%; }
   }
   @keyframes blink-light {
     0%,49%  { opacity: 1;    background: #ef4444; }
@@ -332,7 +329,7 @@ function UnderDevelopmentContent() {
         <div className="w-full max-w-110">
           <div className="flex justify-between mb-1.5">
             <span className="text-xs font-semibold text-slate-500">Build progress</span>
-            <span className="text-xs font-bold text-amber-500">10%</span>
+            <span className="text-xs font-bold text-amber-500">60%</span>
           </div>
           <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
             <div
@@ -347,9 +344,12 @@ function UnderDevelopmentContent() {
             // { label: '✓ PIN Creation',     cls: 'bg-green-100  text-green-800'  },
             { label: '⚙ Users Overview Testing Phase', cls: 'bg-amber-100  text-amber-800' },
             { label: '⚙ PIN Creation Testing Phase', cls: 'bg-amber-100  text-amber-800' },
-            { label: '○ Admin Dashboard', cls: 'bg-slate-100  text-slate-600' },
-            { label: '○ My Profile', cls: 'bg-slate-100  text-slate-600' },
-            { label: '○ Final Inspection', cls: 'bg-slate-100  text-slate-600' },
+            { label: '⚙ Pending Payouts Testing Phase', cls: 'bg-amber-100  text-amber-800' },
+            { label: '⚙ Pending Withdrawals (GC) Testing Phase', cls: 'bg-amber-100  text-amber-800' },
+            { label: '⚙ My Account Testing Phase', cls: 'bg-amber-100  text-amber-800' },
+            { label: '○ Admin Dashboard Details Overview', cls: 'bg-slate-100  text-slate-600' },
+            { label: '○ Final Testing Phase', cls: 'bg-slate-100  text-slate-600' },
+            { label: '○ Deployment Phase', cls: 'bg-slate-100  text-slate-600' },
           ].map(({ label, cls }) => (
             <span key={label} className={`text-xs font-semibold px-3.5 py-1 rounded-full ${cls}`}>
               {label}
@@ -367,19 +367,21 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [, setProfileModalOpen] = useState(false);
-  const [profilePicture] = useState('CP');
 
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'generate-pin', label: 'Generate PIN', icon: Lock },
-    { id: 'users', label: 'Users Overview', icon: FileText },
+    { id: 'users', label: 'Users Overview', icon: Users },
+    { id: 'pendingPayouts', label: 'Pending Payouts', icon: ClipboardClock },
+    { id: 'pendingWithdrawGC', label: 'Pending Withdrawals (GC)', icon: ClipboardClock },
   ], []);
 
   const renderTabContent = () => {
     const map: Record<string, React.ReactElement> = {
       'generate-pin': <GeneratePin />,
       'users': <UsersOverview />,
+      'pendingPayouts': <PendingPayouts />,
+      'pendingWithdrawGC': <PendingWithdrawGC />,
     };
     return map[activeTab] ?? <div />;
   };
@@ -421,22 +423,7 @@ export default function AdminDashboard() {
             ))}
           </nav>
 
-          {/* profile & logout */}
           <div className={`border-t border-gray-100 p-4 space-y-3 ${sidebarOpen ? 'block' : 'hidden lg:flex lg:flex-col'}`}>
-            <button
-              onClick={() => setProfileModalOpen(true)}
-              className={`flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition active:bg-gray-100 ${sidebarOpen ? 'w-full' : 'w-full lg:justify-center'}`}
-            >
-              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center shrink-0">
-                <span className="text-sm font-bold text-yellow-500">{profilePicture}</span>
-              </div>
-              {sidebarOpen && (
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">CoProfit - Admin</p>
-                  <p className="text-xs text-gray-500 truncate">coprofitadmin@gmail.com</p>
-                </div>
-              )}
-            </button>
 
             {sidebarOpen ? (
               <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm">
@@ -448,6 +435,12 @@ export default function AdminDashboard() {
                 <LogOut className="w-4 h-4" />
               </button>
             )}
+            {/* Copyright Footer */}
+            <div className="px-4 py-2.5 bg-transparent text-center">
+              <p className="text-[12px] text-gray-400 text-center leading-relaxed">
+                v1.0.1 &nbsp;·&nbsp; © 2026 CoProfitGlobal.
+              </p>
+            </div>
           </div>
 
         </div>

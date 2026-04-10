@@ -1,8 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Home, TrendingUp, Gift, Lock, Wallet, ShoppingBag,
-  Network, Download, AlertCircle, LogOut, ChevronLeft, Construction,
+  Home, TrendingUp, Gift, Lock, Wallet, Leaf,
+  Network, AlertCircle, LogOut, ChevronLeft, Construction,
+  Combine,
+  BanknoteArrowDown,
+  HandCoins,
+  Spotlight,
+  User,
 } from 'lucide-react';
 
 import Genealogy from '../tabs/Genealogy';
@@ -13,9 +18,11 @@ import ReferalsHierarchy from '../tabs/ReferalsHierarchy';
 import WithdrawGC from '../tabs/WithdrawGC';
 import UnilevelProducts from '../tabs/UnilevelProducts';
 import PayoutHistory from '../tabs/PayoutHistory'
+import Leaderboards from '../tabs/Leaderboards';
+import ViewMyAccount from '../tabs/ViewMyAccount';
 
 import baseImg from '../../assets/elmer-whitebg-removebg-preview.png'
-import Leaderboards from '../tabs/Leaderboards';
+import baseImgCenter from '../../assets/logoWithName.png'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -63,7 +70,235 @@ interface ReferralData {
   all: any[];
 }
 
+<<<<<<< HEAD
 const API_BASE_URL = 'https://coprofitglobal-production.up.railway.app';
+=======
+const CONSTRUCTION_KEYFRAMES = `
+  @keyframes crane-swing {
+    0%,100% { transform: rotate(-5deg); }
+    50%      { transform: rotate(5deg);  }
+  }
+  @keyframes rope-drop {
+    0%,100% { height: 52px; }
+    50%      { height: 70px; }
+  }
+  @keyframes hook-sway {
+    0%,100% { transform: translateX(0);   }
+    50%      { transform: translateX(8px); }
+  }
+  @keyframes build-up {
+    from { transform: scaleY(0); opacity: 0; }
+    to   { transform: scaleY(1); opacity: 1; }
+  }
+  @keyframes worker-walk {
+    0%,100% { transform: translateX(0);    }
+    50%      { transform: translateX(16px); }
+  }
+  @keyframes worker-walk-r {
+    0%,100% { transform: translateX(0);     }
+    50%      { transform: translateX(-16px); }
+  }
+  @keyframes helmet-bob {
+    0%,100% { transform: translateY(0);   }
+    50%      { transform: translateY(-5px); }
+  }
+  @keyframes dust-puff {
+    0%   { transform: scale(0.3); opacity: 0.8; }
+    100% { transform: scale(1.8) translateY(-20px); opacity: 0; }
+  }
+  @keyframes spark {
+    0%   { opacity: 1; transform: translate(0,0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--sx), var(--sy)) scale(0.2); }
+  }
+  @keyframes scaffold-appear {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0);    }
+  }
+  @keyframes prog-fill {
+    from { width: 0%;  }
+    to   { width: 80%; }
+  }
+  @keyframes blink-light {
+    0%,49%  { opacity: 1;    background: #ef4444; }
+    50%,100%{ opacity: 0.15; background: #7f1d1d; }
+  }
+  @keyframes caution-scroll {
+    from { background-position: 0 0;    }
+    to   { background-position: 48px 0; }
+  }
+  @keyframes gear-cw  { to { transform: rotate(360deg);  } }
+  @keyframes gear-ccw { to { transform: rotate(-360deg); } }
+  @keyframes sign-sway {
+    0%,100% { transform: rotate(-3deg); }
+    50%      { transform: rotate(3deg);  }
+  }
+  @keyframes float-chip {
+    0%   { opacity: 0;   transform: translateY(0)     scale(0.8); }
+    20%  { opacity: 0.7; }
+    100% { opacity: 0;   transform: translateY(-50px) scale(1);   }
+  }
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0);    }
+  }
+
+  .cs-floor-1  { transform-origin: bottom center; animation: build-up .45s ease-out .1s  both; }
+  .cs-floor-2  { transform-origin: bottom center; animation: build-up .45s ease-out .6s  both; }
+  .cs-floor-3  { transform-origin: bottom center; animation: build-up .45s ease-out 1.1s both; }
+  .cs-floor-4  { transform-origin: bottom center; animation: build-up .45s ease-out 1.6s both; }
+  .cs-scaffold { animation: scaffold-appear .5s ease-out 2s both; }
+  .cs-crane    { transform-origin: right center; animation: crane-swing 5s ease-in-out infinite; }
+  .cs-rope     { animation: rope-drop  3s ease-in-out infinite; }
+  .cs-hook     { animation: hook-sway  3s ease-in-out infinite; }
+  .cs-worker-a { animation: worker-walk   2s  ease-in-out       infinite; }
+  .cs-worker-b { animation: worker-walk-r 2.6s ease-in-out .5s  infinite; }
+  .cs-helmet   { animation: helmet-bob .95s ease-in-out infinite; }
+  .cs-dust-1   { animation: dust-puff 1.5s ease-out        infinite; }
+  .cs-dust-2   { animation: dust-puff 1.5s ease-out .75s   infinite; }
+  .cs-light    { animation: blink-light 1.1s step-start     infinite; }
+  .cs-sign     { transform-origin: top center; animation: sign-sway 3.5s ease-in-out infinite; }
+  .cs-prog     { animation: prog-fill 2.4s cubic-bezier(.4,0,.2,1) .4s both; }
+  .cs-fade-up  { animation: fade-in-up .6s ease both; }
+
+  .cs-caution-tape {
+    background: repeating-linear-gradient(
+      90deg, #f59e0b 0, #f59e0b 24px, #1e293b 24px, #1e293b 48px
+    );
+    animation: caution-scroll 1s linear infinite;
+  }
+`;
+
+function CSGear({ x, y, r, teeth, dir, speed, fill }: {
+  x: number; y: number; r: number; teeth: number; dir: 'cw' | 'ccw'; speed: number; fill: string;
+}) {
+  const toothH = r * 0.35;
+  return (
+    <g style={{ transformOrigin: `${x}px ${y}px`, animation: `gear-${dir} ${speed}s linear infinite` }}>
+      {Array.from({ length: teeth }).map((_, i) => (
+        <rect
+          key={i}
+          x={x + Math.cos((i / teeth) * Math.PI * 2) * (r - 1) - 3}
+          y={y + Math.sin((i / teeth) * Math.PI * 2) * (r - 1) - toothH / 2}
+          width={6} height={toothH} rx={1}
+          fill={fill} stroke="#92400e" strokeWidth={0.5}
+          transform={`rotate(${(i / teeth) * 360} ${x} ${y})`}
+        />
+      ))}
+      <circle cx={x} cy={y} r={r} fill={fill} stroke="#92400e" strokeWidth={1} />
+      <circle cx={x} cy={y} r={r * 0.38} fill="#78350f" />
+    </g>
+  );
+}
+
+function CSSpark({ dx, dy, delay }: { dx: string; dy: string; delay: number }) {
+  return (
+    <div
+      className="absolute bottom-55.5 left-[calc(50%+98px)] w-1 h-1 rounded-full bg-amber-400"
+      style={{ '--sx': dx, '--sy': dy, animation: `spark .7s ease-out ${delay}s infinite` } as React.CSSProperties}
+    />
+  );
+}
+
+function CSWorker({ wrapClass, helmetClass, bodyClass }: {
+  wrapClass: string; helmetClass: string; bodyClass: string;
+}) {
+  return (
+    <div className={`absolute bottom-13 flex flex-col items-center ${wrapClass}`}>
+      <div className={`cs-helmet w-5 h-2.25 rounded-t-[10px] border border-white/40 ${helmetClass}`} />
+      <div className="w-3.25 h-3.25 bg-amber-200 rounded-full border border-amber-500" />
+      <div className={`w-4.5 h-5 rounded-sm ${bodyClass}`} />
+      <div className="flex gap-0.5">
+        <div className="w-1.75 h-3 bg-blue-900" />
+        <div className="w-1.75 h-3 bg-blue-900" />
+      </div>
+    </div>
+  );
+}
+
+function WelcomeConstructionScene() {
+  return (
+    <div className="relative w-full h-52 overflow-hidden shrink-0 rounded-t-2xl">
+      <style>{CONSTRUCTION_KEYFRAMES}</style>
+      {/* sky */}
+      <div className="absolute inset-0 bg-linear-to-b from-blue-100 via-blue-50 to-amber-50" />
+      {/* clouds */}
+      <div className="absolute top-3 left-[8%] w-16 h-5 bg-white/85 rounded-[30px]" />
+      <div className="absolute top-4 left-[65%] w-12 h-4 bg-white/85 rounded-[30px]" />
+      {/* ground */}
+      <div className="absolute bottom-0 inset-x-0 h-10 bg-amber-800 border-t-2 border-amber-900" />
+      <div className="absolute bottom-0 inset-x-0 h-10"
+        style={{ background: 'repeating-linear-gradient(90deg,transparent 0,transparent 28px,rgba(0,0,0,.07) 28px,rgba(0,0,0,.07) 30px)' }} />
+
+      {/* building */}
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-40">
+        <div className="cs-floor-4 relative h-7 bg-slate-300 border-2 border-slate-400 border-b-0 overflow-hidden">
+          <div className="absolute inset-y-0 left-0 right-[40%]"
+            style={{ background: 'repeating-linear-gradient(45deg,#e2e8f0 0,#e2e8f0 4px,transparent 4px,transparent 9px)' }} />
+        </div>
+        <div className="cs-floor-3 h-8 bg-slate-400 border-2 border-slate-500 border-b-0 flex">
+          {[0,1,2].map(i=><div key={i} className="flex-1 border-r border-slate-500/40 last:border-0 flex items-center justify-center">
+            <div className="w-4 h-5 bg-sky-300/60 border border-sky-400/40 rounded-sm" />
+          </div>)}
+        </div>
+        <div className="cs-floor-2 h-8 bg-slate-500 border-2 border-slate-600 border-b-0 flex">
+          {[0,1,2].map(i=><div key={i} className="flex-1 border-r border-slate-600/40 last:border-0 flex items-center justify-center">
+            <div className="w-4 h-5 bg-sky-300/60 border border-sky-400/40 rounded-sm" />
+          </div>)}
+        </div>
+        <div className="cs-floor-1 h-8 bg-slate-600 border-2 border-slate-700 border-b-0 flex">
+          {[0,1,2].map(i=><div key={i} className="flex-1 border-r border-slate-700/40 last:border-0 flex items-center justify-center">
+            <div className="w-4 h-5 bg-sky-200/50 border border-sky-400/30 rounded-sm" />
+          </div>)}
+        </div>
+      </div>
+
+      {/* scaffold */}
+      <div className="cs-scaffold absolute bottom-10" style={{ left: 'calc(50% + 56px)' }}>
+        <div className="flex gap-3">
+          <div className="w-1.5 h-28 bg-amber-500" />
+          <div className="w-1.5 h-28 bg-amber-500" />
+        </div>
+        {[0,1,2,3].map(i=><div key={i} className="absolute w-full h-0.5 bg-amber-400" style={{ bottom: i*26 }} />)}
+      </div>
+
+      {/* crane arm */}
+      <div className="cs-crane absolute" style={{ top: 14, right: 'calc(50% - 110px)' }}>
+        <div className="h-2 w-24 bg-amber-600 rounded" />
+        <div className="cs-rope absolute right-2 top-2 w-0.5 bg-gray-500" style={{ height: 40 }}>
+          <div className="cs-hook absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 border-b-2 border-r-2 border-gray-500 rounded-br-full" />
+        </div>
+      </div>
+      <div className="absolute w-1.5 bg-amber-700" style={{ top: 14, right: 'calc(50% - 90px)', height: 50 }} />
+
+      {/* workers */}
+      <CSWorker wrapClass="cs-worker-a left-[28%]" helmetClass="bg-yellow-400" bodyClass="bg-orange-500" />
+      <CSWorker wrapClass="cs-worker-b left-[58%]" helmetClass="bg-red-500" bodyClass="bg-blue-600" />
+
+      {/* gears svg */}
+      <svg className="absolute bottom-10 right-[16%]" width={54} height={54} viewBox="0 0 54 54">
+        <CSGear x={18} y={18} r={13} teeth={10} dir="cw"  speed={4} fill="#d97706" />
+        <CSGear x={38} y={34} r={9}  teeth={7}  dir="ccw" speed={3} fill="#b45309" />
+      </svg>
+
+      {/* sparks */}
+      <CSSpark dx="8px"  dy="-12px" delay={0}    />
+      <CSSpark dx="-6px" dy="-14px" delay={0.23} />
+      <CSSpark dx="10px" dy="-8px"  delay={0.47} />
+
+      {/* caution tape */}
+      <div className="cs-caution-tape absolute left-0 right-0 h-2 opacity-85" style={{ bottom: 36 }} />
+
+      {/* debris */}
+      {[{left:'30%',bottom:80,delay:0},{left:'55%',bottom:100,delay:0.9},{left:'70%',bottom:90,delay:1.6}].map((p,i)=>(
+        <div key={i} className="absolute w-1 h-1 bg-slate-400 rounded-sm"
+          style={{ left: p.left, bottom: p.bottom, animation: `float-chip 2.2s ease-out ${p.delay}s infinite` }} />
+      ))}
+    </div>
+  );
+}
+
+const API_BASE_URL = 'http://localhost:3000';
+>>>>>>> Development
 
 const formatPhp = (amount: number) =>
   amount.toLocaleString('en-PH', { minimumFractionDigits: 2 });
@@ -91,9 +326,9 @@ function getAuthContext() {
 export default function UserDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [, setProfileModalOpen] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [, setMuteSessions] = useState<number | null>(null);
+  const [showMuteTooltip, setShowMuteTooltip] = useState(false);
   const navigate = useNavigate();
 
   // ── Wallet / income state ────────────────────────────────────────────
@@ -113,6 +348,10 @@ export default function UserDashboard() {
     timesTriggered: { bronze: number; silver: number; gold: number; platinum: number };
   } | null>(null);
   const [sign5StatusLoading, setSign5StatusLoading] = useState(true);
+
+  // ── Leaderboard rank state ───────────────────────────────────────────
+  const [userRank, setUserRank] = useState<{ rank: number | null; totalParticipants: number } | null>(null);
+  const [rankLoading, setRankLoading] = useState(true);
 
   // ── Fetch current user + genealogy root ──────────────────────────────
   useEffect(() => {
@@ -254,6 +493,30 @@ export default function UserDashboard() {
     fetchReferrals();
   }, []);
 
+  // ── Fetch leaderboard rank ───────────────────────────────────────────
+  useEffect(() => {
+    const fetchUserRank = async () => {
+      try {
+        const { token, userId } = getAuthContext();
+        if (!token || !userId) return;
+
+        const res = await fetch(
+          `${API_BASE_URL}/leaderboard/rank/${userId}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) throw new Error('Failed to fetch user rank');
+
+        const data = await res.json();
+        setUserRank(data);
+      } catch (err) {
+        console.error('Rank fetch error:', err);
+      } finally {
+        setRankLoading(false);
+      }
+    };
+    fetchUserRank();
+  }, []);
+
   // ── Evaluate + fetch Sign-5 status on dashboard load ────────────────────
   useEffect(() => {
     const evaluateAndFetchSign5 = async () => {
@@ -347,10 +610,18 @@ export default function UserDashboard() {
     return counts;
   }, [sign5Status, referralData]);
 
-  // ── Existing effects ─────────────────────────────────────────────────
+  // ── Welcome modal + mute-session logic ──────────────────────────────
   useEffect(() => {
     const hasDisabledModal = localStorage.getItem('disableWelcomeModal');
-    if (!hasDisabledModal) setShowWelcomeModal(true);
+    if (hasDisabledModal) return;
+
+    const muteUntil = parseInt(localStorage.getItem('muteModalUntilSession') ?? '0', 10);
+    const sessionCount = parseInt(localStorage.getItem('sessionCount') ?? '0', 10) + 1;
+    localStorage.setItem('sessionCount', String(sessionCount));
+
+    if (sessionCount <= muteUntil) return; // still within muted window
+
+    setShowWelcomeModal(true);
   }, []);
 
   useEffect(() => {
@@ -358,9 +629,17 @@ export default function UserDashboard() {
     if (!token) navigate('/');
   }, [navigate]);
 
-  const handleCloseWelcomeModal = () => {
-    if (dontShowAgain) localStorage.setItem('disableWelcomeModal', 'true');
+  const handleMuteModal = (sessions: number) => {
+    const sessionCount = parseInt(localStorage.getItem('sessionCount') ?? '0', 10);
+    localStorage.setItem('muteModalUntilSession', String(sessionCount + sessions));
+    setMuteSessions(sessions);
+    setShowMuteTooltip(false);
     setShowWelcomeModal(false);
+  };
+
+  const handleCantWait = () => {
+    setShowWelcomeModal(false);
+    setShowMuteTooltip(false);
   };
 
   const TIER_META: Record<string, { label: string; price: string; gradient: string }> = {
@@ -375,24 +654,19 @@ export default function UserDashboard() {
   // ── Dynamic profile display ──────────────────────────────────────────
   const displayName = currentUser?.name || currentUser?.username || 'User';
   const displayEmail = currentUser?.email || '';
-  const profileInitials = displayName
-    .split(' ')
-    .map((w: string) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2) || 'U';
 
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'genealogy', label: 'Genealogy', icon: Network },
     { id: 'referral-hierarchy', label: 'Referral Hierarchy', icon: Lock },
     { id: 'pairing-history', label: 'Pairing History', icon: TrendingUp },
-    { id: 'payout-system', label: 'Payout System', icon: Wallet, underDevelopment: true },
-    { id: 'subscription', label: 'Subscription', icon: ShoppingBag, underDevelopment: true },
-    { id: 'unilevel-package', label: 'Unilevel Products', icon: Download, underDevelopment: true },
-    { id: 'withdraw-gc', label: 'Withdraw GC', icon: Download, underDevelopment: true },
-    { id: 'payout-history', label: 'Payout History', icon: Download, underDevelopment: true },
-    { id: 'leaderboards', label: 'Leaderboards', icon: Download, underDevelopment: true },
+    { id: 'payout-system', label: 'Payout System', icon: Wallet  },
+    { id: 'subscription', label: 'Subscription', icon: Leaf, underDevelopment: true },
+    { id: 'unilevel-package', label: 'Unilevel Products', icon: Combine, underDevelopment: true },
+    { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown },
+    { id: 'payout-history', label: 'Payout History', icon: HandCoins},
+    { id: 'leaderboards', label: 'Leaderboards', icon: Spotlight },
+    { id: 'viewaccount', label: 'View Account', icon: User, },
   ], []);
 
   // ── Skeleton helper ───────────────────────────────────────────────────
@@ -405,65 +679,95 @@ export default function UserDashboard() {
     <div className="space-y-6 pb-6 bg-white">
 
       {/* ── Total Income Card ─────────────────────────────────────────── */}
-      <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-3xl border border-blue-100 shadow-lg flex items-stretch overflow-hidden relative" style={{ minHeight: '200px' }}>
-
+      <div className="relative bg-black rounded-3xl shadow-2xl flex items-stretch overflow-hidden border border-yellow-500/20" style={{ minHeight: '220px' }}>
         {/* Left: Income Content */}
-        <div className="flex-1 p-8 flex flex-col justify-center">
-          <p className="text-sm font-medium text-blue-600 mb-2">Total Income</p>
+        <div className="flex-1 p-8 flex flex-col justify-center relative z-10">
+
+          {/* Rank badge */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 backdrop-blur-sm rounded-full px-3 py-1">
+              <span className="text-yellow-400 text-sm">🏆</span>
+              {rankLoading ? (
+                <span className="text-xs text-yellow-300/60 animate-pulse">Loading rank...</span>
+              ) : userRank?.rank ? (
+                <>
+                  <span className="text-xs font-semibold text-yellow-200/80 uppercase tracking-wider">Rank</span>
+                  <span className="text-sm font-bold text-yellow-400">#{userRank.rank}</span>
+                  <span className="text-xs text-yellow-300/50">of {userRank.totalParticipants.toLocaleString()}</span>
+                </>
+              ) : (
+                <span className="text-xs text-yellow-300/60">Unranked</span>
+              )}
+            </div>
+          </div>
+
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-500/70 mb-1">Total Income</p>
 
           {incomeLoading ? (
-            <Skeleton className="h-12 w-52 mb-4" />
+            <div className="h-12 w-52 bg-yellow-500/10 animate-pulse rounded-xl mb-4" />
           ) : (
-            <p className="text-3xl text-gray-900 mb-4">
+            <p className="text-4xl font-bold text-yellow-400 mb-4 tracking-tight" style={{ textShadow: '0 0 40px rgba(234,179,8,0.4)' }}>
               ₱{formatPhp(income?.totalIncome ?? 0)}
             </p>
           )}
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-5">
             <div className="flex flex-col">
-              <span className="text-xs text-gray-600 mb-1">Today</span>
+              <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">Today</span>
               {incomeLoading
-                ? <Skeleton className="h-7 w-28" />
-                : <span className="text-2xl text-gray-900">
-                  ₱{formatPhp(income?.today ?? 0)}
-                </span>
+                ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
+                : <span className="text-xl font-semibold text-white/80">₱{formatPhp(income?.today ?? 0)}</span>
               }
             </div>
-            <div className="w-px h-12 bg-blue-200" />
+            <div className="w-px h-10 bg-yellow-500/20" />
             <div className="flex flex-col">
-              <span className="text-xs text-gray-600 mb-1">This Week</span>
+              <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">This Week</span>
               {incomeLoading
-                ? <Skeleton className="h-7 w-28" />
-                : <span className="text-2xl text-blue-600">
-                  ₱{formatPhp(income?.thisWeek ?? 0)}
-                </span>
+                ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
+                : <span className="text-xl font-semibold text-yellow-300">₱{formatPhp(income?.thisWeek ?? 0)}</span>
               }
             </div>
-            <div className="w-px h-12 bg-blue-200" />
+            <div className="w-px h-10 bg-yellow-500/20" />
             <div className="flex flex-col">
-              <span className="text-xs text-gray-600 mb-1">This Month</span>
+              <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">This Month</span>
               {incomeLoading
-                ? <Skeleton className="h-7 w-28" />
-                : <span className="text-2xl text-indigo-600">
-                  ₱{formatPhp(income?.thisMonth ?? 0)}
-                </span>
+                ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
+                : <span className="text-xl font-semibold text-yellow-400">₱{formatPhp(income?.thisMonth ?? 0)}</span>
               }
             </div>
           </div>
         </div>
 
-        {/* Middle: User Info */}
-        <div className="flex flex-col items-start justify-center gap-1.5 px-10 border-l border-blue-200">
-          <span className="text-xl text-gray-800">{displayName}</span>
-          <span className="text-sm text-gray-500">{displayEmail}</span>
-          <span className="text-sm text-blue-500 font-medium">www.coprofitglobal.com</span>
+        {/* Center: Profile Image — flush to bottom */}
+        <div className="relative shrink-0 self-end z-10 flex items-end justify-center" style={{ width: '200px', height: '220px' }}>
+          <img
+            src={baseImgCenter}
+            alt="Profile Center"
+            style={{
+              position: 'absolute',
+              top: 1,
+              bottom: 0,
+              right: 90,
+              width: '200px',
+              height: '250px',
+              objectFit: 'cover',
+              objectPosition: 'top',
+            }}
+          />
+        </div>
+
+        {/* Right: User Info */}
+        <div className="flex flex-col items-start justify-center gap-2 px-8 border-l border-yellow-500/15 relative z-10">
+          <span className="text-xl font-semibold text-white">{displayName}</span>
+          <span className="text-sm text-white/50">{displayEmail}</span>
+          <span className="text-sm text-yellow-400 font-medium">www.coprofitglobal.com</span>
         </div>
 
         {/* Right: Profile Image — large, flush to bottom */}
-        <div className="relative shrink-0 self-end" style={{ width: '220px', height: '220px' }}>
+        <div className="relative shrink-0 self-end z-10" style={{ width: '220px', height: '220px' }}>
           <img
             src={baseImg}
-            alt="Profile"
+            alt="Profile Right"
             style={{
               position: 'absolute',
               bottom: 0,
@@ -472,7 +776,7 @@ export default function UserDashboard() {
               height: '260px',
               objectFit: 'cover',
               objectPosition: 'top',
-              filter: 'drop-shadow(0 8px 24px rgba(99,102,241,0.30))',
+              filter: 'drop-shadow(0 8px 40px rgba(234,179,8,0.35))',
               maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
               WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
             }}
@@ -811,6 +1115,7 @@ export default function UserDashboard() {
       'unilevel-package': <UnilevelProducts />,
       'payout-history': <PayoutHistory />,
       'leaderboards': <Leaderboards />,
+      'viewaccount': <ViewMyAccount />,
     };
     return contents[activeTab] || <div />;
   };
@@ -825,33 +1130,108 @@ export default function UserDashboard() {
 
   return (
     <div className="flex h-screen bg-white">
-      {/* Welcome Modal */}
+      {/* ── Welcome / Under-Construction Modal ── */}
       {showWelcomeModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl text-gray-900 mb-2">Welcome!</h2>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col"
+            style={{ maxHeight: '90vh' }}>
+
+            {/* Construction scene header */}
+            <WelcomeConstructionScene />
+
+            {/* Content */}
+            <div className="cs-fade-up flex flex-col items-center gap-4 px-7 pt-5 pb-6 overflow-y-auto">
+
+              {/* Headline */}
+              <div className="text-center">
+                <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                  Welcome to CoProfitGlobal!
+                </h2>
+                <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">
+                  Thank you for joining our community. The platform is actively being built,
+                  track the progress below. Grab a hard hat! 🦺
+                </p>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full">
+                <div className="flex justify-between mb-1.5">
+                  <span className="text-xs font-semibold text-slate-500">Build progress</span>
+                  <span className="text-xs font-bold text-amber-500">80%</span>
+                </div>
+                <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="cs-prog h-full rounded-full bg-linear-to-r from-amber-400 to-orange-500" />
+                </div>
+              </div>
+
+              {/* Status chips */}
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {[
+                  { label: '✓ Pairing History',                    cls: 'bg-green-100 text-green-800' },
+                  { label: '✓ Payout System',                      cls: 'bg-green-100 text-green-800' },
+                  { label: '✓ Withdrawal Gift Certificates',        cls: 'bg-green-100 text-green-800' },
+                  { label: '✓ Payout History',                     cls: 'bg-green-100 text-green-800' },
+                  { label: '⚙ User Dashboard — Testing Phase',     cls: 'bg-amber-100 text-amber-800' },
+                  { label: '⚙ Genealogy Bonuses — Testing Phase',  cls: 'bg-amber-100 text-amber-800' },
+                  { label: '⚙ Referral Hierarchy — Testing Phase', cls: 'bg-amber-100 text-amber-800' },
+                  { label: '⚙ Leaderboards — Testing Phase',       cls: 'bg-amber-100 text-amber-800' },
+                  { label: '⚙ Users Account Management',           cls: 'bg-amber-100 text-amber-800' },
+                  { label: '○ Subscription Management',            cls: 'bg-slate-100 text-slate-600' },
+                  { label: '○ Unilevel Products',                  cls: 'bg-slate-100 text-slate-600' },
+                  { label: '○ Final Phase',                        cls: 'bg-slate-100 text-slate-600' },
+                ].map(({ label, cls }) => (
+                  <span key={label} className={`text-[11px] font-semibold px-3 py-0.5 rounded-full ${cls}`}>
+                    {label}
+                  </span>
+                ))}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 w-full pt-1">
+
+                {/* Mute this Modal — with session tooltip */}
+                <div className="relative flex-1">
+                  <button
+                    onClick={() => setShowMuteTooltip(prev => !prev)}
+                    className="w-full flex items-center justify-center gap-1.5 border border-slate-300 text-slate-600 hover:bg-slate-50 font-medium text-sm py-2.5 px-4 rounded-xl transition-colors"
+                  >
+                    🔕 Mute this Modal
+                    <span className="text-slate-400 text-xs">▾</span>
+                  </button>
+
+                  {/* Session picker tooltip */}
+                  {showMuteTooltip && (
+                    <div className="absolute bottom-full mb-2 left-0 right-0 bg-gray-900 rounded-xl shadow-xl p-3 z-10">
+                      <p className="text-xs text-gray-300 mb-2 text-center leading-snug">
+                        Hide for how many sessions?
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 justify-center">
+                        {[4, 6, 8, 10].map(n => (
+                          <button
+                            key={n}
+                            onClick={() => handleMuteModal(n)}
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-amber-500 hover:text-white text-gray-200 transition-colors"
+                          >
+                            {n} Sessions
+                          </button>
+                        ))}
+                      </div>
+                      {/* tooltip arrow */}
+                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-gray-900 rotate-45" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Can't Wait! */}
+                <button
+                  onClick={handleCantWait}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm py-2.5 px-4 rounded-xl transition-colors shadow-md shadow-blue-200"
+                >
+                  🚀 Can't Wait!
+                </button>
+              </div>
+
             </div>
-            <p className="text-gray-700 text-center mb-6 leading-relaxed">
-              Thank you for joining CoProfitGlobal! We're grateful to have you as part of our community.
-              Your success is our mission, and we're here to support you every step of the way.
-            </p>
-            <div className="flex items-center gap-3 mb-6 bg-gray-50 p-4 rounded-lg">
-              <input
-                type="checkbox" id="dontShowAgain" checked={dontShowAgain}
-                onChange={(e) => setDontShowAgain(e.target.checked)}
-                className="w-4 h-4 cursor-pointer"
-              />
-              <label htmlFor="dontShowAgain" className="text-sm text-gray-700 cursor-pointer">
-                Do not show this message again
-              </label>
-            </div>
-            <button
-              onClick={handleCloseWelcomeModal}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
-            >
-              OK
-            </button>
           </div>
         </div>
       )}
@@ -916,20 +1296,7 @@ export default function UserDashboard() {
           </nav>
 
           <div className={`border-t border-gray-100 p-4 space-y-3 ${sidebarOpen ? 'block' : 'hidden lg:flex lg:flex-col'}`}>
-            <button
-              onClick={() => setProfileModalOpen(true)}
-              className={`flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition active:bg-gray-100 ${sidebarOpen ? 'w-full' : 'w-full lg:justify-center'}`}
-            >
-              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center shrink-0">
-                <span className="text-sm font-bold text-yellow-500">{profileInitials}</span>
-              </div>
-              {sidebarOpen && (
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
-                  <p className="text-xs text-gray-500 truncate">{displayEmail}</p>
-                </div>
-              )}
-            </button>
+        
             {sidebarOpen ? (
               <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm">
                 <LogOut className="w-4 h-4 shrink-0" />
@@ -943,7 +1310,7 @@ export default function UserDashboard() {
             {/* Copyright Footer */}
             <div className="px-4 py-2.5 bg-transparent text-center">
               <p className="text-[12px] text-gray-400 text-center leading-relaxed">
-                v1.0.0 &nbsp;·&nbsp; © 2025 CoProfitGlobal.
+                v1.0.1 &nbsp;·&nbsp; © 2026 CoProfitGlobal.
               </p>
             </div>
           </div>

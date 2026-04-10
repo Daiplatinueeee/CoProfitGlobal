@@ -208,8 +208,23 @@ export default function AddMemberModal({
               {field('name', 'Name', 'Full name', 'text', true)}
               {field('username', 'Username', 'username (optional)')}
               {field('email', 'Email', 'user@example.com', 'email', true)}
-              {field('age', 'Age', '25', 'number')}
               {field('birthday', 'Birthday', '', 'date')}
+              {/* Age — computed from birthday */}
+              {formData.birthday && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Age</label>
+                  <div className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-100 text-gray-600">
+                    {(() => {
+                      const today = new Date()
+                      const dob = new Date(formData.birthday)
+                      let age = today.getFullYear() - dob.getFullYear()
+                      const m = today.getMonth() - dob.getMonth()
+                      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
+                      return `${age} years old`
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* RIGHT COLUMN — Contact & Security */}

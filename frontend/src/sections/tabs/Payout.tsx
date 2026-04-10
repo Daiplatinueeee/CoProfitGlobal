@@ -1,4 +1,27 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+
+const API_BASE_URL = 'http://localhost:3000';
+
+interface WithdrawalRecord {
+  id: string;
+  amount: number;
+  vat: number;
+  totalAmount: number;
+  paymentMethod: string;
+  accountName: string;
+  notes: string;
+  status: 'pending' | 'completed' | 'rejected';
+  createdAt: string;
+}
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'completed': return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
+    case 'pending':   return 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200';
+    case 'rejected':  return 'bg-red-50 text-red-700 ring-1 ring-red-200';
+    default:          return 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
+  }
+};
 
 function Payout() {
   const [formData, setFormData] = useState({
@@ -7,59 +30,87 @@ function Payout() {
     accountName: '',
     notes: '',
   });
+  const [submitting, setSubmitting]     = useState(false);
+  const [submitError, setSubmitError]   = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState('');
 
-  const [withdrawals] = useState([
-    {
-      id: 1,
-      date: '2025-02-20',
-      time: '03:45 PM',
-      requestedDate: '2025-02-20',
-      requestAmount: 5000,
-      vat: 500,
-      totalAmount: 5500,
-      status: 'completed',
-    },
-    {
-      id: 2,
-      date: '2025-02-18',
-      time: '11:20 AM',
-      requestedDate: '2025-02-18',
-      requestAmount: 3500,
-      vat: 350,
-      totalAmount: 3850,
-      status: 'completed',
-    },
-    {
-      id: 3,
-      date: '2025-02-15',
-      time: '02:15 PM',
-      requestedDate: '2025-02-15',
-      requestAmount: 2000,
-      vat: 200,
-      totalAmount: 2200,
-      status: 'pending',
-    },
-    {
-      id: 4,
-      date: '2025-02-12',
-      time: '09:30 AM',
-      requestedDate: '2025-02-12',
-      requestAmount: 7500,
-      vat: 750,
-      totalAmount: 8250,
-      status: 'completed',
-    },
-  ]);
+  const [availableBalance, setAvailableBalance] = useState(0);
+  const [withdrawals, setWithdrawals]           = useState<WithdrawalRecord[]>([]);
+  const [loading, setLoading]                   = useState(true);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const token  = localStorage.getItem('accessToken');
+  const userId = localStorage.getItem('userId') ?? (() => {
+    try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.id ?? ''; } catch { return ''; }
+  })();
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [balRes, histRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/wallet/${userId}/balances`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE_URL}/withdrawal/my`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      const balJson  = await balRes.json();
+      const histJson = await histRes.json();
+
+      setAvailableBalance(balJson?.balances?.php ?? 0);
+      setWithdrawals(Array.isArray(histJson) ? histJson : []);
+    } catch {
+      // keep defaults
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handleInputChange = (
+    e: { target: { name: string; value: string } },
+  ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
-    console.log('Withdrawal request submitted:', formData);
-    setFormData({ amount: '', paymentMethod: '', accountName: '', notes: '' });
+    setSubmitError('');
+    setSubmitSuccess('');
+    setSubmitting(true);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/withdrawal`, {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount:        parseFloat(formData.amount),
+          paymentMethod: formData.paymentMethod,
+          accountName:   formData.accountName,
+          notes:         formData.notes,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        setSubmitError(json?.message ?? 'Failed to submit request.');
+      } else {
+        setSubmitSuccess('Withdrawal request submitted successfully.');
+        setFormData({ amount: '', paymentMethod: '', accountName: '', notes: '' });
+        await fetchData();
+      }
+    } catch {
+      setSubmitError('Network error. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const totalWithdrawn = withdrawals
@@ -69,19 +120,6 @@ function Payout() {
   const totalPending = withdrawals
     .filter((w) => w.status === 'pending')
     .reduce((sum, w) => sum + w.totalAmount, 0);
-
-  const availableCurrent = 25000 - totalWithdrawn - totalPending;
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
-      case 'pending':
-        return 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200';
-      default:
-        return 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
-    }
-  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -96,10 +134,10 @@ function Payout() {
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {[
-            { label: 'Total Withdrawn', value: `₱${totalWithdrawn.toLocaleString()}`, sub: 'Completed withdrawals' },
-            { label: 'Total Pending', value: `₱${totalPending.toLocaleString()}`, sub: 'Awaiting processing' },
-            { label: 'Available Balance', value: `₱${availableCurrent.toLocaleString()}`, sub: 'Ready to withdraw' },
-          ].map(stat => (
+            { label: 'Total Withdrawn',    value: `₱${totalWithdrawn.toLocaleString()}`,      sub: 'Completed withdrawals' },
+            { label: 'Total Pending',      value: `₱${totalPending.toLocaleString()}`,         sub: 'Awaiting processing' },
+            { label: 'Available Balance',  value: `₱${availableBalance.toLocaleString()}`,     sub: 'Ready to withdraw' },
+          ].map((stat) => (
             <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-5 py-4">
               <p className="text-xs text-slate-400 mb-1">{stat.label}</p>
               <p className="text-2xl font-semibold text-slate-900">{stat.value}</p>
@@ -113,14 +151,13 @@ function Payout() {
           {/* Request Withdrawal Form */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-                <div>
-                  <h2 className="text-base font-semibold text-slate-900">Request Withdrawal</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Fill in your payout details</p>
-                </div>
+              <div className="px-6 py-5 border-b border-slate-100">
+                <h2 className="text-base font-semibold text-slate-900">Request Withdrawal</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Fill in your payout details</p>
               </div>
 
-              <div className="px-6 py-5 space-y-4">
+              <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+
                 {/* Amount */}
                 <div>
                   <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Amount</label>
@@ -132,7 +169,14 @@ function Payout() {
                     placeholder="Enter amount"
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
                     required
+                    min={1}
                   />
+                  {formData.amount && !isNaN(parseFloat(formData.amount)) && (
+                    <p className="text-xs text-slate-400 mt-1">
+                      +10% VAT = ₱{Math.floor(parseFloat(formData.amount) * 0.10).toLocaleString()} &nbsp;|&nbsp;
+                      Total deducted: ₱{Math.floor(parseFloat(formData.amount) * 1.10).toLocaleString()}
+                    </p>
+                  )}
                 </div>
 
                 {/* Payment Method */}
@@ -175,34 +219,39 @@ function Payout() {
                     value={formData.notes}
                     onChange={handleInputChange}
                     placeholder="Add any special instructions..."
-                    rows={4}
+                    rows={3}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300 resize-none"
                   />
                 </div>
 
-                {/* Submit */}
+                {submitError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{submitError}</p>
+                )}
+                {submitSuccess && (
+                  <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{submitSuccess}</p>
+                )}
+
                 <button
-                  onClick={handleSubmit}
-                  className="w-full bg-slate-900 hover:bg-slate-700 text-white text-sm font-medium py-2.5 px-4 rounded-lg transition-colors"
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-slate-900 hover:bg-slate-700 disabled:opacity-50 text-white text-sm font-medium py-2.5 px-4 rounded-lg transition-colors"
                 >
-                  Submit Request
+                  {submitting ? 'Submitting…' : 'Submit Request'}
                 </button>
-              </div>
+              </form>
             </div>
           </div>
 
           {/* Withdrawal History */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-
-              {/* Table Header */}
               <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
                 <div>
                   <h2 className="text-base font-semibold text-slate-900">Withdrawal History</h2>
                   <p className="text-xs text-slate-400 mt-0.5">{withdrawals.length} record{withdrawals.length !== 1 ? 's' : ''}</p>
                 </div>
                 <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
-                  {withdrawals.filter(w => w.status === 'completed').length} completed
+                  {withdrawals.filter((w) => w.status === 'completed').length} completed
                 </span>
               </div>
 
@@ -210,8 +259,8 @@ function Payout() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date & Time</th>
-                      <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Requested</th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date</th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Method</th>
                       <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Amount</th>
                       <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">VAT</th>
                       <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Total</th>
@@ -219,13 +268,15 @@ function Payout() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {withdrawals.length === 0 ? (
+                    {loading ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">Loading…</td>
+                      </tr>
+                    ) : withdrawals.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-6 py-16 text-center">
                           <div className="flex flex-col items-center gap-2">
-                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">
-                              ✦
-                            </div>
+                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">✦</div>
                             <p className="text-slate-400 text-sm">No withdrawal records yet</p>
                             <p className="text-slate-300 text-xs">Submit a request to get started</p>
                           </div>
@@ -235,11 +286,15 @@ function Payout() {
                       withdrawals.map((w) => (
                         <tr key={w.id} className="hover:bg-slate-50 transition-colors duration-150">
                           <td className="px-6 py-4">
-                            <p className="font-medium text-slate-900">{w.date}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">{w.time}</p>
+                            <p className="font-medium text-slate-900">
+                              {new Date(w.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {new Date(w.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
                           </td>
-                          <td className="px-6 py-4 text-slate-500">{w.requestedDate}</td>
-                          <td className="px-6 py-4 text-right text-slate-900">₱{w.requestAmount.toLocaleString()}</td>
+                          <td className="px-6 py-4 text-slate-500 capitalize">{w.paymentMethod}</td>
+                          <td className="px-6 py-4 text-right text-slate-900">₱{w.amount.toLocaleString()}</td>
                           <td className="px-6 py-4 text-right text-slate-500">₱{w.vat.toLocaleString()}</td>
                           <td className="px-6 py-4 text-right font-semibold text-slate-900">₱{w.totalAmount.toLocaleString()}</td>
                           <td className="px-6 py-4 text-center">
