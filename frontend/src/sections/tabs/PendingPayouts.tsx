@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Clock, Check, X } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'https://coprofitglobal-production.up.railway.app';
 
 interface WithdrawalRecord {
   id: string;
