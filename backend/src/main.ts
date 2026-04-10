@@ -21,7 +21,7 @@ async function bootstrap() {
   origin: ['https://co-profit-global.vercel.app', 'http://localhost:5173'],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true, // keep true if you use cookies for refresh token; otherwise you can set false
+  credentials: false, // keep true if you use cookies for refresh token; otherwise you can set false
   });
 
   await app.listen(process.env.PORT || 3000);
