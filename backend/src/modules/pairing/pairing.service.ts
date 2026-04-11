@@ -271,9 +271,10 @@ export class PairingService {
         });
       }
 
-      // ── Cascade leg points to all ancestors (topline) ─────────────
-      // Awaited — guarantees parent bucket is credited and parent's pairing
-      // settles before grandparent receives points (no race condition).
+      // ── Cascade 5% PHP bonus to all ancestors (topline) ──────────
+      // No volume points are passed up — uplines earn points only when
+      // a new user is placed below them (handled in VolumeService).
+      // The 5% bonus is a direct wallet credit, no GC passed up.
       try {
         await this.cascadeToParent(userId, pairedPoints, payoutPhp, periodKey)
       } catch (err: any) {
@@ -310,17 +311,14 @@ export class PairingService {
     };
   }
 
-  // ── Topline cascade ───────────────────────────────────────────────────────
+  // ── Topline bonus cascade ─────────────────────────────────────────────────
 
   /**
-   * After a pairing for `userId`, sequentially:
-   *   1. Credits the immediate parent's leg bucket with `pairedPoints`
-   *   2. Awards the parent a 5% PHP topline bonus from the child's payout
-   *   3. AWAITS tryPairIfPossible(parent) — which recursively calls cascadeToParent
-   *      for the grandparent, and so on up to the root.
+   * After a pairing for `userId`, walks up the full ancestor chain and awards
+   * each upline a 5% PHP bonus from the child's payout.
    *
-   * Fully sequential — no fire-and-forget. Each ancestor's bucket is credited
-   * and their pairing settles before the next ancestor receives any points.
+   * Volume points are NOT cascaded here — uplines receive package points only
+   * when a new user is placed below them (handled in VolumeService).
    */
   private async cascadeToParent(
     userId: Types.ObjectId,
@@ -339,22 +337,7 @@ export class PairingService {
     const parentIdStr = parentId.toString()
     const leg         = (node as any).position === 'left' ? VolumeLeg.LEFT : VolumeLeg.RIGHT
 
-    // a. Credit volume bucket so parent can accumulate and eventually pair
-    await this.bucketModel.updateOne(
-      { ownerUserId: parentId, leg },
-      { $inc: { totalPoints: pairedPoints, availablePoints: pairedPoints } },
-      { upsert: true },
-    )
-
-    // b. Update parent's historical leg point fields
-    await this.userModel.updateOne(
-      { _id: parentId },
-      leg === VolumeLeg.LEFT
-        ? { $inc: { leftLegPoints: pairedPoints } }
-        : { $inc: { rightLegPoints: pairedPoints } },
-    )
-
-    // c. 5% PHP topline bonus — direct wallet credit, no GC passed up
+    // 5% PHP topline bonus — direct wallet credit, no GC passed up
     const bonusPhp = Math.floor(payoutPhp * 0.05)
     if (bonusPhp > 0) {
       await this.walletService.credit({
@@ -368,18 +351,8 @@ export class PairingService {
       })
     }
 
-    // d. Trigger parent pairing — AWAITED so grandparent only gets points
-    //    after parent's pairing (and its own cascadeToParent) fully settles.
-    const pairResult = await this.tryPairIfPossible(parentIdStr)
-
-    // e. If the parent could NOT pair (cap full or only one leg has volume),
-    //    tryPairIfPossible never called cascadeToParent internally, so the
-    //    grandparent and above never receive their leg-bucket credit.
-    //    Continue propagating the original pairedPoints up the chain so every
-    //    ancestor accumulates volume regardless of whether intermediate nodes pair.
-    if (pairResult.skipped) {
-      await this.cascadeToParent(parentId, pairedPoints, payoutPhp, periodKey)
-    }
+    // Continue up the chain to grandparent and above
+    await this.cascadeToParent(parentId, pairedPoints, payoutPhp, periodKey)
   }
 
   // ── Manual / admin trigger ────────────────────────────────────────────────
