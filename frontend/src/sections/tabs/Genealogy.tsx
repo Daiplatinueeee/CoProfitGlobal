@@ -39,7 +39,6 @@ interface NodePosition {
   y: number
 }
 
-
 const API_BASE_URL = 'http://localhost:3000'
 
 function Genealogy() {
@@ -58,6 +57,10 @@ function Genealogy() {
   const [zoom, setZoom] = useState(1)
   const [dragging, setDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+
+  // Touch state for mobile pan & pinch-to-zoom
+  const lastTouchRef = React.useRef<{ x: number; y: number } | null>(null)
+  const lastPinchDistRef = React.useRef<number | null>(null)
 
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState<Member[]>([])
@@ -579,9 +582,44 @@ function Genealogy() {
     setZoom(newZoom)
   }
 
+  // ── Touch handlers (mobile pan + pinch-to-zoom) ──────────────────────────
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      lastTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      lastPinchDistRef.current = null
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      lastPinchDistRef.current = Math.hypot(dx, dy)
+      lastTouchRef.current = null
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault()
+    if (e.touches.length === 1 && lastTouchRef.current) {
+      const dx = e.touches[0].clientX - lastTouchRef.current.x
+      const dy = e.touches[0].clientY - lastTouchRef.current.y
+      setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }))
+      lastTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    } else if (e.touches.length === 2 && lastPinchDistRef.current !== null) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.hypot(dx, dy)
+      const scale = dist / lastPinchDistRef.current
+      setZoom((prev) => Math.min(Math.max(prev * scale, 0.3), 3))
+      lastPinchDistRef.current = dist
+    }
+  }
+
+  const handleTouchEnd = () => {
+    lastTouchRef.current = null
+    lastPinchDistRef.current = null
+  }
+
   if (loading) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-white">
+      <div className="w-full h-full flex items-center justify-center bg-white">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading genealogy tree...</p>
@@ -592,7 +630,7 @@ function Genealogy() {
 
   if (error) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-white">
+      <div className="w-full h-full flex items-center justify-center bg-white">
         <div className="text-center">
           <p className="text-red-600 mb-4">Error: {error}</p>
           <p className="text-gray-600 text-sm">Please make sure:</p>
@@ -607,7 +645,7 @@ function Genealogy() {
 
   if (!treeRoot) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-white">
+      <div className="w-full h-full flex items-center justify-center bg-white">
         <p className="text-gray-600">No genealogy tree found</p>
       </div>
     )
@@ -615,11 +653,11 @@ function Genealogy() {
 
   return (
     <div
-      className="w-full h-screen overflow-hidden bg-white relative flex"
-      style={{ userSelect: 'none' }}
+      className="w-full h-full overflow-hidden bg-white relative flex"
+      style={{ userSelect: 'none', touchAction: 'none' }}
     >
       <div className="flex-1 overflow-hidden relative">
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-md">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 w-[90%] max-w-md px-2 sm:px-0">
           <div className="flex gap-2">
             <input
               value={search}
@@ -697,12 +735,15 @@ function Genealogy() {
           width="100%"
           height="100%"
           className="block cursor-grab active:cursor-grabbing"
-          style={{ cursor: 'grab' }}
+          style={{ cursor: 'grab', touchAction: 'none' }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
             {renderTree(treeRoot)}

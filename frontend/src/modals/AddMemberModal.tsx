@@ -133,6 +133,18 @@ export default function AddMemberModal({
     setFormErrors((prev) => ({ ...prev, [field]: '' }))
   }
 
+  // Shared input class builder
+  const inputClass = (id: keyof AddMemberFormData, extra = '') =>
+    [
+      'w-full px-4 py-3 text-sm rounded-xl transition-all focus:outline-none focus:ring-1',
+      formErrors[id]
+        ? 'border-2 border-red-400 bg-red-50 focus:ring-red-100'
+        : 'border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white',
+      extra,
+    ]
+      .filter(Boolean)
+      .join(' ')
+
   const field = (
     id: keyof AddMemberFormData,
     label: string,
@@ -141,7 +153,7 @@ export default function AddMemberModal({
     required = false,
   ) => (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <input
@@ -149,58 +161,59 @@ export default function AddMemberModal({
         value={formData[id]}
         onChange={(e) => set(id, e.target.value)}
         placeholder={placeholder}
-        className={`w-full px-4 py-2.5 text-sm rounded-xl transition-all ${
-          formErrors[id]
-            ? 'border-2 border-red-400 bg-red-50 focus:ring-red-100'
-            : 'border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white'
-        } focus:outline-none focus:ring-1`}
+        className={inputClass(id)}
       />
       {formErrors[id] && (
         <div className="flex items-center gap-1 mt-1.5 text-red-600 text-xs">
-          <AlertCircle className="w-3.5 h-3.5" /> {formErrors[id]}
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {formErrors[id]}
         </div>
       )}
     </div>
   )
 
   return (
+    // Mobile: slides up from bottom. sm+: centered dialog.
     <div
-      className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4 z-50"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col"
+        className="bg-white w-full sm:max-w-4xl sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[92vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-8 py-5 border-b border-gray-100"
+          className="flex items-start justify-between px-5 sm:px-8 py-4 sm:py-5 border-b border-gray-100 shrink-0"
           style={{ borderLeftWidth: 4, borderLeftColor: legColor }}
         >
           <div>
-            <h2 className="text-2xl text-gray-900">
+            <h2 className="text-xl sm:text-2xl text-gray-900">
               Add{' '}
               <span style={{ color: legColor }} className="font-semibold">
                 {isLeftLeg ? 'Left' : 'Right'}
               </span>{' '}
               Member
             </h2>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
               Creating a new account under{' '}
               <span className="font-semibold text-gray-700">{modal.parent.username}</span>
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <X className="w-6 h-6" />
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors p-1 -mr-1 mt-0.5 shrink-0"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="overflow-y-auto px-8 py-7 flex-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Scrollable body */}
+        <div className="overflow-y-auto px-5 sm:px-8 py-5 sm:py-7 flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-0">
 
             {/* LEFT COLUMN — Personal */}
-            <div className="space-y-5">
+            <div className="space-y-4 sm:space-y-5">
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Personal Information
               </h3>
@@ -209,11 +222,12 @@ export default function AddMemberModal({
               {field('username', 'Username', 'username (optional)')}
               {field('email', 'Email', 'user@example.com', 'email', true)}
               {field('birthday', 'Birthday', '', 'date')}
+
               {/* Age — computed from birthday */}
               {formData.birthday && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Age</label>
-                  <div className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-100 text-gray-600">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Age</label>
+                  <div className="w-full px-4 py-3 text-sm rounded-xl border border-gray-200 bg-gray-100 text-gray-600">
                     {(() => {
                       const today = new Date()
                       const dob = new Date(formData.birthday)
@@ -228,43 +242,55 @@ export default function AddMemberModal({
             </div>
 
             {/* RIGHT COLUMN — Contact & Security */}
-            <div className="space-y-5">
+            <div className="space-y-4 sm:space-y-5 mt-6 md:mt-0">
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Contact &amp; Security
               </h3>
 
               {field('contact', 'Contact', '+1 (555) 000-0000')}
 
-              {/* Address — textarea */}
+              {/* Address */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
                 <textarea
                   value={formData.address}
                   onChange={(e) => set('address', e.target.value)}
                   rows={2}
                   placeholder="Street address, city, state"
-                  className={`w-full px-4 py-2.5 text-sm rounded-xl resize-none transition-all ${
+                  className={[
+                    'w-full px-4 py-3 text-sm rounded-xl resize-none transition-all focus:outline-none focus:ring-1',
                     formErrors.address
                       ? 'border-2 border-red-400 bg-red-50 focus:ring-red-100'
-                      : 'border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white'
-                  } focus:outline-none focus:ring-1`}
+                      : 'border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white',
+                  ].join(' ')}
                 />
+                {formErrors.address && (
+                  <div className="flex items-center gap-1 mt-1.5 text-red-600 text-xs">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {formErrors.address}
+                  </div>
+                )}
               </div>
 
-              {/* Beneficiary — textarea */}
+              {/* Beneficiary */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Beneficiary</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Beneficiary</label>
                 <textarea
                   value={formData.beneficiary}
                   onChange={(e) => set('beneficiary', e.target.value)}
                   rows={2}
                   placeholder="Beneficiary information"
-                  className={`w-full px-4 py-2.5 text-sm rounded-xl resize-none transition-all ${
+                  className={[
+                    'w-full px-4 py-3 text-sm rounded-xl resize-none transition-all focus:outline-none focus:ring-1',
                     formErrors.beneficiary
                       ? 'border-2 border-red-400 bg-red-50 focus:ring-red-100'
-                      : 'border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white'
-                  } focus:outline-none focus:ring-1`}
+                      : 'border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white',
+                  ].join(' ')}
                 />
+                {formErrors.beneficiary && (
+                  <div className="flex items-center gap-1 mt-1.5 text-red-600 text-xs">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {formErrors.beneficiary}
+                  </div>
+                )}
               </div>
 
               {field('password', 'Password', '••••••••', 'password', true)}
@@ -279,7 +305,7 @@ export default function AddMemberModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Package PIN <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -290,18 +316,19 @@ export default function AddMemberModal({
                     onChange={(e) => set('packagePin', maskPackagePin(e.target.value))}
                     placeholder="AB1234"
                     maxLength={6}
-                    className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-xl transition-all font-mono tracking-widest uppercase ${
+                    className={[
+                      'w-full pl-9 pr-4 py-3 text-sm rounded-xl transition-all font-mono tracking-widest uppercase focus:outline-none focus:ring-1',
                       formErrors.packagePin
                         ? 'border-2 border-red-400 bg-red-50 focus:ring-red-100'
                         : displayTier
                         ? `border-2 ${displayTier.border} ${displayTier.bg} ${displayTier.ring}`
-                        : 'border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white'
-                    } focus:outline-none focus:ring-1`}
+                        : 'border border-gray-200 bg-gray-50 focus:border-blue-400 focus:bg-white',
+                    ].join(' ')}
                   />
                 </div>
                 {formErrors.packagePin ? (
                   <div className="flex items-center gap-1 mt-1.5 text-red-600 text-xs">
-                    <AlertCircle className="w-3.5 h-3.5" /> {formErrors.packagePin}
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {formErrors.packagePin}
                   </div>
                 ) : (
                   <p className="text-xs text-gray-400 mt-1.5">
@@ -328,7 +355,8 @@ export default function AddMemberModal({
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2">
+                  // 2-col on mobile, 4-col on sm, 2-col back inside md modal column
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-2 gap-2">
                     {Object.entries(TIER_MAP).map(([key, t]) => (
                       <div
                         key={key}
@@ -347,25 +375,25 @@ export default function AddMemberModal({
 
         {/* Root-level error */}
         {formErrors._root && (
-          <div className="mx-8 mb-2 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+          <div className="mx-5 sm:mx-8 mb-2 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 shrink-0">
             <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
             <p className="text-red-700 text-sm">{formErrors._root}</p>
           </div>
         )}
 
         {/* Footer */}
-        <div className="flex gap-3 px-8 py-5 border-t border-gray-100">
+        <div className="flex gap-3 px-5 sm:px-8 py-4 sm:py-5 border-t border-gray-100 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+            className="flex-1 px-4 py-3 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-xl transition-colors"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onAddMember}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-xl transition-colors shadow-sm"
+            className="flex-1 px-4 py-3 text-sm font-medium text-white rounded-xl transition-colors shadow-sm active:opacity-80"
             style={{ backgroundColor: legColor }}
           >
             Add {isLeftLeg ? 'Left' : 'Right'} Member

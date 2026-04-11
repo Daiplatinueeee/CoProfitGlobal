@@ -33,39 +33,44 @@ export default function ChooseMemberTypeModal({
   const legLabel = isLeftLeg ? 'Left' : 'Right'
 
   return (
+    // Mobile: bottom sheet. sm+: centered dialog.
     <div
-      className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4 z-50"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col"
+        className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-7 py-5 border-b border-gray-100"
+          className="flex items-start justify-between px-5 sm:px-7 py-4 sm:py-5 border-b border-gray-100 shrink-0"
           style={{ borderLeftWidth: 4, borderLeftColor: legColor }}
         >
           <div>
-            <h2 className="text-xl text-gray-900">
+            <h2 className="text-lg sm:text-xl text-gray-900">
               Add{' '}
               <span style={{ color: legColor }} className="font-semibold">
                 {legLabel}
               </span>{' '}
               Member
             </h2>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
               Under{' '}
               <span className="font-semibold text-gray-700">{modal.parent.username}</span>
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors p-1 -mr-1 mt-0.5 shrink-0"
+            aria-label="Close"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="px-7 py-6 space-y-4">
+        <div className="px-5 sm:px-7 py-5 sm:py-6 space-y-3 sm:space-y-4">
           <p className="text-sm text-gray-500">
             How would you like to add a member to the{' '}
             <span className="font-semibold" style={{ color: legColor }}>
@@ -77,12 +82,12 @@ export default function ChooseMemberTypeModal({
           {/* New Member Option */}
           <button
             onClick={onChooseNew}
-            className="w-full flex items-start gap-4 px-5 py-4 rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-all group text-left"
+            className="w-full flex items-start gap-4 px-4 sm:px-5 py-4 rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 active:bg-blue-100 transition-all group text-left"
           >
             <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0 group-hover:bg-blue-200 transition-colors mt-0.5">
               <UserPlus className="w-5 h-5 text-blue-600" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors">
                 Add New Member
               </p>
@@ -95,12 +100,12 @@ export default function ChooseMemberTypeModal({
           {/* Existing Member Option */}
           <button
             onClick={onChooseExisting}
-            className="w-full flex items-start gap-4 px-5 py-4 rounded-xl border-2 border-gray-200 hover:border-amber-400 hover:bg-amber-50 transition-all group text-left"
+            className="w-full flex items-start gap-4 px-4 sm:px-5 py-4 rounded-xl border-2 border-gray-200 hover:border-amber-400 hover:bg-amber-50 active:bg-amber-100 transition-all group text-left"
           >
             <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0 group-hover:bg-amber-200 transition-colors mt-0.5">
               <Users className="w-5 h-5 text-amber-600" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-800 group-hover:text-amber-700 transition-colors">
                 Place Existing Member
               </p>
@@ -111,9 +116,9 @@ export default function ChooseMemberTypeModal({
               <div className="flex items-start gap-1.5 mt-2.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
                 <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                 <p className="text-[11px] text-amber-700 leading-relaxed">
-                  <span className="font-semibold">Admin use only.</span> This is intended for members
-                  that have already been registered by an administrator and need to be placed into
-                  the network.
+                  <span className="font-semibold">Admin use only.</span> This is intended for
+                  members that have already been registered by an administrator and need to be
+                  placed into the network.
                 </p>
               </div>
             </div>
@@ -121,10 +126,10 @@ export default function ChooseMemberTypeModal({
         </div>
 
         {/* Footer */}
-        <div className="px-7 py-4 border-t border-gray-100">
+        <div className="px-5 sm:px-7 py-4 border-t border-gray-100 shrink-0">
           <button
             onClick={onClose}
-            className="w-full px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+            className="w-full px-4 py-3 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-xl transition-colors"
           >
             Cancel
           </button>

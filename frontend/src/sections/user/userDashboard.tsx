@@ -214,7 +214,7 @@ function CSWorker({ wrapClass, helmetClass, bodyClass }: {
 
 function WelcomeConstructionScene() {
   return (
-    <div className="relative w-full h-52 overflow-hidden shrink-0 rounded-t-2xl">
+    <div className="relative w-full h-36 sm:h-52 overflow-hidden shrink-0 rounded-t-2xl">
       <style>{CONSTRUCTION_KEYFRAMES}</style>
       {/* sky */}
       <div className="absolute inset-0 bg-linear-to-b from-blue-100 via-blue-50 to-amber-50" />
@@ -320,7 +320,7 @@ function getAuthContext() {
 // ── Component ─────────────────────────────────────────────────────────────
 
 export default function UserDashboard() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [, setMuteSessions] = useState<number | null>(null);
@@ -675,110 +675,195 @@ export default function UserDashboard() {
     <div className="space-y-6 pb-6 bg-white">
 
       {/* ── Total Income Card ─────────────────────────────────────────── */}
-      <div className="relative bg-black rounded-3xl shadow-2xl flex items-stretch overflow-hidden border border-yellow-500/20" style={{ minHeight: '220px' }}>
-        {/* Left: Income Content */}
-        <div className="flex-1 p-8 flex flex-col justify-center relative z-10">
+      <div className="relative bg-black rounded-3xl shadow-2xl overflow-hidden border border-yellow-500/20">
 
-          {/* Rank badge */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 backdrop-blur-sm rounded-full px-3 py-1">
-              <span className="text-yellow-400 text-sm">🏆</span>
-              {rankLoading ? (
-                <span className="text-xs text-yellow-300/60 animate-pulse">Loading rank...</span>
-              ) : userRank?.rank ? (
-                <>
-                  <span className="text-xs font-semibold text-yellow-200/80 uppercase tracking-wider">Rank</span>
-                  <span className="text-sm font-bold text-yellow-400">#{userRank.rank}</span>
-                  <span className="text-xs text-yellow-300/50">of {userRank.totalParticipants.toLocaleString()}</span>
-                </>
-              ) : (
-                <span className="text-xs text-yellow-300/60">Unranked</span>
-              )}
+        {/* ── Mobile layout (< md): stacked ── */}
+        <div className="flex flex-col md:hidden">
+
+          {/* Top: income content */}
+          <div className="p-6 flex flex-col relative z-10">
+            {/* Rank badge */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 backdrop-blur-sm rounded-full px-3 py-1">
+                <span className="text-yellow-400 text-sm">🏆</span>
+                {rankLoading ? (
+                  <span className="text-xs text-yellow-300/60 animate-pulse">Loading rank...</span>
+                ) : userRank?.rank ? (
+                  <>
+                    <span className="text-xs font-semibold text-yellow-200/80 uppercase tracking-wider">Rank</span>
+                    <span className="text-sm font-bold text-yellow-400">#{userRank.rank}</span>
+                    <span className="text-xs text-yellow-300/50">of {userRank.totalParticipants.toLocaleString()}</span>
+                  </>
+                ) : (
+                  <span className="text-xs text-yellow-300/60">Unranked</span>
+                )}
+              </div>
+            </div>
+
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-500/70 mb-1">Total Income</p>
+            {incomeLoading ? (
+              <div className="h-10 w-44 bg-yellow-500/10 animate-pulse rounded-xl mb-4" />
+            ) : (
+              <p className="text-3xl font-bold text-yellow-400 mb-4 tracking-tight" style={{ textShadow: '0 0 40px rgba(234,179,8,0.4)' }}>
+                ₱{formatPhp(income?.totalIncome ?? 0)}
+              </p>
+            )}
+
+            {/* Today / Week / Month — wraps on very small screens */}
+            <div className="flex flex-wrap gap-x-4 gap-y-3">
+              {[
+                { label: 'Today', value: income?.today ?? 0, cls: 'text-white/80' },
+                { label: 'This Week', value: income?.thisWeek ?? 0, cls: 'text-yellow-300' },
+                { label: 'This Month', value: income?.thisMonth ?? 0, cls: 'text-yellow-400' },
+              ].map(({ label, value, cls }, i, arr) => (
+                <React.Fragment key={label}>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">{label}</span>
+                    {incomeLoading
+                      ? <div className="h-5 w-20 bg-yellow-500/10 animate-pulse rounded" />
+                      : <span className={`text-base font-semibold ${cls}`}>₱{formatPhp(value)}</span>
+                    }
+                  </div>
+                  {i < arr.length - 1 && <div className="w-px h-10 bg-yellow-500/20 self-center" />}
+                </React.Fragment>
+              ))}
             </div>
           </div>
 
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-500/70 mb-1">Total Income</p>
-
-          {incomeLoading ? (
-            <div className="h-12 w-52 bg-yellow-500/10 animate-pulse rounded-xl mb-4" />
-          ) : (
-            <p className="text-4xl font-bold text-yellow-400 mb-4 tracking-tight" style={{ textShadow: '0 0 40px rgba(234,179,8,0.4)' }}>
-              ₱{formatPhp(income?.totalIncome ?? 0)}
-            </p>
-          )}
-
-          <div className="flex items-center gap-5">
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">Today</span>
-              {incomeLoading
-                ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
-                : <span className="text-xl font-semibold text-white/80">₱{formatPhp(income?.today ?? 0)}</span>
-              }
+          {/* Bottom: user info + decorative image side by side */}
+          <div className="flex items-end justify-between border-t border-yellow-500/10 relative overflow-hidden" style={{ minHeight: '120px' }}>
+            {/* User info */}
+            <div className="flex flex-col gap-1 p-6 z-10">
+              <span className="text-base font-semibold text-white">{displayName}</span>
+              <span className="text-xs text-white/50 break-all">{displayEmail}</span>
+              <span className="text-xs text-yellow-400 font-medium">www.coprofitglobal.com</span>
             </div>
-            <div className="w-px h-10 bg-yellow-500/20" />
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">This Week</span>
-              {incomeLoading
-                ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
-                : <span className="text-xl font-semibold text-yellow-300">₱{formatPhp(income?.thisWeek ?? 0)}</span>
-              }
-            </div>
-            <div className="w-px h-10 bg-yellow-500/20" />
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">This Month</span>
-              {incomeLoading
-                ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
-                : <span className="text-xl font-semibold text-yellow-400">₱{formatPhp(income?.thisMonth ?? 0)}</span>
-              }
-            </div>
+            {/* Decorative mascot — faded, flush bottom-right */}
+            <img
+              src={baseImg}
+              alt=""
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 0,
+                width: '110px',
+                height: '140px',
+                objectFit: 'cover',
+                objectPosition: 'top',
+                opacity: 0.35,
+                maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
+              }}
+            />
           </div>
         </div>
 
-        {/* Center: Profile Image — flush to bottom */}
-        <div className="relative shrink-0 self-end z-10 flex items-end justify-center" style={{ width: '200px', height: '220px' }}>
-          <img
-            src={baseImgCenter}
-            alt="Profile Center"
-            style={{
-              position: 'absolute',
-              top: 1,
-              bottom: 0,
-              right: 90,
-              width: '200px',
-              height: '250px',
-              objectFit: 'cover',
-              objectPosition: 'top',
-            }}
-          />
-        </div>
+        {/* ── Desktop layout (≥ md): original horizontal ── */}
+        <div className="hidden md:flex items-stretch" style={{ minHeight: '220px' }}>
 
-        {/* Right: User Info */}
-        <div className="flex flex-col items-start justify-center gap-2 px-8 border-l border-yellow-500/15 relative z-10">
-          <span className="text-xl font-semibold text-white">{displayName}</span>
-          <span className="text-sm text-white/50">{displayEmail}</span>
-          <span className="text-sm text-yellow-400 font-medium">www.coprofitglobal.com</span>
-        </div>
+          {/* Left: Income Content */}
+          <div className="flex-1 p-8 flex flex-col justify-center relative z-10">
+            {/* Rank badge */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 backdrop-blur-sm rounded-full px-3 py-1">
+                <span className="text-yellow-400 text-sm">🏆</span>
+                {rankLoading ? (
+                  <span className="text-xs text-yellow-300/60 animate-pulse">Loading rank...</span>
+                ) : userRank?.rank ? (
+                  <>
+                    <span className="text-xs font-semibold text-yellow-200/80 uppercase tracking-wider">Rank</span>
+                    <span className="text-sm font-bold text-yellow-400">#{userRank.rank}</span>
+                    <span className="text-xs text-yellow-300/50">of {userRank.totalParticipants.toLocaleString()}</span>
+                  </>
+                ) : (
+                  <span className="text-xs text-yellow-300/60">Unranked</span>
+                )}
+              </div>
+            </div>
 
-        {/* Right: Profile Image — large, flush to bottom */}
-        <div className="relative shrink-0 self-end z-10" style={{ width: '220px', height: '220px' }}>
-          <img
-            src={baseImg}
-            alt="Profile Right"
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              right: 40,
-              width: '220px',
-              height: '260px',
-              objectFit: 'cover',
-              objectPosition: 'top',
-              filter: 'drop-shadow(0 8px 40px rgba(234,179,8,0.35))',
-              maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
-              WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
-            }}
-          />
-        </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-500/70 mb-1">Total Income</p>
+            {incomeLoading ? (
+              <div className="h-12 w-52 bg-yellow-500/10 animate-pulse rounded-xl mb-4" />
+            ) : (
+              <p className="text-4xl font-bold text-yellow-400 mb-4 tracking-tight" style={{ textShadow: '0 0 40px rgba(234,179,8,0.4)' }}>
+                ₱{formatPhp(income?.totalIncome ?? 0)}
+              </p>
+            )}
 
+            <div className="flex items-center gap-5">
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">Today</span>
+                {incomeLoading
+                  ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
+                  : <span className="text-xl font-semibold text-white/80">₱{formatPhp(income?.today ?? 0)}</span>
+                }
+              </div>
+              <div className="w-px h-10 bg-yellow-500/20" />
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">This Week</span>
+                {incomeLoading
+                  ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
+                  : <span className="text-xl font-semibold text-yellow-300">₱{formatPhp(income?.thisWeek ?? 0)}</span>
+                }
+              </div>
+              <div className="w-px h-10 bg-yellow-500/20" />
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">This Month</span>
+                {incomeLoading
+                  ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
+                  : <span className="text-xl font-semibold text-yellow-400">₱{formatPhp(income?.thisMonth ?? 0)}</span>
+                }
+              </div>
+            </div>
+          </div>
+
+          {/* Center: Logo image — flush to bottom */}
+          <div className="relative shrink-0 self-end z-10 flex items-end justify-center" style={{ width: '200px', height: '220px' }}>
+            <img
+              src={baseImgCenter}
+              alt="Profile Center"
+              style={{
+                position: 'absolute',
+                top: 1,
+                bottom: 0,
+                right: 90,
+                width: '200px',
+                height: '250px',
+                objectFit: 'cover',
+                objectPosition: 'top',
+              }}
+            />
+          </div>
+
+          {/* Right: User Info */}
+          <div className="flex flex-col items-start justify-center gap-2 px-8 border-l border-yellow-500/15 relative z-10">
+            <span className="text-xl font-semibold text-white">{displayName}</span>
+            <span className="text-sm text-white/50">{displayEmail}</span>
+            <span className="text-sm text-yellow-400 font-medium">www.coprofitglobal.com</span>
+          </div>
+
+          {/* Right: Mascot image — large, flush to bottom */}
+          <div className="relative shrink-0 self-end z-10" style={{ width: '220px', height: '220px' }}>
+            <img
+              src={baseImg}
+              alt="Profile Right"
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 40,
+                width: '220px',
+                height: '260px',
+                objectFit: 'cover',
+                objectPosition: 'top',
+                filter: 'drop-shadow(0 8px 40px rgba(234,179,8,0.35))',
+                maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
+              }}
+            />
+          </div>
+
+        </div>
       </div>
 
       {/* ── Income Summary Cards ──────────────────────────────────────── */}
@@ -1128,19 +1213,19 @@ export default function UserDashboard() {
     <div className="flex h-screen bg-white">
       {/* ── Welcome / Under-Construction Modal ── */}
       {showWelcomeModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col"
-            style={{ maxHeight: '90vh' }}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4 z-50">
+          <div className="bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:max-w-lg sm:mx-4 overflow-hidden flex flex-col"
+            style={{ maxHeight: '92vh' }}>
 
             {/* Construction scene header */}
             <WelcomeConstructionScene />
 
             {/* Content */}
-            <div className="cs-fade-up flex flex-col items-center gap-4 px-7 pt-5 pb-6 overflow-y-auto">
+            <div className="cs-fade-up flex flex-col items-center gap-3 sm:gap-4 px-4 sm:px-7 pt-4 sm:pt-5 pb-5 sm:pb-6 overflow-y-auto">
 
               {/* Headline */}
               <div className="text-center">
-                <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900">
                   Welcome to CoProfitGlobal!
                 </h2>
                 <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">
@@ -1176,17 +1261,17 @@ export default function UserDashboard() {
                   { label: '○ Unilevel Products',                  cls: 'bg-slate-100 text-slate-600' },
                   { label: '○ Final Phase',                        cls: 'bg-slate-100 text-slate-600' },
                 ].map(({ label, cls }) => (
-                  <span key={label} className={`text-[11px] font-semibold px-3 py-0.5 rounded-full ${cls}`}>
+                  <span key={label} className={`text-[10px] sm:text-[11px] font-semibold px-2.5 sm:px-3 py-0.5 rounded-full ${cls}`}>
                     {label}
                   </span>
                 ))}
               </div>
 
               {/* Action buttons */}
-              <div className="flex gap-3 w-full pt-1">
+              <div className="flex flex-col xs:flex-row gap-2 sm:gap-3 w-full pt-1">
 
                 {/* Mute this Modal — with session tooltip */}
-                <div className="relative flex-1">
+                <div className="relative w-full xs:flex-1">
                   <button
                     onClick={() => setShowMuteTooltip(prev => !prev)}
                     className="w-full flex items-center justify-center gap-1.5 border border-slate-300 text-slate-600 hover:bg-slate-50 font-medium text-sm py-2.5 px-4 rounded-xl transition-colors"
@@ -1221,7 +1306,7 @@ export default function UserDashboard() {
                 {/* Can't Wait! */}
                 <button
                   onClick={handleCantWait}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm py-2.5 px-4 rounded-xl transition-colors shadow-md shadow-blue-200"
+                  className="w-full xs:flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm py-2.5 px-4 rounded-xl transition-colors shadow-md shadow-blue-200"
                 >
                   🚀 Can't Wait!
                 </button>
@@ -1233,17 +1318,38 @@ export default function UserDashboard() {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed lg:static inset-y-0 left-0 bg-white text-gray-900 sidebar-smooth z-40 ${sidebarOpen ? 'w-64' : 'w-0 lg:w-20'
-        } overflow-hidden border-r border-gray-100`}>
+      <div className={`fixed lg:static inset-y-0 left-0 bg-white text-gray-900 transition-all duration-300 ease-in-out z-40 ${
+        sidebarOpen ? 'w-64' : 'w-0 lg:w-20'
+      } overflow-hidden border-r border-gray-100 shrink-0`}>
         <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-            <h1 className={`text-xl text-gray-900 ${sidebarOpen ? 'block' : 'hidden'}`}>CoProfitGlobal.</h1>
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 hover:bg-gray-100 rounded-lg transition">
-              <ChevronLeft className={`w-5 h-5 text-gray-600 transition-transform ${!sidebarOpen ? 'rotate-180' : ''}`} />
+          <div className={`border-b border-gray-100 flex items-center justify-between transition-all duration-300 ${sidebarOpen ? 'p-6 min-w-[256px]' : 'p-3 min-w-0 lg:justify-center'}`}>
+            {/* Title fades + slides in when open; collapses to zero width when closed so button stays centred */}
+            <h1
+              className={`text-xl text-gray-900 whitespace-nowrap transition-all duration-300 ease-in-out overflow-hidden ${
+                sidebarOpen ? 'opacity-100 translate-x-0 w-auto' : 'opacity-0 -translate-x-3 w-0'
+              }`}
+            >
+              CoProfitGlobal.
+            </h1>
+            {/* Desktop: chevron toggle. Mobile: X close button */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition"
+              aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+            >
+              {/* Show X on mobile when open, chevron on desktop always */}
+              <span className="lg:hidden">
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </span>
+              <span className="hidden lg:block">
+                <ChevronLeft className={`w-5 h-5 text-gray-600 transition-transform ${!sidebarOpen ? 'rotate-180' : ''}`} />
+              </span>
             </button>
           </div>
 
-          <nav className="flex-1 overflow-y-auto py-4 px-3">
+          <nav className="flex-1 overflow-y-auto py-4 px-3 min-w-[256px] lg:min-w-0">
             {menuItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -1259,8 +1365,14 @@ export default function UserDashboard() {
                     } ${sidebarOpen ? 'justify-start' : 'justify-center lg:justify-center'}`}
                 >
                   <Icon className="w-5 h-5 shrink-0" />
-                  {sidebarOpen && <span className="text-sm flex-1 text-left">{item.label}</span>}
-                  {item.underDevelopment && (
+                  <span
+                    className={`text-sm flex-1 text-left whitespace-nowrap transition-all duration-300 ease-in-out ${
+                      sidebarOpen ? 'opacity-100 translate-x-0 w-auto' : 'opacity-0 -translate-x-2 w-0 overflow-hidden'
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                  {item.underDevelopment && sidebarOpen && (
                     <span className="relative group/tooltip ml-auto shrink-0">
                       <Construction className="w-4 h-4 text-amber-500" />
                       <span className={`
@@ -1291,21 +1403,25 @@ export default function UserDashboard() {
             })}
           </nav>
 
-          <div className={`border-t border-gray-100 p-4 space-y-3 ${sidebarOpen ? 'block' : 'hidden lg:flex lg:flex-col'}`}>
+          <div className="border-t border-gray-100 p-4 space-y-3 min-w-[256px] lg:min-w-0">
         
-            {sidebarOpen ? (
-              <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm">
+            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm">
                 <LogOut className="w-4 h-4 shrink-0" />
-                <span>Logout</span>
+                <span
+                  className={`whitespace-nowrap transition-all duration-300 ease-in-out ${
+                    sidebarOpen ? 'opacity-100 translate-x-0 w-auto' : 'opacity-0 -translate-x-2 w-0 overflow-hidden'
+                  }`}
+                >
+                  Logout
+                </span>
               </button>
-            ) : (
-              <button onClick={handleLogout} className="w-full flex items-center justify-center p-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition">
-                <LogOut className="w-4 h-4" />
-              </button>
-            )}
             {/* Copyright Footer */}
-            <div className="px-4 py-2.5 bg-transparent text-center">
-              <p className="text-[12px] text-gray-400 text-center leading-relaxed">
+            <div className="px-4 py-2.5 bg-transparent text-center overflow-hidden">
+              <p
+                className={`text-[12px] text-gray-400 text-center leading-relaxed whitespace-nowrap transition-all duration-300 ease-in-out ${
+                  sidebarOpen ? 'opacity-100' : 'opacity-0'
+                }`}
+              >
                 v1.0.1 &nbsp;·&nbsp; © 2026 CoProfitGlobal.
               </p>
             </div>
@@ -1314,8 +1430,25 @@ export default function UserDashboard() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Mobile top bar with burger icon */}
+        <div className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white shrink-0 z-20">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-600"
+            aria-label="Open menu"
+          >
+            {/* Burger icon */}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          {/* Active section label */}
+          <span className="text-sm font-medium text-gray-700 truncate">
+            {menuItems.find(m => m.id === activeTab)?.label ?? 'Dashboard'}
+          </span>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {activeTab === 'dashboard' ? renderDashboardContent() : renderTabContent()}
         </div>
       </div>

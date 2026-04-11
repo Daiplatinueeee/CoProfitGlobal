@@ -350,10 +350,10 @@ function PinDetailModal({ pin, onClose }: { pin: PIN; onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-lg bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="relative z-10 w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col">
 
         {/* ── Modal Header ── */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-4 shrink-0">
@@ -563,17 +563,17 @@ function GeneratePin() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="w-full max-w-7xl mx-auto px-6 lg:px-21 py-10">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
 
         {/* ── Header ── */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 sm:mb-8 flex items-start sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Generate PIN</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Generate PIN</h1>
             <p className="text-sm text-slate-400 mt-1">
               {pins.length} total PIN{pins.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               onClick={fetchPins}
               className="text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-lg transition-colors"
@@ -600,7 +600,7 @@ function GeneratePin() {
         )}
 
         {/* ── Tier Selection ── */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Select Tier</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
             <button
@@ -646,7 +646,7 @@ function GeneratePin() {
 
         {/* ── Generate Button ── */}
         {selectedTier !== 'free' && (
-          <div className="mb-8">
+          <div className="mb-6 sm:mb-8">
             <button
               onClick={() => setShowGenerateModal(true)}
               disabled={!selectedTier || loading}
@@ -728,7 +728,7 @@ function GeneratePin() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {displayedPins.map((pin) => (
                   <PinCard key={pin.id} pin={pin} onClick={() => setSelectedPin(pin)} />
                 ))}
@@ -755,12 +755,12 @@ function GeneratePin() {
 
         {/* ── Generate Confirmation Modal ── */}
         {showGenerateModal && selectedTier && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
             <div
               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
               onClick={() => { setShowGenerateModal(false); setSelectedTier(null); setQuantity(1); }}
             />
-            <div className="relative z-10 w-full max-w-md bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+            <div className="relative z-10 w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
               <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">
