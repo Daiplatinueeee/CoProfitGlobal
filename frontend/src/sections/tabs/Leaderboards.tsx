@@ -156,7 +156,7 @@ export default function Leaderboards() {
                   const imgSrc = entry.avatar || avatarUrl(entry.name, 'f59e0b');
 
                   return (
-                    <div key={entry.rank} className="flex flex-col items-center gap-2 sm:gap-3 flex-1 max-w-[120px] sm:max-w-[150px]">
+                    <div key={entry.rank} className="flex flex-col items-center gap-2 sm:gap-3 flex-1 max-w-30 sm:max-w-37.5">
                       {/* Avatar */}
                       <div className={`rounded-full ${meta.ringClass} relative`}>
                         <img
