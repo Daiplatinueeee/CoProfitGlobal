@@ -14,10 +14,6 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
-<<<<<<< HEAD
-=======
-    "ignoreDeprecations": "5.0",
->>>>>>> Development
     "incremental": true,
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "skipLibCheck": true,
