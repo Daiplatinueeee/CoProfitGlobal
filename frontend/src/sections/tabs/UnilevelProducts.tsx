@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, CheckCircle, X, AlertCircle } from 'lucide-react';
+import { Upload, CheckCircle, ShoppingCart, X, AlertCircle } from 'lucide-react';
 
 interface Product {
     id: string;
@@ -36,17 +36,6 @@ const paymentMethods = [
 ];
 
 export default function Unilevel() {
-<<<<<<< HEAD
-    const [] = useState<Product[]>([
-        { id: '1', name: 'Starter Bundle',    price: 1500,  pv: 15,  description: 'Perfect for beginners',    image: image1, features: ['Basic access', '15 PV points', 'Support'] },
-        { id: '2', name: 'Professional',       price: 3000,  pv: 30,  description: 'Growing your network',      image: image2, features: ['Full access', '30 PV points', 'Priority support'] },
-        { id: '3', name: 'Premium',            price: 5000,  pv: 50,  description: 'For entrepreneurs',         image: image3, features: ['Premium access', '50 PV points', '24/7 support'] },
-        { id: '4', name: 'Silver Bundle',      price: 7500,  pv: 75,  description: 'Enhanced benefits',         image: image4, features: ['Premium access', '75 PV points', 'Exclusive support'] },
-        { id: '5', name: 'Gold Bundle',        price: 10000, pv: 100, description: 'Ultimate package',          image: image5, features: ['VIP access', '100 PV points', 'Personal manager'] },
-        { id: '6', name: 'Platinum Bundle',    price: 10000, pv: 100, description: 'Ultimate package',          image: image6, features: ['VIP access', '100 PV points', 'Personal manager'] },
-        { id: '7', name: 'Diamond Bundle',     price: 10000, pv: 100, description: 'Ultimate package',          image: image7, features: ['VIP access', '100 PV points', 'Personal manager'] },
-        { id: '8', name: 'Elite Bundle',       price: 10000, pv: 100, description: 'Ultimate package',          image: image8, features: ['VIP access', '100 PV points', 'Personal manager'] },
-=======
     const [products] = useState<Product[]>([
         { id: '1', name: 'Starter Bundle',  price: 1500,  pv: 15,  description: 'Perfect for beginners',  image: image1, features: ['Basic access', '15 PV points', 'Support'] },
         { id: '2', name: 'Professional',    price: 3000,  pv: 30,  description: 'Growing your network',    image: image2, features: ['Full access', '30 PV points', 'Priority support'] },
@@ -56,7 +45,6 @@ export default function Unilevel() {
         { id: '6', name: 'Platinum Bundle', price: 10000, pv: 100, description: 'Ultimate package',        image: image6, features: ['VIP access', '100 PV points', 'Personal manager'] },
         { id: '7', name: 'Diamond Bundle',  price: 10000, pv: 100, description: 'Ultimate package',        image: image7, features: ['VIP access', '100 PV points', 'Personal manager'] },
         { id: '8', name: 'Elite Bundle',    price: 10000, pv: 100, description: 'Ultimate package',        image: image8, features: ['VIP access', '100 PV points', 'Personal manager'] },
->>>>>>> Development
     ]);
 
     const [totalUnilevelPV, setTotalUnilevelPV] = useState(2500);
@@ -65,11 +53,7 @@ export default function Unilevel() {
         { id: '2', month: 'February 2025', status: 'pending',   paymentMethod: '',              proofFile: null,                uploadDate: null },
     ]);
 
-<<<<<<< HEAD
-    const [, setSelectedMonth] = useState('');
-=======
     const [selectedMonth, setSelectedMonth]             = useState('');
->>>>>>> Development
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
     const [uploadedFile, setUploadedFile]               = useState<File | null>(null);
 
@@ -108,6 +92,12 @@ export default function Unilevel() {
 
     const convertedCash = (totalUnilevelPV * 1).toFixed(2);
     const maintenanceDeadlineStatus = getMaintenanceStatus(1, 15);
+
+    const handleBuyClick = (product: Product) => {
+        setSelectedProduct(product);
+        setPurchaseQuantity(1);
+        setShowPurchaseModal(true);
+    };
 
     const handleClosePurchaseModal = () => {
         setShowPurchaseModal(false);
@@ -351,12 +341,9 @@ export default function Unilevel() {
                     ))}
                 </div>
 
-<<<<<<< HEAD
-=======
                 {/* Products Section (commented out in original, preserving as-is) */}
                 {/* <div className="mb-10"> ... </div> */}
 
->>>>>>> Development
                 {/* Maintenance Payment Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6">
 
