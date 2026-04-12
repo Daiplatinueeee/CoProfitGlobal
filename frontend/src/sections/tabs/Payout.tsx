@@ -17,9 +17,9 @@ interface WithdrawalRecord {
 const getStatusBadge = (status: string) => {
   switch (status) {
     case 'completed': return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
-    case 'pending':   return 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200';
-    case 'rejected':  return 'bg-red-50 text-red-700 ring-1 ring-red-200';
-    default:          return 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
+    case 'pending': return 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200';
+    case 'rejected': return 'bg-red-50 text-red-700 ring-1 ring-red-200';
+    default: return 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
   }
 };
 
@@ -30,16 +30,16 @@ function Payout() {
     accountName: '',
     notes: '',
   });
-  const [submitting, setSubmitting]       = useState(false);
-  const [submitError, setSubmitError]     = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState('');
-  const [showForm, setShowForm]           = useState(false); // mobile form toggle
+  const [showForm, setShowForm] = useState(false); // mobile form toggle
 
   const [availableBalance, setAvailableBalance] = useState(0);
-  const [withdrawals, setWithdrawals]           = useState<WithdrawalRecord[]>([]);
-  const [loading, setLoading]                   = useState(true);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const token  = localStorage.getItem('accessToken');
+  const token = localStorage.getItem('accessToken');
   const userId = localStorage.getItem('userId') ?? (() => {
     try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.id ?? ''; } catch { return ''; }
   })();
@@ -56,7 +56,7 @@ function Payout() {
         }),
       ]);
 
-      const balJson  = await balRes.json();
+      const balJson = await balRes.json();
       const histJson = await histRes.json();
 
       setAvailableBalance(balJson?.balances?.php ?? 0);
@@ -85,16 +85,16 @@ function Payout() {
 
     try {
       const res = await fetch(`${API_BASE_URL}/withdrawal`, {
-        method:  'POST',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization:  `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          amount:        parseFloat(formData.amount),
+          amount: parseFloat(formData.amount),
           paymentMethod: formData.paymentMethod,
-          accountName:   formData.accountName,
-          notes:         formData.notes,
+          accountName: formData.accountName,
+          notes: formData.notes,
         }),
       });
 
@@ -124,9 +124,9 @@ function Payout() {
     .reduce((sum, w) => sum + w.totalAmount, 0);
 
   const stats = [
-    { label: 'Total Withdrawn',   value: `₱${totalWithdrawn.toLocaleString()}`,    sub: 'Completed withdrawals' },
-    { label: 'Total Pending',     value: `₱${totalPending.toLocaleString()}`,       sub: 'Awaiting processing' },
-    { label: 'Available Balance', value: `₱${availableBalance.toLocaleString()}`,   sub: 'Ready to withdraw' },
+    { label: 'Total Withdrawn', value: `₱${totalWithdrawn.toLocaleString()}`, sub: 'Completed withdrawals' },
+    { label: 'Total Pending', value: `₱${totalPending.toLocaleString()}`, sub: 'Awaiting processing' },
+    { label: 'Available Balance', value: `₱${availableBalance.toLocaleString()}`, sub: 'Ready to withdraw' },
   ];
 
   /* ─── Withdrawal Form (shared between mobile sheet & desktop sidebar) ─── */
@@ -170,10 +170,10 @@ function Payout() {
           required
         >
           <option value="">Select a method</option>
+          <option value="bank">Cash</option>
           <option value="bank">Bank Transfer</option>
-          <option value="wallet">Digital Wallet</option>
-          <option value="check">Check</option>
-          <option value="crypto">Cryptocurrency</option>
+          <option value="wallet">Gcash</option>
+          <option value="crypto">Paymaya</option>
         </select>
       </div>
 

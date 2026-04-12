@@ -349,8 +349,19 @@ export default function UserDashboard() {
   const [userRank, setUserRank] = useState<{ rank: number | null; totalParticipants: number } | null>(null);
   const [rankLoading, setRankLoading] = useState(true);
 
+  // ── Reset loading states whenever the dashboard tab becomes active ───
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    setIncomeLoading(true);
+    setBalancesLoading(true);
+    setReferralLoading(true);
+    setSign5StatusLoading(true);
+    setRankLoading(true);
+  }, [activeTab]);
+
   // ── Fetch current user + genealogy root ──────────────────────────────
   useEffect(() => {
+    if (activeTab !== 'dashboard') return;
     const fetchCurrentUser = async () => {
       try {
         const { token, userId } = getAuthContext();
@@ -388,10 +399,11 @@ export default function UserDashboard() {
       }
     };
     fetchCurrentUser();
-  }, []);
+  }, [activeTab]);
 
   // ── Fetch wallet transactions (income) ───────────────────────────────
   useEffect(() => {
+    if (activeTab !== 'dashboard') return;
     const fetchIncome = async () => {
       try {
         const { token, userId } = getAuthContext();
@@ -434,10 +446,11 @@ export default function UserDashboard() {
     };
 
     fetchIncome();
-  }, []);
+  }, [activeTab]);
 
   // ── Fetch wallet balances (PHP, points, gc_points) ───────────────────
   useEffect(() => {
+    if (activeTab !== 'dashboard') return;
     const fetchBalances = async () => {
       try {
         const { token, userId } = getAuthContext();
@@ -463,10 +476,11 @@ export default function UserDashboard() {
       }
     };
     fetchBalances();
-  }, []);
+  }, [activeTab]);
 
   // ── Fetch referral data ──────────────────────────────────────────────
   useEffect(() => {
+    if (activeTab !== 'dashboard') return;
     const fetchReferrals = async () => {
       try {
         const { token, userId } = getAuthContext();
@@ -487,10 +501,11 @@ export default function UserDashboard() {
       }
     };
     fetchReferrals();
-  }, []);
+  }, [activeTab]);
 
   // ── Fetch leaderboard rank ───────────────────────────────────────────
   useEffect(() => {
+    if (activeTab !== 'dashboard') return;
     const fetchUserRank = async () => {
       try {
         const { token, userId } = getAuthContext();
@@ -511,10 +526,11 @@ export default function UserDashboard() {
       }
     };
     fetchUserRank();
-  }, []);
+  }, [activeTab]);
 
   // ── Evaluate + fetch Sign-5 status on dashboard load ────────────────────
   useEffect(() => {
+    if (activeTab !== 'dashboard') return;
     const evaluateAndFetchSign5 = async () => {
       try {
         const { token, userId } = getAuthContext();
@@ -580,7 +596,7 @@ export default function UserDashboard() {
       }
     };
     evaluateAndFetchSign5();
-  }, []);
+  }, [activeTab]);
 
   // ── Sign-5 progress — uses evaluated sign5 status when available,
   //    falls back to genealogy referral counts before first evaluation ──────
