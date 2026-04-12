@@ -64,13 +64,13 @@ function UserDetailModal({
   onEditPoints: (user: User) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-2xl bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="relative z-10 w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col">
 
         {/* Modal Header */}
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-4 shrink-0">
+        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex items-center gap-3 sm:gap-4 shrink-0">
           <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-base shrink-0 overflow-hidden ${user.isActive ? 'bg-slate-900' : 'bg-slate-300'}`}>
             {user.profilePicture
               ? <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
@@ -121,7 +121,7 @@ function UserDetailModal({
           {/* Personal Info */}
           <div className="px-6 py-5 border-b border-slate-100">
             <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">Personal Information</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <InfoField label="Full Name"   value={user.name} />
               <InfoField label="Age"         value={user.age?.toString() ?? '—'} />
               <InfoField label="Birthday"    value={user.bday || '—'} />
@@ -157,7 +157,7 @@ function UserDetailModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 flex items-center justify-between shrink-0">
           <button
             onClick={() => { onDelete(user.id); onClose(); }}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors"
@@ -461,17 +461,17 @@ function UsersOverview() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="w-full max-w-7xl mx-auto px-6 lg:px-21 py-10">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
 
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 sm:mb-8 flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Users Overview</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Users Overview</h1>
             <p className="text-sm text-slate-400 mt-1">
               {users.length} total user{users.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {!loading && users.length > 0 && (
               <button
                 onClick={fetchUsers}
@@ -550,7 +550,7 @@ function UsersOverview() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {displayedUsers.map((user) => (
                 <UserCard
                   key={user.id}
@@ -586,9 +586,9 @@ function UsersOverview() {
 
         {/* Edit Leg Points Modal */}
         {editPointsUserId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setEditPointsUserId(null)} />
-            <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+            <div className="relative z-10 w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
               <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">Edit Leg Points</h3>

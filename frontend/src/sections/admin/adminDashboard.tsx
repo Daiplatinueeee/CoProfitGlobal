@@ -156,7 +156,7 @@ function Worker({
 /* ── Construction scene ── */
 function ConstructionScene() {
   return (
-    <div className="relative w-full h-75 overflow-hidden shrink-0">
+    <div className="relative w-full h-48 sm:h-75 overflow-hidden shrink-0">
       <style>{KEYFRAMES}</style>
 
       {/* sky gradient */}
@@ -312,11 +312,11 @@ function UnderDevelopmentContent() {
       <ConstructionScene />
 
       {/* info section */}
-      <div className="anim-fade-up flex flex-col items-center gap-5 px-8 pt-7 pb-9 mt-20">
+      <div className="anim-fade-up flex flex-col items-center gap-4 sm:gap-5 px-5 sm:px-8 pt-5 sm:pt-7 pb-7 sm:pb-9 mt-0 sm:mt-20">
 
         {/* headline */}
         <div className="text-center">
-          <h2 className="text-[26px] tracking-tight text-slate-900 m-0">
+          <h2 className="text-xl sm:text-[26px] tracking-tight text-slate-900 m-0">
             Under Construction
           </h2>
           <p className="mt-2 text-sm text-slate-500 leading-relaxed">
@@ -326,7 +326,7 @@ function UnderDevelopmentContent() {
         </div>
 
         {/* progress bar */}
-        <div className="w-full max-w-110">
+        <div className="w-full max-w-full sm:max-w-110">
           <div className="flex justify-between mb-1.5">
             <span className="text-xs font-semibold text-slate-500">Build progress</span>
             <span className="text-xs font-bold text-amber-500">60%</span>
@@ -365,7 +365,7 @@ function UnderDevelopmentContent() {
 /* ── Main dashboard component ── */
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [activeTab, setActiveTab] = useState('dashboard');
 
   const menuItems = useMemo(() => [
@@ -396,21 +396,33 @@ export default function AdminDashboard() {
     <div className="flex h-screen bg-white">
 
       {/* ── Sidebar ── */}
-      <div className={`fixed lg:static inset-y-0 left-0 bg-white text-gray-900 z-40 transition-all duration-300 overflow-hidden border-r border-gray-100 ${sidebarOpen ? 'w-64' : 'w-0 lg:w-20'}`}>
+      <div className={`fixed lg:static inset-y-0 left-0 bg-white text-gray-900 z-40 transition-all duration-300 overflow-hidden border-r border-gray-100 shrink-0 ${sidebarOpen ? 'w-64' : 'w-0 lg:w-20'}`}>
         <div className="flex flex-col h-full">
 
           {/* logo */}
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between min-w-[256px]">
             <h1 className={`text-xl text-gray-900 ${sidebarOpen ? 'block' : 'hidden'}`}>
               CoProfitGlobal.
             </h1>
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 hover:bg-gray-100 rounded-lg transition">
-              <ChevronLeft className={`w-5 h-5 text-gray-600 transition-transform ${!sidebarOpen ? 'rotate-180' : ''}`} />
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition"
+              aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+            >
+              {/* X on mobile when open, chevron on desktop */}
+              <span className="lg:hidden">
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </span>
+              <span className="hidden lg:block">
+                <ChevronLeft className={`w-5 h-5 text-gray-600 transition-transform ${!sidebarOpen ? 'rotate-180' : ''}`} />
+              </span>
             </button>
           </div>
 
           {/* nav */}
-          <nav className="flex-1 overflow-y-auto py-4 px-3">
+          <nav className="flex-1 overflow-y-auto py-4 px-3 min-w-[256px] lg:min-w-0">
             {menuItems.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -423,7 +435,7 @@ export default function AdminDashboard() {
             ))}
           </nav>
 
-          <div className={`border-t border-gray-100 p-4 space-y-3 ${sidebarOpen ? 'block' : 'hidden lg:flex lg:flex-col'}`}>
+          <div className={`border-t border-gray-100 p-4 space-y-3 min-w-[256px] lg:min-w-0 ${sidebarOpen ? 'block' : 'hidden lg:flex lg:flex-col'}`}>
 
             {sidebarOpen ? (
               <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm">
@@ -447,8 +459,23 @@ export default function AdminDashboard() {
       </div>
 
       {/* ── Main content ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Mobile top bar */}
+        <div className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white shrink-0 z-20">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition text-gray-600"
+            aria-label="Open menu"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="text-sm font-medium text-gray-700">
+            {menuItems.find(m => m.id === activeTab)?.label ?? 'Dashboard'}
+          </span>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {activeTab === 'dashboard' ? <UnderDevelopmentContent /> : renderTabContent()}
         </div>
       </div>

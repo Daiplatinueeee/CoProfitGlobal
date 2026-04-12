@@ -91,6 +91,25 @@ function LoadingState() {
   );
 }
 
+function EmptyState({ message, sub }: { message: string; sub: string }) {
+  return (
+    <div className="flex flex-col items-center gap-2 py-16">
+      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">✦</div>
+      <p className="text-slate-400 text-sm">{message}</p>
+      <p className="text-slate-300 text-xs">{sub}</p>
+    </div>
+  );
+}
+
+function CardRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-2 text-xs">
+      <span className="text-slate-400 shrink-0">{label}</span>
+      <span className="text-slate-700 font-medium text-right">{children}</span>
+    </div>
+  );
+}
+
 // ── My Pairings ───────────────────────────────────────────────────────────
 
 function MyPairings() {
@@ -123,44 +142,87 @@ function MyPairings() {
 
   const totalPaired = history.reduce((sum, { award }) => sum + award.pairedPoints, 0);
   const totalPayout = history.reduce((sum, { award }) => sum + award.payoutPhp, 0);
-  const totalGc = history.reduce((sum, { award }) => sum + award.gcAwarded, 0);
-  const thisMonth = history.filter(({ award }) =>
+  const totalGc     = history.reduce((sum, { award }) => sum + award.gcAwarded, 0);
+  const thisMonth   = history.filter(({ award }) =>
     (award.createdAt ?? '').slice(0, 7) === new Date().toISOString().slice(0, 7)
   ).length;
 
   return (
     <div>
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {[
-          { label: 'Total Records', value: history.length },
-          { label: 'This Month', value: thisMonth },
+          { label: 'Total Records',       value: history.length },
+          { label: 'This Month',          value: thisMonth },
           { label: 'Total Points Paired', value: totalPaired.toLocaleString() },
-          { label: 'Total GC Awarded', value: totalGc },
+          { label: 'Total GC Awarded',    value: totalGc },
         ].map(stat => (
-          <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-5 py-4">
+          <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-4 sm:px-5 py-3 sm:py-4">
             <p className="text-xs text-slate-400 mb-1">{stat.label}</p>
-            <p className="text-2xl font-semibold text-slate-900">{stat.value}</p>
+            <p className="text-xl sm:text-2xl font-semibold text-slate-900">{stat.value}</p>
           </div>
         ))}
       </div>
 
       {/* Table Card */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-
-        {/* Table Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100">
           <div>
             <h2 className="text-base font-semibold text-slate-900">My Pairing History</h2>
             <p className="text-xs text-slate-400 mt-0.5">{history.length} record{history.length !== 1 ? 's' : ''} found</p>
           </div>
-          <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
+          <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full whitespace-nowrap">
             ₱{formatPhp(totalPayout)} total
           </span>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
+        {/* Mobile card list */}
+        <div className="sm:hidden">
+          {history.length === 0 ? (
+            <EmptyState message="No pairing records yet" sub="Records will appear once pairings are processed" />
+          ) : (
+            <ul className="divide-y divide-slate-50">
+              {history.map(({ award, state }) => {
+                const { date, time } = formatDateTime(award.createdAt);
+                const leftPoints  = state?.leftAvailable  ?? award.pairedPoints;
+                const rightPoints = state?.rightAvailable ?? award.pairedPoints;
+                return (
+                  <li key={award.id} className="px-4 py-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{date}</p>
+                        <p className="text-xs text-slate-400">{time}</p>
+                      </div>
+                      {award.gcAwarded > 0 ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                          +{award.gcAwarded} GC
+                        </span>
+                      ) : (
+                        <span className="text-sm font-semibold text-slate-900">₱{formatPhp(award.payoutPhp)}</span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5 pt-1 border-t border-slate-50">
+                      <CardRow label="Cycle">{award.cycle}</CardRow>
+                      <CardRow label="Left Leg">
+                        <span className="text-blue-600">{leftPoints.toLocaleString()} pts</span>
+                        {state && <span className="text-slate-400 font-normal ml-1">carry {state.leftCarryOut.toLocaleString()}</span>}
+                      </CardRow>
+                      <CardRow label="Right Leg">
+                        <span className="text-green-600">{rightPoints.toLocaleString()} pts</span>
+                        {state && <span className="text-slate-400 font-normal ml-1">carry {state.rightCarryOut.toLocaleString()}</span>}
+                      </CardRow>
+                      <CardRow label="Paired Points">{award.pairedPoints.toLocaleString()}</CardRow>
+                      <CardRow label="Cap">{state ? `${state.capUsed}/${state.capLimit}` : '—'}</CardRow>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
@@ -175,28 +237,14 @@ function MyPairings() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {history.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">
-                        ✦
-                      </div>
-                      <p className="text-slate-400 text-sm">No pairing records yet</p>
-                      <p className="text-slate-300 text-xs">Records will appear once pairings are processed</p>
-                    </div>
-                  </td>
-                </tr>
+                <tr><td colSpan={7}><EmptyState message="No pairing records yet" sub="Records will appear once pairings are processed" /></td></tr>
               ) : (
                 history.map(({ award, state }) => {
                   const { date, time } = formatDateTime(award.createdAt);
-                  const leftPoints = state?.leftAvailable ?? award.pairedPoints;
+                  const leftPoints  = state?.leftAvailable  ?? award.pairedPoints;
                   const rightPoints = state?.rightAvailable ?? award.pairedPoints;
-
                   return (
-                    <tr
-                      key={award.id}
-                      className="hover:bg-slate-50 transition-colors duration-150"
-                    >
+                    <tr key={award.id} className="hover:bg-slate-50 transition-colors duration-150">
                       <td className="px-6 py-4">
                         <p className="text-slate-900 font-medium">{date}</p>
                         <p className="text-xs text-slate-400 mt-0.5">{time}</p>
@@ -210,9 +258,7 @@ function MyPairings() {
                         <p className="font-medium text-green-600">{rightPoints.toLocaleString()} pts</p>
                         {state && <p className="text-xs text-slate-400 mt-0.5">Carry: {state.rightCarryOut.toLocaleString()}</p>}
                       </td>
-                      <td className="px-6 py-4 font-medium text-slate-900">
-                        {award.pairedPoints.toLocaleString()}
-                      </td>
+                      <td className="px-6 py-4 font-medium text-slate-900">{award.pairedPoints.toLocaleString()}</td>
                       <td className="px-6 py-4">
                         {award.gcAwarded > 0 ? (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
@@ -222,9 +268,7 @@ function MyPairings() {
                           <span className="font-medium text-slate-900">₱{formatPhp(award.payoutPhp)}</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-slate-400">
-                        {state ? `${state.capUsed}/${state.capLimit}` : '—'}
-                      </td>
+                      <td className="px-6 py-4 text-slate-400">{state ? `${state.capUsed}/${state.capLimit}` : '—'}</td>
                     </tr>
                   );
                 })
@@ -267,10 +311,10 @@ function DownlinePairings() {
   if (loading) return <LoadingState />;
   if (error) return <div className="text-center py-16 text-red-400 text-sm">{error}</div>;
 
-  const totalPaired = history.reduce((sum, { award }) => sum + award.pairedPoints, 0);
-  const totalPayout = history.reduce((sum, { award }) => sum + award.payoutPhp, 0);
+  const totalPaired   = history.reduce((sum, { award }) => sum + award.pairedPoints, 0);
+  const totalPayout   = history.reduce((sum, { award }) => sum + award.payoutPhp, 0);
   const uniqueMembers = new Set(history.map(h => h.username)).size;
-  const thisMonth = history.filter(({ award }) =>
+  const thisMonth     = history.filter(({ award }) =>
     (award.createdAt ?? '').slice(0, 7) === new Date().toISOString().slice(0, 7)
   ).length;
 
@@ -279,36 +323,77 @@ function DownlinePairings() {
   return (
     <div>
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {[
-          { label: 'Total Records', value: history.length },
-          { label: 'This Month', value: thisMonth },
-          { label: 'Unique Members', value: uniqueMembers },
+          { label: 'Total Records',       value: history.length },
+          { label: 'This Month',          value: thisMonth },
+          { label: 'Unique Members',      value: uniqueMembers },
           { label: 'Total Points Paired', value: totalPaired.toLocaleString() },
         ].map(stat => (
-          <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-5 py-4">
+          <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-4 sm:px-5 py-3 sm:py-4">
             <p className="text-xs text-slate-400 mb-1">{stat.label}</p>
-            <p className="text-2xl font-semibold text-slate-900">{stat.value}</p>
+            <p className="text-xl sm:text-2xl font-semibold text-slate-900">{stat.value}</p>
           </div>
         ))}
       </div>
 
       {/* Table Card */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-
-        {/* Table Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100">
           <div>
             <h2 className="text-base font-semibold text-slate-900">Downline Pairing History</h2>
-            <p className="text-xs text-slate-400 mt-0.5">{history.length} record{history.length !== 1 ? 's' : ''} from {uniqueMembers} member{uniqueMembers !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {history.length} record{history.length !== 1 ? 's' : ''} from {uniqueMembers} member{uniqueMembers !== 1 ? 's' : ''}
+            </p>
           </div>
-          <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
+          <span className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full whitespace-nowrap">
             ₱{formatPhp(totalPayout)} total
           </span>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
+        {/* Mobile card list */}
+        <div className="sm:hidden">
+          {history.length === 0 ? (
+            <EmptyState message="No downline pairing records found" sub="Records will appear once your downline generates pairings" />
+          ) : (
+            <ul className="divide-y divide-slate-50">
+              {history.map(({ award, username, membershipTier, depth, position }) => {
+                const { date, time } = formatDateTime(award.createdAt);
+                return (
+                  <li key={award.id} className="px-4 py-4 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-500 shrink-0">
+                          {getInitials(username)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900 truncate">{username}</p>
+                          <div className="mt-0.5"><TierBadge tier={membershipTier} /></div>
+                        </div>
+                      </div>
+                      {award.gcAwarded > 0 ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 shrink-0">
+                          +{award.gcAwarded} GC
+                        </span>
+                      ) : (
+                        <span className="text-sm font-semibold text-slate-900 shrink-0">₱{formatPhp(award.payoutPhp)}</span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5 pt-1 border-t border-slate-50">
+                      <CardRow label="Date">{date} · {time}</CardRow>
+                      <CardRow label="Cycle">{award.cycle}</CardRow>
+                      <CardRow label="Tree Position">Level {depth}{position ? ` · ${position} leg` : ''}</CardRow>
+                      <CardRow label="Paired Points">{award.pairedPoints.toLocaleString()}</CardRow>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
@@ -323,26 +408,12 @@ function DownlinePairings() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {history.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">
-                        ✦
-                      </div>
-                      <p className="text-slate-400 text-sm">No downline pairing records found</p>
-                      <p className="text-slate-300 text-xs">Records will appear once your downline generates pairings</p>
-                    </div>
-                  </td>
-                </tr>
+                <tr><td colSpan={7}><EmptyState message="No downline pairing records found" sub="Records will appear once your downline generates pairings" /></td></tr>
               ) : (
                 history.map(({ award, username, membershipTier, depth, position }) => {
                   const { date, time } = formatDateTime(award.createdAt);
-
                   return (
-                    <tr
-                      key={award.id}
-                      className="hover:bg-slate-50 transition-colors duration-150"
-                    >
+                    <tr key={award.id} className="hover:bg-slate-50 transition-colors duration-150">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-500 shrink-0">
@@ -351,9 +422,7 @@ function DownlinePairings() {
                           <span className="font-medium text-slate-900">{username}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <TierBadge tier={membershipTier} />
-                      </td>
+                      <td className="px-6 py-4"><TierBadge tier={membershipTier} /></td>
                       <td className="px-6 py-4">
                         <p className="text-slate-900">{date}</p>
                         <p className="text-xs text-slate-400 mt-0.5">{time}</p>
@@ -361,13 +430,9 @@ function DownlinePairings() {
                       <td className="px-6 py-4 text-slate-500">{award.cycle}</td>
                       <td className="px-6 py-4">
                         <p className="font-medium text-slate-900">Level {depth}</p>
-                        {position && (
-                          <p className="text-xs text-slate-400 mt-0.5 capitalize">{position} leg</p>
-                        )}
+                        {position && <p className="text-xs text-slate-400 mt-0.5 capitalize">{position} leg</p>}
                       </td>
-                      <td className="px-6 py-4 font-medium text-slate-900">
-                        {award.pairedPoints.toLocaleString()}
-                      </td>
+                      <td className="px-6 py-4 font-medium text-slate-900">{award.pairedPoints.toLocaleString()}</td>
                       <td className="px-6 py-4">
                         {award.gcAwarded > 0 ? (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
@@ -396,19 +461,19 @@ function Pairing() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="w-full max-w-6xl mx-auto px-21 py-10">
+      <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Pairing History</h1>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Pairing History</h1>
           <p className="text-sm text-slate-400 mt-1">Track binary pairing rewards across your network</p>
         </div>
 
         {/* Tab Toggle */}
-        <div className="flex gap-2 mb-8 border-b border-slate-100">
+        <div className="flex gap-1 sm:gap-2 mb-6 sm:mb-8 border-b border-slate-100">
           <button
             onClick={() => setActiveTab('mine')}
-            className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+            className={`px-4 sm:px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
               activeTab === 'mine'
                 ? 'border-slate-900 text-slate-900'
                 : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -418,7 +483,7 @@ function Pairing() {
           </button>
           <button
             onClick={() => setActiveTab('downline')}
-            className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+            className={`px-4 sm:px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
               activeTab === 'downline'
                 ? 'border-slate-900 text-slate-900'
                 : 'border-transparent text-slate-400 hover:text-slate-600'

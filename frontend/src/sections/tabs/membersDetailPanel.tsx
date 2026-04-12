@@ -275,9 +275,33 @@ export default function MemberDetailsPanel({
   // ─── JSX ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="w-96 bg-white border-l border-gray-200 overflow-y-auto shadow-xl">
+    <>
+      {/* Mobile backdrop */}
+      <div
+        className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+        onClick={onClose}
+      />
+
+      {/* Panel — bottom sheet on mobile, right sidebar on lg+ */}
+      <div className="
+        fixed bottom-0 left-0 right-0 z-50
+        lg:static lg:z-auto lg:bottom-auto lg:left-auto lg:right-auto
+        w-full lg:w-96
+        bg-white
+        rounded-t-2xl lg:rounded-none
+        border-t border-gray-200 lg:border-t-0 lg:border-l
+        overflow-y-auto
+        shadow-2xl lg:shadow-xl
+        max-h-[85vh] lg:max-h-none lg:h-full
+        flex flex-col
+      ">
+      {/* Mobile drag handle */}
+      <div className="lg:hidden flex justify-center pt-3 pb-1 shrink-0">
+        <div className="w-10 h-1 bg-gray-300 rounded-full" />
+      </div>
+
       {/* Header */}
-      <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+      <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 px-6 py-4 shrink-0">
         <div className="flex items-center justify-between">
           <h3 className="text-2xl text-gray-900">Member Details</h3>
           <button
@@ -479,6 +503,7 @@ export default function MemberDetailsPanel({
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

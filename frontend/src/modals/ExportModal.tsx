@@ -70,10 +70,10 @@ async function exportToWord(pins: PIN[], filename = 'pins-export') {
   const COL_W = [1600, 1100, 1200, 1500, 1500, 1900, 1900];
 
   const cellBorder = {
-    top: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
+    top:    { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
     bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
-    left: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
-    right: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
+    left:   { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
+    right:  { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
   };
 
   const headerRow = new TableRow({
@@ -118,33 +118,29 @@ async function exportToWord(pins: PIN[], filename = 'pins-export') {
   });
 
   const doc = new Document({
-    sections: [
-      {
-        properties: {},
-        children: [
-          new Paragraph({
-            heading: HeadingLevel.HEADING_1,
-            children: [
-              new TextRun({ text: 'PIN Export Report', bold: true, size: 36, color: '1E40AF' }),
-            ],
-          }),
-          new Paragraph({
-            spacing: { after: 240 },
-            children: [
-              new TextRun({
-                text: `Generated: ${new Date().toLocaleString()}   |   Total: ${pins.length} PIN${pins.length !== 1 ? 's' : ''}`,
-                size: 18,
-                color: '6B7280',
-              }),
-            ],
-          }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [headerRow, ...dataRows],
-          }),
-        ],
-      },
-    ],
+    sections: [{
+      properties: {},
+      children: [
+        new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          children: [new TextRun({ text: 'PIN Export Report', bold: true, size: 36, color: '1E40AF' })],
+        }),
+        new Paragraph({
+          spacing: { after: 240 },
+          children: [
+            new TextRun({
+              text: `Generated: ${new Date().toLocaleString()}   |   Total: ${pins.length} PIN${pins.length !== 1 ? 's' : ''}`,
+              size: 18,
+              color: '6B7280',
+            }),
+          ],
+        }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [headerRow, ...dataRows],
+        }),
+      ],
+    }],
   });
 
   const blob = await Packer.toBlob(doc);
@@ -183,10 +179,10 @@ async function exportToPdf(pins: PIN[], filename = 'pins-export') {
       p.createdAt, p.createdTime,
       p.usedAt ?? '—', p.usedBy ?? '—',
     ]),
-    headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: 'bold', fontSize: 9 },
-    bodyStyles: { fontSize: 8 },
-    alternateRowStyles: { fillColor: [243, 244, 246] },
-    styles: { cellPadding: 3, lineColor: [229, 231, 235], lineWidth: 0.1 },
+    headStyles:          { fillColor: [30, 64, 175], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+    bodyStyles:          { fontSize: 8 },
+    alternateRowStyles:  { fillColor: [243, 244, 246] },
+    styles:              { cellPadding: 3, lineColor: [229, 231, 235], lineWidth: 0.1 },
   });
 
   doc.save(`${filename}.pdf`);
@@ -234,38 +230,12 @@ const TIER_FILTERS: {
   id: TierFilter;
   label: string;
   activeClass: string;
-  badgeClass: string;
 }[] = [
-  {
-    id: 'all',
-    label: 'All Tiers',
-    activeClass: 'bg-blue-600 text-white border-blue-600',
-    badgeClass: '',
-  },
-  {
-    id: 'bronze',
-    label: 'Bronze',
-    activeClass: 'bg-amber-500 text-white border-amber-500',
-    badgeClass: 'bg-amber-100 text-amber-700',
-  },
-  {
-    id: 'silver',
-    label: 'Silver',
-    activeClass: 'bg-slate-500 text-white border-slate-500',
-    badgeClass: 'bg-slate-100 text-slate-700',
-  },
-  {
-    id: 'gold',
-    label: 'Gold',
-    activeClass: 'bg-yellow-500 text-white border-yellow-500',
-    badgeClass: 'bg-yellow-100 text-yellow-700',
-  },
-  {
-    id: 'platinum',
-    label: 'Platinum',
-    activeClass: 'bg-purple-600 text-white border-purple-600',
-    badgeClass: 'bg-purple-100 text-purple-700',
-  },
+  { id: 'all',      label: 'All Tiers', activeClass: 'bg-blue-600 text-white border-blue-600' },
+  { id: 'bronze',   label: 'Bronze',    activeClass: 'bg-amber-500 text-white border-amber-500' },
+  { id: 'silver',   label: 'Silver',    activeClass: 'bg-slate-500 text-white border-slate-500' },
+  { id: 'gold',     label: 'Gold',      activeClass: 'bg-yellow-500 text-white border-yellow-500' },
+  { id: 'platinum', label: 'Platinum',  activeClass: 'bg-purple-600 text-white border-purple-600' },
 ];
 
 // ─── Status filter config ─────────────────────────────────────────────────────
@@ -290,32 +260,27 @@ export interface ExportModalProps {
 }
 
 export function ExportModal({ pins, onClose }: ExportModalProps) {
-  const [tierFilter, setTierFilter] = useState<TierFilter>('all');
+  const [tierFilter,   setTierFilter]   = useState<TierFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [selected, setSelected] = useState<Set<string>>(new Set(pins.map((p) => p.id)));
-  const [format, setFormat] = useState<ExportFormat>('excel');
-  const [exporting, setExporting] = useState(false);
-  const [done, setDone] = useState(false);
+  const [selected,     setSelected]     = useState<Set<string>>(new Set(pins.map((p) => p.id)));
+  const [format,       setFormat]       = useState<ExportFormat>('excel');
+  const [exporting,    setExporting]    = useState(false);
+  const [done,         setDone]         = useState(false);
 
-  // Pins visible in the checklist based on both active tier and status filters
-  // Note: 'free' tier is excluded from bulk export tier filters since it's a static PIN
   const visiblePins = pins.filter((p) => {
-    const tierMatch = tierFilter === 'all' || p.tier === tierFilter;
+    const tierMatch   = tierFilter   === 'all' || p.tier   === tierFilter;
     const statusMatch = statusFilter === 'all' || p.status === statusFilter;
     return tierMatch && statusMatch;
   });
 
-  const allChecked = visiblePins.length > 0 && visiblePins.every((p) => selected.has(p.id));
+  const allChecked  = visiblePins.length > 0 && visiblePins.every((p) => selected.has(p.id));
   const someChecked = visiblePins.some((p) => selected.has(p.id)) && !allChecked;
 
   const toggleAll = () => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (allChecked) {
-        visiblePins.forEach((p) => next.delete(p.id));
-      } else {
-        visiblePins.forEach((p) => next.add(p.id));
-      }
+      if (allChecked) visiblePins.forEach((p) => next.delete(p.id));
+      else            visiblePins.forEach((p) => next.add(p.id));
       return next;
     });
   };
@@ -345,55 +310,62 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
   };
 
   const tierBadge: Record<Tier, string> = {
-    free: 'bg-gray-100 text-gray-600',
-    bronze: 'bg-amber-100 text-amber-700',
-    silver: 'bg-slate-100 text-slate-700',
-    gold: 'bg-yellow-100 text-yellow-700',
+    free:     'bg-gray-100 text-gray-600',
+    bronze:   'bg-amber-100 text-amber-700',
+    silver:   'bg-slate-100 text-slate-700',
+    gold:     'bg-yellow-100 text-yellow-700',
     platinum: 'bg-purple-100 text-purple-700',
   };
 
   const statusDot = (s: PIN['status']) =>
     s === 'USED' ? 'text-red-600' : s === 'VOID' ? 'text-orange-600' : 'text-green-600';
 
-  // Count how many pins per tier (respects active status filter for accurate badge counts)
   const countForTier = (t: TierFilter) => {
     const base = t === 'all' ? pins : pins.filter((p) => p.tier === t);
     return statusFilter === 'all' ? base.length : base.filter((p) => p.status === statusFilter).length;
   };
 
-  // Count how many pins per status (respects active tier filter)
   const countForStatus = (s: StatusFilter) => {
     const base = tierFilter === 'all' ? pins : pins.filter((p) => p.tier === tierFilter);
     return s === 'all' ? base.length : base.filter((p) => p.status === s).length;
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+    // On mobile: slides up from bottom edge. On sm+: centered overlay.
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4 z-50">
+      <div className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[90vh]">
 
         {/* Modal header */}
-        <div className="flex items-center justify-between px-7 pt-6 pb-4 border-b border-gray-100 shrink-0">
+        <div className="flex items-start justify-between px-5 sm:px-7 pt-5 sm:pt-6 pb-4 border-b border-gray-100 shrink-0">
           <div>
-            <h2 className="text-xl text-gray-900">Bulk Export</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Filter by tier, then check the PINs you want to include</p>
+            <h2 className="text-lg sm:text-xl text-gray-900">Bulk Export</h2>
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+              Filter by tier, then check the PINs you want to include
+            </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors p-1 -mr-1 mt-0.5 shrink-0"
+            aria-label="Close"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tier filter pills */}
-        <div className="px-7 py-3 border-b border-gray-100 shrink-0 bg-gray-50/60">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Filter by Tier</p>
-          <div className="flex flex-wrap gap-2">
+        {/* Tier filter pills — horizontally scrollable on very small screens */}
+        <div className="px-5 sm:px-7 py-3 border-b border-gray-100 shrink-0 bg-gray-50/60">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Filter by Tier
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar">
             {TIER_FILTERS.map((tf) => {
-              const count = countForTier(tf.id);
+              const count    = countForTier(tf.id);
               const isActive = tierFilter === tf.id;
               return (
                 <button
                   key={tf.id}
                   onClick={() => setTierFilter(tf.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
                     isActive
                       ? tf.activeClass
                       : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
@@ -414,17 +386,19 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
         </div>
 
         {/* Status filter pills */}
-        <div className="px-7 py-3 border-b border-gray-100 shrink-0 bg-gray-50/40">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Filter by Status</p>
-          <div className="flex flex-wrap gap-2">
+        <div className="px-5 sm:px-7 py-3 border-b border-gray-100 shrink-0 bg-gray-50/40">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Filter by Status
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar">
             {STATUS_FILTERS.map((sf) => {
-              const count = countForStatus(sf.id);
+              const count    = countForStatus(sf.id);
               const isActive = statusFilter === sf.id;
               return (
                 <button
                   key={sf.id}
                   onClick={() => setStatusFilter(sf.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
                     isActive
                       ? sf.activeClass
                       : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
@@ -445,7 +419,7 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
         </div>
 
         {/* Select-all bar */}
-        <div className="px-7 py-3 border-b border-gray-100 flex items-center justify-between shrink-0 bg-gray-50/70">
+        <div className="px-5 sm:px-7 py-3 border-b border-gray-100 flex items-center justify-between shrink-0 bg-gray-50/70">
           <button
             onClick={toggleAll}
             className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors select-none"
@@ -465,8 +439,8 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
           </span>
         </div>
 
-        {/* Checklist */}
-        <div className="overflow-y-auto flex-1 px-5 py-3">
+        {/* Checklist — scrollable */}
+        <div className="overflow-y-auto flex-1 px-4 sm:px-5 py-3">
           {visiblePins.length === 0 ? (
             <p className="text-center text-gray-400 py-10 text-sm">
               No PINs match the selected filters.
@@ -479,21 +453,21 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
                   <button
                     key={p.id}
                     onClick={() => toggleOne(p.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
+                    className={`w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 rounded-xl border text-left transition-all ${
                       checked
                         ? 'border-blue-300 bg-blue-50'
                         : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
                     }`}
                   >
-                    {/* Checkbox icon */}
+                    {/* Checkbox */}
                     <span className="shrink-0">
                       {checked
                         ? <CheckSquare className="w-4 h-4 text-blue-600" />
                         : <Square className="w-4 h-4 text-gray-300" />}
                     </span>
 
-                    {/* PIN */}
-                    <span className="font-mono font-semibold text-sm text-gray-900 w-20 shrink-0 truncate">
+                    {/* PIN — truncate more aggressively on small screens */}
+                    <span className="font-mono font-semibold text-sm text-gray-900 w-16 sm:w-20 shrink-0 truncate">
                       {p.pin.startsWith('[hashed') ? '(hashed)' : p.pin}
                     </span>
 
@@ -502,13 +476,15 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
                       {p.tier}
                     </span>
 
-                    {/* Status */}
-                    <span className={`text-xs font-medium shrink-0 ${statusDot(p.status)}`}>
+                    {/* Status — hide label text on very small screens, show dot color */}
+                    <span className={`text-xs font-medium shrink-0 hidden xs:inline ${statusDot(p.status)}`}>
                       {p.status.charAt(0) + p.status.slice(1).toLowerCase()}
                     </span>
 
-                    {/* Date — pushed right */}
-                    <span className="ml-auto text-xs text-gray-400 shrink-0">{p.createdAt}</span>
+                    {/* Date — pushed right, hidden on very small screens to avoid overflow */}
+                    <span className="ml-auto text-xs text-gray-400 shrink-0 hidden sm:inline">
+                      {p.createdAt}
+                    </span>
                   </button>
                 );
               })}
@@ -516,16 +492,17 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
           )}
         </div>
 
-        {/* Format + export action */}
-        <div className="px-7 py-5 border-t border-gray-100 shrink-0 space-y-4 bg-white rounded-b-2xl">
+        {/* Format selector + export button — sticky footer */}
+        <div className="px-5 sm:px-7 py-4 sm:py-5 border-t border-gray-100 shrink-0 space-y-4 bg-white rounded-b-2xl">
           <div>
             <p className="text-sm font-medium text-gray-700 mb-2">File format</p>
-            <div className="grid grid-cols-3 gap-3">
+            {/* Equal 3-col grid; icons + labels scale naturally */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {FORMAT_OPTIONS.map((f) => (
                 <button
                   key={f.id}
                   onClick={() => setFormat(f.id)}
-                  className={`rounded-xl border-2 p-3 flex flex-col items-center gap-1.5 transition-all ${
+                  className={`rounded-xl border-2 p-2.5 sm:p-3 flex flex-col items-center gap-1 sm:gap-1.5 transition-all ${
                     format === f.id
                       ? f.activeClass
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
@@ -549,7 +526,7 @@ export function ExportModal({ pins, onClose }: ExportModalProps) {
                   ? 'bg-blue-400 text-white cursor-not-allowed'
                   : selected.size === 0
                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white'
             }`}
           >
             {done ? (

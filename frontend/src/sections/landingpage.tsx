@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, X, Package, ShoppingCart, Presentation, Split as Spotlight } from 'lucide-react';
+import { X, Package, ShoppingCart, Presentation, Split as Spotlight, Pause, Play, VolumeX, Volume2, Maximize, Minimize } from 'lucide-react';
 
 import { useNavigate } from "react-router-dom"
 
 import prod1 from "../assets/prod2.jpeg"
 
-import training1 from "../assets/perfume.mp4"
+import training1 from "../assets/video refs/0c81c791-4c78-4c3e-a3ed-26d13b0244e9.mp4"
 
 import pk1 from "../assets/pk1.jpeg"
 import pk2 from "../assets/pk2.jpeg"
@@ -30,16 +30,48 @@ import ryan from "../assets/ryan.webp"
 import elmer from "../assets/elmer.webp"
 
 export default function LandingPage() {
-    const [carouselIndex, setCarouselIndex] = useState(0);
     const [selectedMember, setSelectedMember] = useState<number | null>(null);
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const videoRef = useRef<HTMLIFrameElement>(null);
+    const heroVideoRef = useRef<HTMLVideoElement>(null);
+    const [heroPlaying, setHeroPlaying] = useState(true);
+    const [heroMuted, setHeroMuted] = useState(true);
 
-    const productImages = [
-        { id: 1, src: pk1, alt: 'Product 1' },
-        { id: 2, src: pk2, alt: 'Product 2' },
-        { id: 3, src: pk3, alt: 'Product 3' },
-    ];
+    const toggleHeroPlay = () => {
+        if (!heroVideoRef.current) return;
+        if (heroPlaying) {
+            heroVideoRef.current.pause();
+        } else {
+            heroVideoRef.current.play();
+        }
+        setHeroPlaying(!heroPlaying);
+    };
+
+    const toggleHeroMute = () => {
+        if (!heroVideoRef.current) return;
+        heroVideoRef.current.muted = !heroMuted;
+        setHeroMuted(!heroMuted);
+    };
+
+    const [heroFullscreen, setHeroFullscreen] = useState(false);
+    const heroSectionRef = useRef<HTMLElement>(null);
+
+    const toggleHeroFullscreen = () => {
+        if (!heroSectionRef.current) return;
+        if (!document.fullscreenElement) {
+            heroSectionRef.current.requestFullscreen().then(() => setHeroFullscreen(true)).catch(() => { });
+        } else {
+            document.exitFullscreen().then(() => setHeroFullscreen(false)).catch(() => { });
+        }
+    };
+
+    useEffect(() => {
+        const onFsChange = () => {
+            setHeroFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', onFsChange);
+        return () => document.removeEventListener('fullscreenchange', onFsChange);
+    }, []);
 
     const productPackages = [
         { id: 1, name: 'Bronze Package A', image: pk4, description: 'Starts with ₱1,998 only, get yours now!' },
@@ -172,13 +204,6 @@ export default function LandingPage() {
             },
         ],
     };
-    const nextSlide = () => {
-        setCarouselIndex((prev) => (prev + 1) % productImages.length);
-    };
-
-    const prevSlide = () => {
-        setCarouselIndex((prev) => (prev - 1 + productImages.length) % productImages.length);
-    };
 
     const navigate = useNavigate()
 
@@ -206,86 +231,276 @@ export default function LandingPage() {
                 </div>
             </nav>
 
-            {/* Section 1: Hero with Carousel */}
-            <section className="pt-24 pb-20 px-4 sm:px-6 lg:px-8 bg-black min-h-screen flex items-center border-b border-yellow-600 mt-15">
-                <div className="max-w-7xl mx-auto w-full grid md:grid-cols-2 gap-12 items-center">
-                    {/* Left: Carousel */}
-                    <div className="relative order-2 md:order-1 flex flex-col items-center">
-                        <div className="relative bg-slate-900 rounded-lg overflow-hidden aspect-square border-2 border-yellow-600 h-170 w-150">
-                            <img
-                                src={productImages[carouselIndex].src || "/placeholder.svg"}
-                                alt={productImages[carouselIndex].alt}
-                                className="w-full h-full object-fit"
-                            />
-                        </div>
+            {/* Section 1: Cinematic Hero */}
+            <section
+                ref={heroSectionRef}
+                className="relative w-full overflow-hidden border-b border-yellow-600/40"
+                style={{ height: '100vh', minHeight: '600px' }}
+            >
+                {/* ── FULL-FRAME VIDEO ── */}
+                <video
+                    ref={heroVideoRef}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        filter: 'brightness(0.78) contrast(1.06)',
+                        zIndex: 0,
+                    }}
+                    src={training1}
+                />
 
-                        {/* Carousel Controls */}
-                        <div className="flex gap-4 mt-6 justify-center">
-                            <button
-                                onClick={prevSlide}
-                                className="bg-yellow-500 hover:bg-yellow-400 text-slate-950 p-3 rounded-full transition"
-                            >
-                                <ChevronLeft size={24} />
-                            </button>
-                            <div className="flex gap-2 items-center">
-                                {productImages.map((_, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => setCarouselIndex(idx)}
-                                        className={`h-2 rounded-full transition ${idx === carouselIndex ? 'bg-yellow-500 w-8' : 'bg-slate-700 w-2'
-                                            }`}
-                                    />
-                                ))}
-                            </div>
-                            <button
-                                onClick={nextSlide}
-                                className="bg-yellow-500 hover:bg-yellow-400 text-slate-950 p-3 rounded-full transition"
-                            >
-                                <ChevronRight size={24} />
-                            </button>
-                        </div>
+                {/* Subtle bottom gradient only — keeps most of video clear */}
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    zIndex: 1,
+                    background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.45) 28%, rgba(0,0,0,0) 55%)',
+                }} />
+
+                {/* Left-edge vignette so left text stays readable */}
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    zIndex: 1,
+                    background: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 40%)',
+                }} />
+
+                {/* ── BOTTOM-LEFT BLOCK: typography + controls stacked ── */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: '36px',
+                    left: '44px',
+                    zIndex: 20,
+                    maxWidth: '420px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '18px',
+                }}>
+                    {/* Eyebrow */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '24px', height: '1px', background: 'rgba(234,179,8,0.75)' }} />
+                        <span style={{
+                            fontFamily: "'Courier New', monospace",
+                            fontSize: '0.58rem',
+                            letterSpacing: '0.28em',
+                            color: 'rgba(234,179,8,0.8)',
+                            textTransform: 'uppercase',
+                        }}>CoProfit Global · Est. 2024</span>
                     </div>
 
-                    {/* Right: Typography */}
-                    <div className="order-1 md:order-2 space-y-6">
-                        <div>
-                            <h1 className="text-5xl md:text-6xl text-white mb-4 leading-tight">
-                                Your Life,
-                                <span className="block text-yellow-500">Your Fragrance.</span>
-                            </h1>
-                            <p className="text-lg text-gray-300 leading-relaxed">
-                                Unlock the door to wellness and wealth with Bronze Package A, from COPROFITGLOBAL. Priced at just ₱8,998, this starter kit is more than a collection of premium health and beauty products it’s your first step toward financial freedom and personal transformation.
-                            </p>
-                        </div>
+                    {/* Headline */}
+                    <div>
+                        <div style={{
+                            fontSize: 'clamp(1.5rem, 3.2vw, 2.6rem)',
+                            fontWeight: 300,
+                            lineHeight: 1.08,
+                            letterSpacing: '-0.01em',
+                            color: '#ffffff',
+                            textShadow: '0 2px 24px rgba(0,0,0,0.9)',
+                        }}>Your Life,</div>
+                        <div style={{
+                            fontSize: 'clamp(1.5rem, 3.2vw, 2.6rem)',
+                            fontWeight: 700,
+                            fontStyle: 'italic',
+                            lineHeight: 1.08,
+                            letterSpacing: '-0.01em',
+                            color: '#EAB308',
+                            textShadow: '0 0 40px rgba(234,179,8,0.4), 0 2px 24px rgba(0,0,0,0.9)',
+                        }}>Your Fragrance.</div>
+                    </div>
 
-                        <div className="space-y-4">
-                            <div className="flex gap-4">
-                                <div className="w-1 bg-yellow-500" />
-                                <div>
-                                    <h3 className="text-xl font-bold text-white">Premium Quality</h3>
-                                    <p className="text-gray-400">Handcrafted with the finest materials</p>
-                                </div>
-                            </div>
-                            <div className="flex gap-4">
-                                <div className="w-1 bg-yellow-500" />
-                                <div>
-                                    <h3 className="text-xl font-bold text-white">Exclusive Designs</h3>
-                                    <p className="text-gray-400">Limited edition collections</p>
-                                </div>
-                            </div>
-                        </div>
+                    {/* Body */}
+                    <p style={{
+                        fontSize: '0.78rem',
+                        lineHeight: 1.75,
+                        color: 'rgba(210,210,200,0.82)',
+                        fontWeight: 400,
+                        textShadow: '0 1px 8px rgba(0,0,0,0.8)',
+                        margin: 0,
+                    }}>
+                        Unlock wellness &amp; wealth with CoProfit Global.<br />
+                        Starting at just ₱8,998 — your first step toward<br />
+                        financial freedom and personal transformation.
+                    </p>
 
-                        <div className="flex gap-4 pt-4">
-                            <button className="bg-yellow-500 hover:bg-yellow-400 text-slate-950 px-8 py-3 rounded-full font-semibold transition">
-                                Explore Collection
-                            </button>
-                            <button className="border-2 border-yellow-500 text-yellow-500 px-8 py-3 rounded-full font-semibold hover:bg-yellow-500 hover:text-slate-950 transition">
-                                Learn More
-                            </button>
-                        </div>
+                    {/* CTA row */}
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button style={{
+                            fontSize: '0.62rem',
+                            letterSpacing: '0.16em',
+                            textTransform: 'uppercase',
+                            padding: '10px 20px',
+                            border: '1px solid rgba(234,179,8,0.5)',
+                            background: 'transparent',
+                            color: 'rgba(234,179,8,0.9)',
+                            cursor: 'pointer',
+                            transition: 'all 0.25s',
+                        }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(234,179,8,0.1)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
+                            Learn More
+                        </button>
+                        <button style={{
+                            fontSize: '0.62rem',
+                            letterSpacing: '0.16em',
+                            textTransform: 'uppercase',
+                            padding: '10px 20px',
+                            border: '1px solid #EAB308',
+                            background: '#EAB308',
+                            color: '#0a0a0a',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.25s',
+                        }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#FCD34D'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#EAB308'; }}>
+                            Explore Collection
+                        </button>
+                    </div>
+
+                    {/* ── VIDEO CONTROLS ROW ── */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        paddingTop: '4px',
+                    }}>
+                        {/* Play/Pause */}
+                        <button
+                            onClick={toggleHeroPlay}
+                            title={heroPlaying ? 'Pause' : 'Play'}
+                            style={{
+                                width: '40px', height: '40px',
+                                borderRadius: '50%',
+                                border: '1px solid rgba(234,179,8,0.55)',
+                                background: 'rgba(0,0,0,0.5)',
+                                backdropFilter: 'blur(12px)',
+                                color: '#EAB308',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.22s',
+                                flexShrink: 0,
+                                marginBottom: '15px',
+                            }}
+                            onMouseEnter={e => {
+                                const b = e.currentTarget as HTMLButtonElement;
+                                b.style.background = 'rgba(234,179,8,0.2)';
+                                b.style.borderColor = '#EAB308';
+                                b.style.transform = 'scale(1.08)';
+                            }}
+                            onMouseLeave={e => {
+                                const b = e.currentTarget as HTMLButtonElement;
+                                b.style.background = 'rgba(0,0,0,0.5)';
+                                b.style.borderColor = 'rgba(234,179,8,0.55)';
+                                b.style.transform = 'scale(1)';
+                            }}
+                        >
+                            {heroPlaying ? <Pause size={15} /> : <Play size={15} />}
+                        </button>
+
+                        {/* Mute/Unmute */}
+                        <button
+                            onClick={toggleHeroMute}
+                            title={heroMuted ? 'Unmute' : 'Mute'}
+                            style={{
+                                width: '40px', height: '40px',
+                                borderRadius: '50%',
+                                border: '1px solid rgba(234,179,8,0.55)',
+                                background: 'rgba(0,0,0,0.5)',
+                                backdropFilter: 'blur(12px)',
+                                color: '#EAB308',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.22s',
+                                flexShrink: 0,
+                                marginBottom: '15px',
+                            }}
+                            onMouseEnter={e => {
+                                const b = e.currentTarget as HTMLButtonElement;
+                                b.style.background = 'rgba(234,179,8,0.2)';
+                                b.style.borderColor = '#EAB308';
+                                b.style.transform = 'scale(1.08)';
+                            }}
+                            onMouseLeave={e => {
+                                const b = e.currentTarget as HTMLButtonElement;
+                                b.style.background = 'rgba(0,0,0,0.5)';
+                                b.style.borderColor = 'rgba(234,179,8,0.55)';
+                                b.style.transform = 'scale(1)';
+                            }}
+                        >
+                            {heroMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                        </button>
+
+                        {/* Fullscreen */}
+                        <button
+                            onClick={toggleHeroFullscreen}
+                            title={heroFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                            style={{
+                                width: '40px', height: '40px',
+                                borderRadius: '50%',
+                                border: '1px solid rgba(234,179,8,0.55)',
+                                background: 'rgba(0,0,0,0.5)',
+                                backdropFilter: 'blur(12px)',
+                                color: '#EAB308',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.22s',
+                                flexShrink: 0,
+                                marginBottom: '15px',
+                            }}
+                            onMouseEnter={e => {
+                                const b = e.currentTarget as HTMLButtonElement;
+                                b.style.background = 'rgba(234,179,8,0.2)';
+                                b.style.borderColor = '#EAB308';
+                                b.style.transform = 'scale(1.08)';
+                            }}
+                            onMouseLeave={e => {
+                                const b = e.currentTarget as HTMLButtonElement;
+                                b.style.background = 'rgba(0,0,0,0.5)';
+                                b.style.borderColor = 'rgba(234,179,8,0.55)';
+                                b.style.transform = 'scale(1)';
+                            }}
+                        >
+                            {heroFullscreen ? <Minimize size={15} /> : <Maximize size={15} />}
+                        </button>
+
+                        {/* Divider */}
+                        <div style={{ width: '1px', height: '20px', background: 'rgba(234,179,8,0.25)', margin: '0 2px', marginBottom: '15px', }} />
+
+                        {/* Status text */}
+                        <span style={{
+                            fontFamily: "'Courier New', monospace",
+                            fontSize: '0.55rem',
+                            letterSpacing: '0.2em',
+                            textTransform: 'uppercase',
+                            color: 'rgba(234,179,8,0.55)',
+                            marginBottom: '15px',
+                        }}>
+                            {heroPlaying ? '▶ Live' : '⏸ Paused'} · {heroMuted ? 'Muted' : 'Audio On'}
+                        </span>
                     </div>
                 </div>
+
+                {/* Gold thin horizontal rule above bottom bar */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: '30px',
+                    left: '44px',
+                    right: '44px',
+                    height: '1px',
+                    zIndex: 15,
+                    background: 'linear-gradient(to right, rgba(234,179,8,0.5), rgba(234,179,8,0.08) 60%, rgba(234,179,8,0))',
+                }} />
+
             </section>
+
 
             {/* Section 2: Products by Package (Collections) */}
             <section id="collections" className="py-20 px-4 sm:px-6 lg:px-8 bg-black border-b border-yellow-600">

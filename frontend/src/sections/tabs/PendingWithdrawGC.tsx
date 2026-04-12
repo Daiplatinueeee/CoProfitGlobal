@@ -77,16 +77,16 @@ function PendingWithdrawGC() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="w-full max-w-7xl mx-auto px-6 lg:px-21 py-10">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Pending GC Withdrawals</h1>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Pending GC Withdrawals</h1>
           <p className="text-sm text-slate-400 mt-1">GC withdrawal requests currently awaiting processing</p>
         </div>
 
         {/* Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
           {[
             { label: 'Pending Requests', value: `${records.length}`,              valueSuffix: '',   sub: 'Awaiting admin approval' },
             { label: 'Total GC Held',    value: totalPendingGC.toLocaleString(),  valueSuffix: 'GC', sub: 'Combined pending amount' },
@@ -112,7 +112,7 @@ function PendingWithdrawGC() {
         {/* Table Card */}
         <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
 
-          <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Pending Requests</h2>
               <p className="text-xs text-slate-400 mt-0.5">
@@ -129,12 +129,12 @@ function PendingWithdrawGC() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">#</th>
-                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Amount</th>
-                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date</th>
-                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Time</th>
-                  <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Status</th>
-                  <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Actions</th>
+                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden sm:table-cell">#</th>
+                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Amount</th>
+                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date</th>
+                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden sm:table-cell">Time</th>
+                  <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">Status</th>
+                  <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -155,35 +155,35 @@ function PendingWithdrawGC() {
                 ) : (
                   records.map((record, index) => (
                     <tr key={record.id} className="hover:bg-slate-50 transition-colors duration-150">
-                      <td className="px-6 py-4 text-slate-400 text-xs">{index + 1}</td>
-                      <td className="px-6 py-4 font-semibold text-slate-900">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-slate-400 text-xs hidden sm:table-cell">{index + 1}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 font-semibold text-slate-900 text-xs sm:text-sm">
                         {record.amount.toLocaleString()}{' '}
                         <span className="text-slate-400 font-normal text-xs">GC</span>
                       </td>
-                      <td className="px-6 py-4 text-slate-500">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-slate-500 text-xs sm:text-sm">
                         {new Date(record.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                       </td>
-                      <td className="px-6 py-4 text-slate-500">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-slate-500 text-xs sm:text-sm hidden sm:table-cell">
                         {new Date(record.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-center hidden md:table-cell">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200">
                           <Clock className="w-3 h-3" />
                           Pending
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-center gap-2">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2">
                           <button
                             onClick={() => handleApprove(record.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition-colors"
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition-colors"
                           >
                             <Check className="w-3 h-3" />
                             Approve
                           </button>
                           <button
                             onClick={() => handleDecline(record.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200 hover:bg-red-100 transition-colors"
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200 hover:bg-red-100 transition-colors"
                           >
                             <X className="w-3 h-3" />
                             Decline
