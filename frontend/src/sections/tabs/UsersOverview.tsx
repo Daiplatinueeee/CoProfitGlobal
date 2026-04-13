@@ -23,6 +23,8 @@ interface User {
   isActive: boolean;
   leftLegPoints: number;
   rightLegPoints: number;
+  leftAvailablePoints: number;
+  rightAvailablePoints: number;
 }
 
 type Tier = 'bronze' | 'silver' | 'gold' | 'platinum' | null;
@@ -134,7 +136,7 @@ function UserDetailModal({
           {/* Leg Points */}
           <div className="px-6 py-5">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Leg Points</h4>
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Available Points</h4>
               <button
                 onClick={() => onEditPoints(user)}
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors"
@@ -146,11 +148,11 @@ function UserDetailModal({
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-slate-50 rounded-xl border border-slate-100 px-5 py-4">
                 <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">Left Leg</p>
-                <p className="text-2xl font-semibold text-slate-900">{user.leftLegPoints.toLocaleString()}</p>
+                <p className="text-2xl font-semibold text-slate-900">{user.leftAvailablePoints.toLocaleString()}</p>
               </div>
               <div className="bg-slate-50 rounded-xl border border-slate-100 px-5 py-4">
                 <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">Right Leg</p>
-                <p className="text-2xl font-semibold text-slate-900">{user.rightLegPoints.toLocaleString()}</p>
+                <p className="text-2xl font-semibold text-slate-900">{user.rightAvailablePoints.toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -259,7 +261,7 @@ function UsersOverview() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [editPointsUserId, setEditPointsUserId] = useState<string | null>(null);
-  const [editPointsForm, setEditPointsForm] = useState({ leftLegPoints: 0, rightLegPoints: 0 });
+  const [editPointsForm, setEditPointsForm] = useState({ leftAvailablePoints: 0, rightAvailablePoints: 0 });
   const [editPointsLoading, setEditPointsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -290,6 +292,8 @@ function UsersOverview() {
       profilePicture: apiUser.profileImage,
       leftLegPoints: apiUser.leftLegPoints ?? 0,
       rightLegPoints: apiUser.rightLegPoints ?? 0,
+      leftAvailablePoints: apiUser.leftAvailablePoints ?? 0,
+      rightAvailablePoints: apiUser.rightAvailablePoints ?? 0,
       createdAt: createdDate.toISOString().split('T')[0],
       createdTime: createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
       isActive: apiUser.isActive !== undefined ? apiUser.isActive : true,
@@ -348,12 +352,21 @@ function UsersOverview() {
     }
   };
 
-  const openEditPoints = (user: User) => {
+  const openEditPoints = async (user: User) => {
     setSelectedUser(null);
-    setTimeout(() => {
-      setEditPointsUserId(user.id);
-      setEditPointsForm({ leftLegPoints: user.leftLegPoints, rightLegPoints: user.rightLegPoints });
-    }, 50);
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${user.id}/available-points`, {
+        headers: getAuthHeaders(),
+      });
+      const pts = res.ok ? await res.json() : { leftAvailablePoints: 0, rightAvailablePoints: 0 };
+      setEditPointsForm({
+        leftAvailablePoints: pts.leftAvailablePoints ?? 0,
+        rightAvailablePoints: pts.rightAvailablePoints ?? 0,
+      });
+    } catch {
+      setEditPointsForm({ leftAvailablePoints: 0, rightAvailablePoints: 0 });
+    }
+    setEditPointsUserId(user.id);
   };
 
   const handleUpdateLegPoints = async () => {
@@ -365,16 +378,17 @@ function UsersOverview() {
       });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update leg points');
+        throw new Error(errorData.message || 'Failed to update available points');
       }
       setUsers((prev) => prev.map((u) =>
         u.id === editPointsUserId ? { ...u, ...editPointsForm } : u
       ));
       setEditPointsUserId(null);
-      setSuccessMessage('Leg points updated successfully!');
+      setSuccessMessage('Available points updated successfully!');
       setTimeout(() => setSuccessMessage(null), 3000);
+      window.dispatchEvent(new CustomEvent('genealogy:refresh'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update leg points');
+      setError(err instanceof Error ? err.message : 'Failed to update available points');
     } finally {
       setEditPointsLoading(false);
     }
@@ -602,10 +616,10 @@ function UsersOverview() {
                 </button>
               </div>
               <div className="px-6 py-5 space-y-4">
-                {(['leftLegPoints', 'rightLegPoints'] as const).map((field) => (
+                {(['leftAvailablePoints', 'rightAvailablePoints'] as const).map((field) => (
                   <div key={field}>
                     <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
-                      {field === 'leftLegPoints' ? 'Left Leg Points' : 'Right Leg Points'}
+                      {field === 'leftAvailablePoints' ? 'Left Available Points' : 'Right Available Points'}
                     </label>
                     <input
                       type="number"

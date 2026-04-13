@@ -169,6 +169,21 @@ function Genealogy() {
     return () => window.removeEventListener('keydown', handleEscape)
   }, [resetModalState])
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (!currentUserId) return
+      fetchRootTree(currentUserId)
+        .then((treeData) => {
+          setOriginalRoot(treeData)
+          setTreeRoot(treeData)
+        })
+        .catch(() => {})
+    }
+
+    window.addEventListener('genealogy:refresh', handleRefresh)
+    return () => window.removeEventListener('genealogy:refresh', handleRefresh)
+  }, [currentUserId, fetchRootTree])
+
   const memberMap = useMemo(() => {
     const map = new Map<string, Member>()
 

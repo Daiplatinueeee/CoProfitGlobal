@@ -15,6 +15,7 @@ import {
 import { PlaceMemberDto } from './dto/place-member.dto'
 import {
   MembershipTier,
+  SystemRole,
   User,
   UserDocument,
 } from '../users/schemas/user.schema'
@@ -670,6 +671,148 @@ export class GenealogyService {
           })
         }
       }
+    }
+  }
+
+  // ── Search unplaced members ───────────────────────────────────────────────
+
+  async searchUnplaced(q: string) {
+    if (!q || q.trim().length === 0) return []
+
+    const regex = new RegExp(q.trim(), 'i')
+
+    const users = await this.userModel
+      .find({
+        role: SystemRole.USER,
+        $or: [
+          { username: regex },
+          { email:    regex },
+          { referralCode: regex },
+        ],
+      })
+      .select('_id username email referralCode profileImage membershipTier')
+      .limit(20)
+      .lean()
+
+    if (users.length === 0) return []
+
+    // Filter out users who already have a genealogy node
+    const userIds = users.map((u: any) => u._id)
+    const existingNodes = await this.genealogyModel
+      .find({ userId: { $in: userIds } })
+      .select('userId')
+      .lean()
+
+    const placedIds = new Set(existingNodes.map((n: any) => n.userId.toString()))
+
+    return users
+      .filter((u: any) => !placedIds.has(u._id.toString()))
+      .map((u: any) => ({
+        id:             u._id.toString(),
+        userId:         u._id.toString(),
+        username:       u.username,
+        email:          u.email,
+        referralCode:   u.referralCode ?? '',
+        profileImage:   u.profileImage ?? '',
+        membershipTier: u.membershipTier ?? null,
+      }))
+  }
+
+  // ── Place an existing (already-created) user into the tree ───────────────
+
+  async placeExistingMember(dto: {
+    parentUserId:     string
+    leg:              GenealogySide
+    placerUserId:     string
+    existingMemberId: string
+  }) {
+    for (const [field, value] of Object.entries({
+      parentUserId:     dto.parentUserId,
+      placerUserId:     dto.placerUserId,
+      existingMemberId: dto.existingMemberId,
+    })) {
+      if (!this.isValidObjectId(value)) {
+        throw new BadRequestException(`Invalid ${field}`)
+      }
+    }
+
+    // Load parent node
+    const parentNode = await this.genealogyModel.findOne({
+      userId: this.toObjectId(dto.parentUserId),
+    })
+    if (!parentNode) throw new NotFoundException('Parent genealogy node not found')
+
+    if (dto.leg === GenealogySide.LEFT && parentNode.leftChildUserId) {
+      throw new BadRequestException('Left leg already occupied')
+    }
+    if (dto.leg === GenealogySide.RIGHT && parentNode.rightChildUserId) {
+      throw new BadRequestException('Right leg already occupied')
+    }
+
+    // Validate placer
+    const placerUser = await this.userModel.findById(dto.placerUserId)
+    if (!placerUser) throw new NotFoundException('Placer user not found')
+
+    // Load the existing user
+    const existingUser = await this.userModel.findById(dto.existingMemberId)
+    if (!existingUser) throw new NotFoundException('Existing user not found')
+
+    // Guard: must not already be in the tree
+    const alreadyPlaced = await this.genealogyModel.findOne({
+      userId: this.toObjectId(dto.existingMemberId),
+    })
+    if (alreadyPlaced) {
+      throw new BadRequestException('This user is already placed in the genealogy tree')
+    }
+
+    const existingUserId = (existingUser as any)._id as Types.ObjectId
+
+    // Set the placer as the direct referrer (sponsor)
+    await this.userModel.findByIdAndUpdate(existingUserId, {
+      $set: { sponsorId: placerUser._id },
+    })
+
+    // Create the genealogy node
+    const childNode = await this.genealogyModel.create({
+      userId:           existingUserId,
+      parentUserId:     parentNode.userId,
+      position:         dto.leg,
+      leftChildUserId:  null,
+      rightChildUserId: null,
+      depth:            parentNode.depth + 1,
+      ancestors:        [...(parentNode.ancestors ?? []), parentNode.userId],
+    })
+
+    // Link the child into the parent node
+    if (dto.leg === GenealogySide.LEFT) {
+      parentNode.leftChildUserId = childNode.userId
+    } else {
+      parentNode.rightChildUserId = childNode.userId
+    }
+    await parentNode.save()
+
+    // Award placement bonuses to upline based on existing user's tier
+    const membershipTier = (existingUser as any).membershipTier as MembershipTier
+    await this.awardPlacementBonuses(childNode, membershipTier, placerUser._id.toString())
+
+    const { leftAvailablePoints, rightAvailablePoints } =
+      await this.getAvailablePoints(existingUserId)
+
+    return {
+      id:                   existingUserId.toString(),
+      userId:               existingUserId.toString(),
+      username:             (existingUser as any).username,
+      email:                (existingUser as any).email,
+      profileImage:         (existingUser as any).profileImage ?? '',
+      referralCode:         (existingUser as any).referralCode ?? '',
+      sponsorId:            placerUser._id.toString(),
+      membershipTier,
+      leftLegPoints:        (existingUser as any).leftLegPoints  ?? 0,
+      rightLegPoints:       (existingUser as any).rightLegPoints ?? 0,
+      leftAvailablePoints,
+      rightAvailablePoints,
+      parentUserId:         parentNode.userId.toString(),
+      leg:                  dto.leg,
     }
   }
 }

@@ -42,10 +42,15 @@ export class AdminController {
     return this.adminService.findAllUsers();
   }
 
+  @Get('users/:id/available-points')
+  getAvailablePoints(@Param('id') id: string) {
+    return this.adminService.getAvailablePoints(id);
+  }
+
   @Patch('users/:id/leg-points')
   updateLegPoints(
     @Param('id') id: string,
-    @Body() dto: { leftLegPoints?: number; rightLegPoints?: number },
+    @Body() dto: { leftAvailablePoints?: number; rightAvailablePoints?: number },
   ) {
     return this.adminService.updateLegPoints(id, dto);
   }
