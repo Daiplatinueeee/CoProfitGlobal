@@ -86,6 +86,7 @@ export class LeaderboardService {
 
     const entries = results.map((doc, index) => ({
       rank: index + 1,
+      userId: doc._id.toString(),
       name: doc.name ?? '',
       username: doc.username ?? '',
       avatar: doc.avatar ?? null,

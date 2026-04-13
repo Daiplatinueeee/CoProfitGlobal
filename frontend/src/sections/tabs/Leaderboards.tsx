@@ -108,7 +108,10 @@ export default function Leaderboards() {
 
   const top3 = data.slice(0, 3);
   const totalEarnings  = data.reduce((s, e) => s + e.earnings, 0);
-  const totalReferrals = data.reduce((s, e) => s + e.referrals, 0);
+  const totalReferrals = data.reduce((s, e) => {
+    const rc = referralMap[e.userId];
+    return s + (rc?.total ?? e.referrals);
+  }, 0);
 
   return (
     <div className="min-h-screen bg-white">
