@@ -225,11 +225,11 @@ function UserCard({ user, onClick }: { user: User; onClick: () => void }) {
       <div className="px-4 py-4 grid grid-cols-2 gap-2">
         <div className="bg-slate-50 rounded-xl px-3 py-2.5 text-center">
           <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-0.5">L. Leg</p>
-          <p className="text-sm font-semibold text-slate-900">{user.leftLegPoints.toLocaleString()}</p>
+          <p className="text-sm font-semibold text-slate-900">{user.leftAvailablePoints.toLocaleString()}</p>
         </div>
         <div className="bg-slate-50 rounded-xl px-3 py-2.5 text-center">
           <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-0.5">R. Leg</p>
-          <p className="text-sm font-semibold text-slate-900">{user.rightLegPoints.toLocaleString()}</p>
+          <p className="text-sm font-semibold text-slate-900">{user.rightAvailablePoints.toLocaleString()}</p>
         </div>
       </div>
 
@@ -261,7 +261,7 @@ function UsersOverview() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [editPointsUserId, setEditPointsUserId] = useState<string | null>(null);
-  const [editPointsForm, setEditPointsForm] = useState({ leftAvailablePoints: 0, rightAvailablePoints: 0 });
+  const [editPointsForm, setEditPointsForm] = useState({ leftAvailablePoints: '', rightAvailablePoints: '' });
   const [editPointsLoading, setEditPointsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -352,6 +352,25 @@ function UsersOverview() {
     }
   };
 
+  const handleSelectUser = async (user: User) => {
+    setSelectedUser(user);
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${user.id}/available-points`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const pts = await res.json();
+        setSelectedUser((prev) =>
+          prev?.id === user.id
+            ? { ...prev, leftAvailablePoints: pts.leftAvailablePoints ?? 0, rightAvailablePoints: pts.rightAvailablePoints ?? 0 }
+            : prev
+        );
+      }
+    } catch {
+      // keep existing values if fetch fails
+    }
+  };
+
   const openEditPoints = async (user: User) => {
     setSelectedUser(null);
     try {
@@ -360,11 +379,11 @@ function UsersOverview() {
       });
       const pts = res.ok ? await res.json() : { leftAvailablePoints: 0, rightAvailablePoints: 0 };
       setEditPointsForm({
-        leftAvailablePoints: pts.leftAvailablePoints ?? 0,
-        rightAvailablePoints: pts.rightAvailablePoints ?? 0,
+        leftAvailablePoints: String(pts.leftAvailablePoints ?? 0),
+        rightAvailablePoints: String(pts.rightAvailablePoints ?? 0),
       });
     } catch {
-      setEditPointsForm({ leftAvailablePoints: 0, rightAvailablePoints: 0 });
+      setEditPointsForm({ leftAvailablePoints: '0', rightAvailablePoints: '0' });
     }
     setEditPointsUserId(user.id);
   };
@@ -372,16 +391,20 @@ function UsersOverview() {
   const handleUpdateLegPoints = async () => {
     if (!editPointsUserId) return;
     setEditPointsLoading(true);
+    const parsedPoints = {
+      leftAvailablePoints: Number(editPointsForm.leftAvailablePoints) || 0,
+      rightAvailablePoints: Number(editPointsForm.rightAvailablePoints) || 0,
+    };
     try {
       const response = await fetch(`${API_BASE}/admin/users/${editPointsUserId}/leg-points`, {
-        method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify(editPointsForm),
+        method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify(parsedPoints),
       });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to update available points');
       }
       setUsers((prev) => prev.map((u) =>
-        u.id === editPointsUserId ? { ...u, ...editPointsForm } : u
+        u.id === editPointsUserId ? { ...u, ...parsedPoints } : u
       ));
       setEditPointsUserId(null);
       setSuccessMessage('Available points updated successfully!');
@@ -569,7 +592,7 @@ function UsersOverview() {
                 <UserCard
                   key={user.id}
                   user={user}
-                  onClick={() => setSelectedUser(user)}
+                  onClick={() => handleSelectUser(user)}
                 />
               ))}
             </div>
@@ -622,12 +645,14 @@ function UsersOverview() {
                       {field === 'leftAvailablePoints' ? 'Left Available Points' : 'Right Available Points'}
                     </label>
                     <input
-                      type="number"
-                      min="0"
+                      type="text"
+                      inputMode="numeric"
                       value={editPointsForm[field]}
-                      onChange={(e) =>
-                        setEditPointsForm((prev) => ({ ...prev, [field]: Number(e.target.value) }))
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || /^\d+$/.test(val))
+                          setEditPointsForm((prev) => ({ ...prev, [field]: val }));
+                      }}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
                     />
                   </div>

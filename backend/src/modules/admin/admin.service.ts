@@ -28,6 +28,7 @@ import {
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateTierDto } from './dto/admin-update-tier.dto';
 import { AdminGeneratePinsDto } from './dto/admin-generate-pins.dto';
+import { PairingService } from '../pairing/pairing.service';
 
 @Injectable()
 export class AdminService {
@@ -39,6 +40,7 @@ export class AdminService {
     @InjectModel(VolumeBucket.name)
     private readonly volumeBucketModel: Model<VolumeBucketDocument>,
     private readonly usersService: UsersService,
+    private readonly pairingService: PairingService,
   ) {}
 
   private isValidObjectId(id: string) {
@@ -150,28 +152,48 @@ export class AdminService {
       .sort({ createdAt: -1 })
       .lean();
 
-    return users.map((user: any) => ({
-      id: user._id.toString(),
-      name: user.name ?? '',
-      username: user.username ?? '',
-      email: user.email,
-      role: user.role,
-      membershipTier: user.membershipTier,
-      referralCode: user.referralCode ?? null,
-      sponsorId: user.sponsorId ? user.sponsorId.toString() : null,
-      packagePin: user.packagePin ?? null,
-      leftLegPoints: user.leftLegPoints ?? 0,
-      rightLegPoints: user.rightLegPoints ?? 0,
-      age: user.age ?? null,
-      contact: user.contact ?? '',
-      address: user.address ?? '',
-      beneficiary: user.beneficiary ?? '',
-      birthday: user.birthday ?? '',
-      profileImage: user.profileImage ?? '',
-      isActive: user.isActive !== undefined ? user.isActive : true,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    }));
+    // Batch-fetch all VolumeBucket records for these users (single query, not N+1)
+    const userIds = users.map((u: any) => u._id);
+    const buckets = await this.volumeBucketModel
+      .find({ ownerUserId: { $in: userIds } })
+      .select('ownerUserId leg availablePoints')
+      .lean();
+
+    const bucketMap = new Map<string, { left: number; right: number }>();
+    for (const b of buckets as any[]) {
+      const key = b.ownerUserId.toString();
+      if (!bucketMap.has(key)) bucketMap.set(key, { left: 0, right: 0 });
+      if (b.leg === VolumeLeg.LEFT)  bucketMap.get(key)!.left  = b.availablePoints ?? 0;
+      if (b.leg === VolumeLeg.RIGHT) bucketMap.get(key)!.right = b.availablePoints ?? 0;
+    }
+
+    return users.map((user: any) => {
+      const avail = bucketMap.get(user._id.toString()) ?? { left: 0, right: 0 };
+      return {
+        id: user._id.toString(),
+        name: user.name ?? '',
+        username: user.username ?? '',
+        email: user.email,
+        role: user.role,
+        membershipTier: user.membershipTier,
+        referralCode: user.referralCode ?? null,
+        sponsorId: user.sponsorId ? user.sponsorId.toString() : null,
+        packagePin: user.packagePin ?? null,
+        leftLegPoints: user.leftLegPoints ?? 0,
+        rightLegPoints: user.rightLegPoints ?? 0,
+        leftAvailablePoints: avail.left,
+        rightAvailablePoints: avail.right,
+        age: user.age ?? null,
+        contact: user.contact ?? '',
+        address: user.address ?? '',
+        beneficiary: user.beneficiary ?? '',
+        birthday: user.birthday ?? '',
+        profileImage: user.profileImage ?? '',
+        isActive: user.isActive !== undefined ? user.isActive : true,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
+    });
   }
 
   async updateMembershipTier(userId: string, dto: AdminUpdateTierDto) {
@@ -233,6 +255,9 @@ export class AdminService {
     }
 
     await Promise.all(upserts);
+
+    // Trigger pairing now that available points have been updated
+    await this.pairingService.tryPairIfPossible(userId);
 
     const updated = await this.getAvailablePoints(userId);
 
