@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import logo from './../../assets/refs/Logo.webp'
 import MemberDetailsPanel from './membersDetailPanel'
-import AddMemberModal, { EMPTY_ADD_MEMBER_FORM } from '../../modals/AddMemberModal'
-import type { AddMemberFormData } from '../../modals/AddMemberModal'
-import ChooseMemberTypeModal from '../../modals/ChooseTypeModal'
-import ExistingMemberModal from '../../modals/ExistingUserModal'
-import type { ExistingMemberResult } from '../../modals/ExistingUserModal'
+import AddMemberModal, { EMPTY_ADD_MEMBER_FORM } from '../modals/AddMemberModal'
+import type { AddMemberFormData } from '../modals/AddMemberModal'
+import ChooseMemberTypeModal from '../modals/ChooseTypeModal'
+import ExistingMemberModal from '../modals/ExistingUserModal'
+import type { ExistingMemberResult } from '../modals/ExistingUserModal'
 
 interface Member {
   id: string

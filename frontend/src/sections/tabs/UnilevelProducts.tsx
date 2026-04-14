@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, CheckCircle, ShoppingCart, X, AlertCircle } from 'lucide-react';
+import { Upload, CheckCircle, X, AlertCircle } from 'lucide-react';
 
 interface Product {
     id: string;
@@ -36,7 +36,7 @@ const paymentMethods = [
 ];
 
 export default function Unilevel() {
-    const [products] = useState<Product[]>([
+    const [] = useState<Product[]>([
         { id: '1', name: 'Starter Bundle',  price: 1500,  pv: 15,  description: 'Perfect for beginners',  image: image1, features: ['Basic access', '15 PV points', 'Support'] },
         { id: '2', name: 'Professional',    price: 3000,  pv: 30,  description: 'Growing your network',    image: image2, features: ['Full access', '30 PV points', 'Priority support'] },
         { id: '3', name: 'Premium',         price: 5000,  pv: 50,  description: 'For entrepreneurs',       image: image3, features: ['Premium access', '50 PV points', '24/7 support'] },
@@ -53,7 +53,7 @@ export default function Unilevel() {
         { id: '2', month: 'February 2025', status: 'pending',   paymentMethod: '',              proofFile: null,                uploadDate: null },
     ]);
 
-    const [selectedMonth, setSelectedMonth]             = useState('');
+    const [, setSelectedMonth]             = useState('');
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
     const [uploadedFile, setUploadedFile]               = useState<File | null>(null);
 
@@ -92,12 +92,6 @@ export default function Unilevel() {
 
     const convertedCash = (totalUnilevelPV * 1).toFixed(2);
     const maintenanceDeadlineStatus = getMaintenanceStatus(1, 15);
-
-    const handleBuyClick = (product: Product) => {
-        setSelectedProduct(product);
-        setPurchaseQuantity(1);
-        setShowPurchaseModal(true);
-    };
 
     const handleClosePurchaseModal = () => {
         setShowPurchaseModal(false);

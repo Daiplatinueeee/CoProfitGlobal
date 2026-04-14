@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Pencil, OctagonMinus } from 'lucide-react';
 
-import CreateUserModal from '../../modals/CreateUserModal';
+import CreateUserModal from '../modals/CreateUserModal';
 
 const API_BASE = 'http://localhost:3000';
 

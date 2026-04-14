@@ -7,7 +7,7 @@ import {
   mapApiPin,
   PinCard,
   PinDetailModal,
-} from '../sections/tabs/GeneratePin';
+} from '../tabs/GeneratePin';
 
 interface ProductPinTabProps {
   API_BASE: string;

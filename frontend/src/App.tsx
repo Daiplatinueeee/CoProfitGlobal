@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import Landing from './sections/landingpage';
-import Auth from './sections/Auth';
+import Landing from './sections/landing_sections/landingpage';
+import Auth from './sections/authentication/Auth';
 
 import UserDashboard from './sections/user/userDashboard';
 import AdminDashboard from './sections/admin/adminDashboard';
