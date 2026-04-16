@@ -46,6 +46,7 @@ function Genealogy() {
   const ACTION_BTN_HEIGHT = 36
 
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
@@ -57,6 +58,8 @@ function Genealogy() {
   const [zoom, setZoom] = useState(1)
   const [dragging, setDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [svgSize, setSvgSize] = useState({ w: window.innerWidth, h: window.innerHeight })
+  const svgRef = React.useRef<SVGSVGElement>(null)
 
   // Touch state for mobile pan & pinch-to-zoom
   const lastTouchRef = React.useRef<{ x: number; y: number } | null>(null)
@@ -184,6 +187,17 @@ function Genealogy() {
     return () => window.removeEventListener('genealogy:refresh', handleRefresh)
   }, [currentUserId, fetchRootTree])
 
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect
+      setSvgSize({ w: width, h: height })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const memberMap = useMemo(() => {
     const map = new Map<string, Member>()
 
@@ -265,6 +279,8 @@ function Genealogy() {
         return
       }
 
+      setSubmitting(true)
+
       const payload: Record<string, any> = {
         parentUserId: parent.userId || parent.id,
         leg,
@@ -303,6 +319,8 @@ function Genealogy() {
     } catch (err: any) {
       setFormErrors({ _root: err.message || 'Failed to add member' })
       console.error('Error adding member:', err)
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -381,6 +399,13 @@ function Genealogy() {
     setSearchResults(results)
   }
 
+  // Visible world-space rectangle — add generous padding so nodes near edges aren't clipped
+  const CULL_PADDING = 400
+  const viewLeft   = (-pan.x - CULL_PADDING) / zoom
+  const viewTop    = (-pan.y - CULL_PADDING) / zoom
+  const viewRight  = (svgSize.w - pan.x + CULL_PADDING) / zoom
+  const viewBottom = (svgSize.h - pan.y + CULL_PADDING) / zoom
+
   const renderTree = (member: Member | null | undefined): React.ReactNode[] => {
     if (!member) return []
 
@@ -388,6 +413,15 @@ function Genealogy() {
     if (!pos) return []
 
     const elements: React.ReactNode[] = []
+
+    // Skip this node AND its subtree lines if completely outside viewport.
+    // Children may still be in view (e.g. zoomed out) so we skip only the node
+    // card itself, not the recursive calls.
+    const nodeVisible =
+      pos.x + NODE_WIDTH  >= viewLeft &&
+      pos.x               <= viewRight &&
+      pos.y + NODE_HEIGHT >= viewTop &&
+      pos.y               <= viewBottom
 
     if (member.leftChild) {
       const childPos = positions.get(member.leftChild.id)
@@ -425,7 +459,7 @@ function Genealogy() {
       elements.push(...renderTree(member.rightChild))
     }
 
-    elements.push(
+    if (nodeVisible) elements.push(
       <g
         key={`node-${member.id}`}
         onClick={() => {
@@ -732,6 +766,7 @@ function Genealogy() {
           modal={modal}
           formData={formData}
           formErrors={formErrors}
+          submitting={submitting}
           setFormData={setFormData}
           setFormErrors={setFormErrors}
           onAddMember={addNewMember}
@@ -747,6 +782,7 @@ function Genealogy() {
         />
 
         <svg
+          ref={svgRef}
           width="100%"
           height="100%"
           className="block cursor-grab active:cursor-grabbing"

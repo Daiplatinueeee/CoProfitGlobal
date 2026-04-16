@@ -3,8 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
 import { MembershipTier, User, UserDocument } from '../users/schemas/user.schema';
-import { Activation, ActivationDocument } from '../activations/schemas/activation.schema';
 import { PairingAward, PairingAwardDocument } from '../pairing/schemas/pairing-award.schema';
+import { UnilevelProductsService } from '../unilevel-products/unilevel-products.service';
 import {
   LeadershipQualification,
   LeadershipQualificationDocument,
@@ -30,11 +30,10 @@ export class LeadershipService {
   private readonly RATE = 0.05;
 
   constructor(
-    @InjectModel(Activation.name)
-    private readonly activationModel: Model<ActivationDocument>,
-
     @InjectModel(PairingAward.name)
     private readonly pairingAwardModel: Model<PairingAwardDocument>,
+
+    private readonly unilevelProductsService: UnilevelProductsService,
 
     @InjectModel(GenealogyNode.name)
     private readonly genealogyNodeModel: Model<GenealogyNodeDocument>,
@@ -121,28 +120,17 @@ export class LeadershipService {
   }
 
   /**
-   * Month-to-date unilevel points:
-   * direct referral activations from first day of month up to asOf
+   * Month-to-date unilevel points from approved product purchases.
+   * Users must buy individual products totalling 1500 PV to qualify for leadership bonus.
+   * _asOf is kept in the signature for call-site compatibility but is not used —
+   * all approved purchases in the month count regardless of evaluation time.
    */
   private async computeUnilevelPoints(
     userId: Types.ObjectId,
     monthKey: string,
-    asOf: Date,
+    _asOf: Date,
   ): Promise<number> {
-    const start = this.monthStart(monthKey);
-
-    const rows = await this.activationModel
-      .find({
-        sponsorId: userId,
-        activatedAt: {
-          $gte: start,
-          $lte: asOf,
-        },
-      })
-      .select('points')
-      .lean();
-
-    return rows.reduce((sum, r: any) => sum + (r.points ?? 0), 0);
+    return this.unilevelProductsService.computeMonthPv(userId, monthKey);
   }
 
   /**

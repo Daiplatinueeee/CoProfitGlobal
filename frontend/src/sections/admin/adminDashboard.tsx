@@ -6,6 +6,7 @@ import GeneratePin from '../tabs/GeneratePin';
 import UsersOverview from '../tabs/UsersOverview';
 import PendingPayouts from '../tabs/PendingPayouts';
 import PendingWithdrawGC from '../tabs/PendingWithdrawGC';
+import PendingUnilevelPurchases from '../tabs/PendingUnilevelPurchases';
 
 const KEYFRAMES = `
   @keyframes crane-swing {
@@ -374,6 +375,7 @@ export default function AdminDashboard() {
     { id: 'users', label: 'Users Overview', icon: Users },
     { id: 'pendingPayouts', label: 'Pending Payouts', icon: ClipboardClock },
     { id: 'pendingWithdrawGC', label: 'Pending Withdrawals (GC)', icon: ClipboardClock },
+    { id: 'pendingUnilevel', label: 'Pending Unilevel Purchases', icon: ClipboardClock },
   ], []);
 
   const renderTabContent = () => {
@@ -382,6 +384,7 @@ export default function AdminDashboard() {
       'users': <UsersOverview />,
       'pendingPayouts': <PendingPayouts />,
       'pendingWithdrawGC': <PendingWithdrawGC />,
+      'pendingUnilevel': <PendingUnilevelPurchases />,
     };
     return map[activeTab] ?? <div />;
   };

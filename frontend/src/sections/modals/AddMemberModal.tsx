@@ -44,6 +44,7 @@ interface AddMemberModalProps {
   modal: { parent: Member; leg: 'left' | 'right' } | null
   formData: AddMemberFormData
   formErrors: Record<string, string>
+  submitting?: boolean
   setFormData: React.Dispatch<React.SetStateAction<AddMemberFormData>>
   setFormErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>
   onAddMember: () => void
@@ -113,6 +114,7 @@ export default function AddMemberModal({
   modal,
   formData,
   formErrors,
+  submitting = false,
   setFormData,
   setFormErrors,
   onAddMember,
@@ -386,17 +388,25 @@ export default function AddMemberModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 px-4 py-3 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-xl transition-colors"
+            disabled={submitting}
+            className="flex-1 px-4 py-3 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onAddMember}
-            className="flex-1 px-4 py-3 text-sm font-medium text-white rounded-xl transition-colors shadow-sm active:opacity-80"
+            disabled={submitting}
+            className="flex-1 px-4 py-3 text-sm font-medium text-white rounded-xl transition-colors shadow-sm active:opacity-80 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             style={{ backgroundColor: legColor }}
           >
-            Add {isLeftLeg ? 'Left' : 'Right'} Member
+            {submitting && (
+              <svg className="animate-spin w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            )}
+            {submitting ? 'Adding…' : `Add ${isLeftLeg ? 'Left' : 'Right'} Member`}
           </button>
         </div>
       </div>
