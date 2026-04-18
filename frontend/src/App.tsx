@@ -1,28 +1,31 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import Landing from './sections/landing_sections/landingpage';
+import Landing from './sections/landingSections/landingPage';
 import Auth from './sections/authentication/Auth';
+import { CartProvider } from './sections/landingSections/cartContents/cartContext';
 
 import UserDashboard from './sections/user/userDashboard';
 import AdminDashboard from './sections/admin/adminDashboard';
 
 const App: React.FC = () => {
   return (
-    <BrowserRouter>
-      <Routes>
+    <CartProvider>
+      <BrowserRouter>
+        <Routes>
 
-        {/* Landing Page */}
-        <Route path='/' element={<Landing />} />
+          {/* Landing Page */}
+          <Route path='/' element={<Landing />} />
 
-        {/* Authintication */}
-        <Route path='/auth' element={<Auth />} />
+          {/* Authintication */}
+          <Route path='/auth' element={<Auth />} />
 
-        {/* Dashboards */}
-        <Route path='/user' element={<UserDashboard />} />
-        <Route path='/admin' element={<AdminDashboard />} />
+          {/* Dashboards */}
+          <Route path='/user' element={<UserDashboard />} />
+          <Route path='/admin' element={<AdminDashboard />} />
 
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </CartProvider>
   );
 };
 

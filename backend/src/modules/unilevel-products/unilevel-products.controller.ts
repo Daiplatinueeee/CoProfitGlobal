@@ -15,6 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
+import type { Multer } from 'multer';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UnilevelProductsService } from './unilevel-products.service';
@@ -74,7 +75,7 @@ export class UnilevelProductsController {
       },
     }),
   )
-  uploadProof(@UploadedFile() file: Express.Multer.File) {
+  uploadProof(@UploadedFile() file: Multer.File) {
     if (!file) {
       return { url: '' };
     }
@@ -121,7 +122,10 @@ export class UnilevelProductsController {
     @Query('status') status?: string,
     @Query('userId') userId?: string,
   ) {
-    return this.service.listAllPurchases(status as PurchaseStatus | undefined, userId);
+    return this.service.listAllPurchases(
+      status as PurchaseStatus | undefined,
+      userId,
+    );
   }
 
   /** PATCH /unilevel-products/admin/purchases/:id/approve */

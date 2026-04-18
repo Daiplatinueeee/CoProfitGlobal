@@ -6,6 +6,8 @@ import type { AddMemberFormData } from '../modals/AddMemberModal'
 import ChooseMemberTypeModal from '../modals/ChooseTypeModal'
 import ExistingMemberModal from '../modals/ExistingUserModal'
 import type { ExistingMemberResult } from '../modals/ExistingUserModal'
+import ErrorModal from '../modals/errorModal'
+import SuccessModal from '../modals/sucessModal'
 
 interface Member {
   id: string
@@ -88,6 +90,10 @@ function Genealogy() {
 
   const [formData, setFormData] = useState<AddMemberFormData>(EMPTY_ADD_MEMBER_FORM)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+
+  // Success / Error feedback modals
+  const [successModal, setSuccessModal] = useState<{ title: string; message: string } | null>(null)
+  const [errorModal, setErrorModal] = useState<{ title: string; message: string } | null>(null)
 
   const NODE_WIDTH = 190
   const NODE_HEIGHT = 240
@@ -308,6 +314,10 @@ function Genealogy() {
 
       if (!response.ok) {
         setFormErrors({ _root: result.message || 'Failed to add member' })
+        setErrorModal({
+          title: 'Failed to Add Member',
+          message: result.message || 'An unexpected error occurred. Please try again.',
+        })
         return
       }
 
@@ -316,8 +326,16 @@ function Genealogy() {
       setTreeRoot(refreshedTree)
 
       resetModalState()
+      setSuccessModal({
+        title: 'Member Added!',
+        message: 'The new member has been successfully added to the genealogy tree.',
+      })
     } catch (err: any) {
       setFormErrors({ _root: err.message || 'Failed to add member' })
+      setErrorModal({
+        title: 'Failed to Add Member',
+        message: err.message || 'An unexpected error occurred. Please try again.',
+      })
       console.error('Error adding member:', err)
     } finally {
       setSubmitting(false)
@@ -341,14 +359,26 @@ function Genealogy() {
       const result = await response.json()
       if (!response.ok) {
         console.error('Failed to place existing member:', result.message)
+        setErrorModal({
+          title: 'Failed to Place Member',
+          message: result.message || 'Could not place the existing member. Please try again.',
+        })
         return
       }
       const refreshedTree = await fetchRootTree(currentUserId)
       setOriginalRoot(refreshedTree)
       setTreeRoot(refreshedTree)
       resetModalState()
+      setSuccessModal({
+        title: 'Member Placed!',
+        message: 'The existing member has been successfully placed in the genealogy tree.',
+      })
     } catch (err: any) {
       console.error('Error placing existing member:', err)
+      setErrorModal({
+        title: 'Placement Error',
+        message: err.message || 'An unexpected error occurred while placing the member.',
+      })
     }
   }
 
@@ -805,6 +835,25 @@ function Genealogy() {
       <MemberDetailsPanel
         selectedMember={selectedMember}
         onClose={() => setSelectedMember(null)}
+      />
+
+      {/* Success feedback modal */}
+      <SuccessModal
+        isOpen={!!successModal}
+        onClose={() => setSuccessModal(null)}
+        title={successModal?.title}
+        message={successModal?.message}
+        autoClose={4000}
+      />
+
+      {/* Error feedback modal */}
+      <ErrorModal
+        isOpen={!!errorModal}
+        onClose={() => setErrorModal(null)}
+        title={errorModal?.title}
+        message={errorModal?.message}
+        retryLabel="Try Again"
+        onRetry={() => setErrorModal(null)}
       />
     </div>
   )

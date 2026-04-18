@@ -307,6 +307,13 @@ function UnderDevelopmentContent() {
     return () => clearInterval(id);
   }, []);
 
+ const navigate = useNavigate();
+ 
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) navigate('/');
+  }, [navigate]);
+
   return (
     <div className="min-h-full bg-white rounded-3xl overflow-hidden flex flex-col">
 
