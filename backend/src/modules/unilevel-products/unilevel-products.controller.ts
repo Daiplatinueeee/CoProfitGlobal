@@ -15,7 +15,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import type { Multer } from 'multer';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UnilevelProductsService } from './unilevel-products.service';
@@ -75,7 +74,7 @@ export class UnilevelProductsController {
       },
     }),
   )
-  uploadProof(@UploadedFile() file: Multer.File) {
+  uploadProof(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
       return { url: '' };
     }

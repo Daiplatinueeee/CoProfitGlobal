@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock } from 'lucide-react';
 
@@ -375,6 +375,27 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  const lastPeriodKey = useRef<string | null>(null);
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:3000/pairing/current-period', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return;
+        const { periodKey } = await res.json();
+        if (lastPeriodKey.current && lastPeriodKey.current !== periodKey) {
+          window.dispatchEvent(new CustomEvent('cycle:changed'));
+        }
+        lastPeriodKey.current = periodKey;
+      } catch { /* silently ignore network errors */ }
+    };
+    check();
+    const id = setInterval(check, 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },

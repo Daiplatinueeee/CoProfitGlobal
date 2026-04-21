@@ -190,7 +190,11 @@ function Genealogy() {
     }
 
     window.addEventListener('genealogy:refresh', handleRefresh)
-    return () => window.removeEventListener('genealogy:refresh', handleRefresh)
+    window.addEventListener('cycle:changed', handleRefresh)
+    return () => {
+      window.removeEventListener('genealogy:refresh', handleRefresh)
+      window.removeEventListener('cycle:changed', handleRefresh)
+    }
   }, [currentUserId, fetchRootTree])
 
   useEffect(() => {

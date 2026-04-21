@@ -268,6 +268,12 @@ function UsersOverview() {
 
   useEffect(() => { fetchUsers(); }, []);
 
+  useEffect(() => {
+    const onCycleChanged = () => fetchUsers();
+    window.addEventListener('cycle:changed', onCycleChanged);
+    return () => window.removeEventListener('cycle:changed', onCycleChanged);
+  }, []);
+
   // ─── API Helpers ──────────────────────────────────────────────────────────
 
   const getAuthHeaders = () => {

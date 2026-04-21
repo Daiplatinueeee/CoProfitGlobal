@@ -495,6 +495,19 @@ export class PairingService {
     });
   }
 
+  // ── Cycle flush ───────────────────────────────────────────────────────────
+
+  async flushAllAvailablePoints(): Promise<void> {
+    await this.bucketModel.updateMany({}, { $set: { availablePoints: 0 } });
+    this.logger.log('Cycle flush — all VolumeBucket.availablePoints reset to 0');
+  }
+
+  getCurrentPeriodKey(): string {
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const cycle = new Date().getHours() < 12 ? PairingCycle.AM : PairingCycle.PM;
+    return `${dateKey}-${cycle}`;
+  }
+
   // ── Formatters ────────────────────────────────────────────────────────────
 
   formatState(s: any) {
