@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-import React, { useState } from 'react';
-import { Upload, CheckCircle, X, AlertCircle } from 'lucide-react';
-=======
 import React, { useCallback, useEffect, useState } from 'react';
 import { Upload, CheckCircle, X, AlertCircle, Tag } from 'lucide-react';
->>>>>>> Development
 
 // Fallback image when a product has no imageUrl
 import defaultProductImg from '../../assets/pk1.jpeg';
@@ -54,38 +49,18 @@ const paymentMethods = [
   { id: 'paymaya', name: 'PayMaya',       account: 'XXXX-XXXX-XXXX-XXXX', icon: '💰' },
 ];
 
-<<<<<<< HEAD
-export default function Unilevel() {
-    const [] = useState<Product[]>([
-        { id: '1', name: 'Starter Bundle',  price: 1500,  pv: 15,  description: 'Perfect for beginners',  image: image1, features: ['Basic access', '15 PV points', 'Support'] },
-        { id: '2', name: 'Professional',    price: 3000,  pv: 30,  description: 'Growing your network',    image: image2, features: ['Full access', '30 PV points', 'Priority support'] },
-        { id: '3', name: 'Premium',         price: 5000,  pv: 50,  description: 'For entrepreneurs',       image: image3, features: ['Premium access', '50 PV points', '24/7 support'] },
-        { id: '4', name: 'Silver Bundle',   price: 7500,  pv: 75,  description: 'Enhanced benefits',       image: image4, features: ['Premium access', '75 PV points', 'Exclusive support'] },
-        { id: '5', name: 'Gold Bundle',     price: 10000, pv: 100, description: 'Ultimate package',        image: image5, features: ['VIP access', '100 PV points', 'Personal manager'] },
-        { id: '6', name: 'Platinum Bundle', price: 10000, pv: 100, description: 'Ultimate package',        image: image6, features: ['VIP access', '100 PV points', 'Personal manager'] },
-        { id: '7', name: 'Diamond Bundle',  price: 10000, pv: 100, description: 'Ultimate package',        image: image7, features: ['VIP access', '100 PV points', 'Personal manager'] },
-        { id: '8', name: 'Elite Bundle',    price: 10000, pv: 100, description: 'Ultimate package',        image: image8, features: ['VIP access', '100 PV points', 'Personal manager'] },
-    ]);
-=======
 function resolveImage(imageUrl: string): string {
   return imageUrl && imageUrl.trim() !== '' ? imageUrl : defaultProductImg;
 }
->>>>>>> Development
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-<<<<<<< HEAD
-    const [, setSelectedMonth]             = useState('');
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
-    const [uploadedFile, setUploadedFile]               = useState<File | null>(null);
-=======
 export default function UnilevelProducts() {
   // Data state
   const [products, setProducts]   = useState<ApiProduct[]>([]);
   const [purchases, setPurchases] = useState<ApiPurchase[]>([]);
   const [pvStatus, setPvStatus]   = useState<PvStatus | null>(null);
   const [loading, setLoading]     = useState(true);
->>>>>>> Development
 
   // Purchase modal state
   const [selectedProduct, setSelectedProduct]     = useState<ApiProduct | null>(null);
@@ -122,20 +97,12 @@ export default function UnilevelProducts() {
 
   useEffect(() => { refreshData(); }, [refreshData]);
 
-<<<<<<< HEAD
-    const handleClosePurchaseModal = () => {
-        setShowPurchaseModal(false);
-        setSelectedProduct(null);
-        setPurchaseQuantity(1);
-    };
-=======
   // ─── Derived values ────────────────────────────────────────────────────────
 
   const currentPv   = pvStatus?.totalPv    ?? 0;
   const threshold   = pvStatus?.threshold  ?? 1500;
   const qualified   = pvStatus?.qualified  ?? false;
   const pctProgress = Math.min(100, Math.round((currentPv / threshold) * 100));
->>>>>>> Development
 
   const totalPurchasePHP = selectedProduct ? selectedProduct.price * purchaseQuantity : 0;
   const totalPurchasePV  = selectedProduct ? selectedProduct.pv    * purchaseQuantity : 0;
