@@ -40,7 +40,7 @@ const statusBadge = (status: string) => {
   }
 };
 
-export default function PayoutHistory() {
+export default function Transactions() {
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('all');
   const [expandedId, setExpandedId]         = useState<string | null>(null);
   const [searchQuery, setSearchQuery]       = useState('');
@@ -102,7 +102,7 @@ export default function PayoutHistory() {
 
         {/* Header */}
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Payout History</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Transactions</h1>
           <p className="text-sm text-slate-400 mt-1">Track all your bonuses and withdrawals</p>
         </div>
 

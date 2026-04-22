@@ -17,7 +17,7 @@ import Subscription from '../tabs/Subscription';
 import ReferalsHierarchy from '../tabs/ReferalsHierarchy';
 import WithdrawGC from '../tabs/WithdrawGC';
 import UnilevelProducts from '../tabs/UnilevelProducts';
-import PayoutHistory from '../tabs/PayoutHistory'
+import Transactions from '../tabs/Transactions'
 import Leaderboards from '../tabs/Leaderboards';
 import ViewMyAccount from '../tabs/ViewMyAccount';
 
@@ -676,7 +676,7 @@ export default function UserDashboard() {
     { id: 'subscription', label: 'Subscription', icon: Leaf, underDevelopment: true },
     { id: 'unilevel-package', label: 'Unilevel Products', icon: Combine, underDevelopment: true },
     { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown },
-    { id: 'payout-history', label: 'Payout History', icon: HandCoins},
+    { id: 'transactions', label: 'Transactions', icon: HandCoins},
     { id: 'leaderboards', label: 'Leaderboards', icon: Spotlight },
     { id: 'viewaccount', label: 'View Account', icon: User, },
   ], []);
@@ -1210,7 +1210,7 @@ export default function UserDashboard() {
       'withdraw-gc': <WithdrawGC />,
       'subscription': <Subscription />,
       'unilevel-package': <UnilevelProducts />,
-      'payout-history': <PayoutHistory />,
+      'transactions': <Transactions />,
       'leaderboards': <Leaderboards />,
       'viewaccount': <ViewMyAccount />,
     };

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Pencil, OctagonMinus } from 'lucide-react';
+import { Search, Pencil, OctagonMinus, ArrowUpCircle, KeyRound, X } from 'lucide-react';
 
 import CreateUserModal from '../modals/CreateUserModal';
 
@@ -58,12 +58,14 @@ function UserDetailModal({
   onToggleStatus,
   onDelete,
   onEditPoints,
+  onUpgrade,
 }: {
   user: User;
   onClose: () => void;
   onToggleStatus: (id: string) => void;
   onDelete: (id: string) => void;
   onEditPoints: (user: User) => void;
+  onUpgrade: (user: User) => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
@@ -159,7 +161,7 @@ function UserDetailModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 flex items-center justify-between shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
           <button
             onClick={() => { onDelete(user.id); onClose(); }}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors"
@@ -167,12 +169,22 @@ function UserDetailModal({
             <OctagonMinus className="w-3.5 h-3.5" />
             Restrict User
           </button>
-          <button
-            onClick={onClose}
-            className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            Close
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onUpgrade(user)}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-violet-700 border border-violet-200 bg-violet-50 hover:bg-violet-100 px-3 py-2 rounded-lg transition-colors"
+            >
+              <ArrowUpCircle className="w-3.5 h-3.5" />
+              Upgrade Package
+            </button>
+            <button
+              onClick={onClose}
+              className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -265,6 +277,12 @@ function UsersOverview() {
   const [editPointsLoading, setEditPointsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // ── Upgrade Package state ─────────────────────────────────────────────────
+  const [upgradeUser, setUpgradeUser] = useState<User | null>(null);
+  const [upgradePin, setUpgradePin] = useState('');
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -436,6 +454,49 @@ function UsersOverview() {
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete user');
+    }
+  };
+
+  const openUpgrade = (user: User) => {
+    setSelectedUser(null);
+    setUpgradePin('');
+    setUpgradeError(null);
+    setUpgradeUser(user);
+  };
+
+  const handleUpgradePackage = async () => {
+    if (!upgradeUser) return;
+    const pin = upgradePin.trim();
+    if (!pin) { setUpgradeError('Package PIN is required.'); return; }
+
+    setUpgradeLoading(true);
+    setUpgradeError(null);
+    try {
+      const response = await fetch(`${API_BASE}/admin/users/${upgradeUser.id}/upgrade-package`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ packagePin: pin }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setUpgradeError(
+          Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Upgrade failed.',
+        );
+        return;
+      }
+      // Update local user tier from response
+      const newTier: Tier = data.newTier ?? data.membershipTier ?? upgradeUser.tier;
+      setUsers((prev) =>
+        prev.map((u) => (u.id === upgradeUser.id ? { ...u, tier: newTier } : u)),
+      );
+      setUpgradeUser(null);
+      setUpgradePin('');
+      setSuccessMessage(`Package upgraded to ${newTier ? tierConfig[newTier]?.label ?? newTier : 'new tier'} successfully!`);
+      setTimeout(() => setSuccessMessage(null), 3500);
+    } catch (err) {
+      setUpgradeError(err instanceof Error ? err.message : 'An unexpected error occurred.');
+    } finally {
+      setUpgradeLoading(false);
     }
   };
 
@@ -624,6 +685,7 @@ function UsersOverview() {
             onToggleStatus={handleToggleStatus}
             onDelete={handleDeleteUser}
             onEditPoints={openEditPoints}
+            onUpgrade={openUpgrade}
           />
         )}
 
@@ -677,6 +739,112 @@ function UsersOverview() {
                   className="text-sm px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50 transition-colors"
                 >
                   {editPointsLoading ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upgrade Package Modal */}
+        {upgradeUser && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
+            <div
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => { setUpgradeUser(null); setUpgradePin(''); setUpgradeError(null); }}
+            />
+            <div className="relative z-10 w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-violet-50 flex items-center justify-center">
+                    <ArrowUpCircle className="w-4 h-4 text-violet-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Upgrade Package</h3>
+                    <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[180px]">@{upgradeUser.username}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setUpgradeUser(null); setUpgradePin(''); setUpgradeError(null); }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Current tier badge */}
+              <div className="px-6 pt-5 pb-1">
+                <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">Current Package</p>
+                {upgradeUser.tier ? (
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ring-1 capitalize ${tierConfig[upgradeUser.tier].bg} ${tierConfig[upgradeUser.tier].text} ${tierConfig[upgradeUser.tier].ring}`}>
+                    {tierConfig[upgradeUser.tier].label}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-400 ring-1 ring-slate-200">
+                    No Package
+                  </span>
+                )}
+              </div>
+
+              {/* PIN input */}
+              <div className="px-6 py-5 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+                    New Package PIN
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Enter package PIN"
+                      value={upgradePin}
+                      onChange={(e) => { setUpgradePin(e.target.value); setUpgradeError(null); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleUpgradePackage(); }}
+                      autoFocus
+                      className={`w-full pl-9 pr-4 py-2.5 border rounded-lg text-sm text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 transition-colors ${
+                        upgradeError
+                          ? 'border-red-300 focus:ring-red-100'
+                          : 'border-slate-200 focus:ring-slate-200'
+                      }`}
+                    />
+                  </div>
+                  {upgradeError && (
+                    <p className="mt-2 text-xs text-red-600 flex items-start gap-1">
+                      <span className="mt-0.5 shrink-0">⚠</span>
+                      {upgradeError}
+                    </p>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400">
+                  The package tier will be determined automatically based on the PIN entered.
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
+                <button
+                  onClick={() => { setUpgradeUser(null); setUpgradePin(''); setUpgradeError(null); }}
+                  className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpgradePackage}
+                  disabled={upgradeLoading || !upgradePin.trim()}
+                  className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
+                >
+                  {upgradeLoading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Upgrading…
+                    </>
+                  ) : (
+                    <>
+                      <ArrowUpCircle className="w-3.5 h-3.5" />
+                      Confirm Upgrade
+                    </>
+                  )}
                 </button>
               </div>
             </div>
