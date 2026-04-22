@@ -72,6 +72,25 @@ export class VolumeService {
 
   // ── Core ─────────────────────────────────────────────────────────────────
 
+  /**
+   * Credits volume points to every ancestor of the source user, then
+   * immediately attempts auto-pairing for each ancestor.
+   *
+   * IMPORTANT — ancestors are processed SEQUENTIALLY (not in parallel).
+   * Parallel processing caused a race condition where:
+   *   1. Two simultaneous activations (left + right subtrees) could both
+   *      trigger tryPairIfPossible for the same ancestor before either had
+   *      flushed the bucket, resulting in double payouts.
+   *   2. The pairing trigger for ancestor[i] could read stale bucket data
+   *      if ancestor[i+1]'s credit had not yet committed to the DB.
+   *
+   * Sequential processing means: credit ancestor[0] → pair → credit
+   * ancestor[1] → pair → … so each pairing always sees the freshest bucket.
+   *
+   * Within each ancestor step, the three DB writes (bucket, user leg field,
+   * ledger) are still done in parallel because they are independent of each
+   * other and don't affect the pairing read.
+   */
   private async creditVolumeToUplines(params: {
     sourceUserId: string
     points: number
@@ -142,110 +161,134 @@ export class VolumeService {
 
     // fullPath = [root → ... → parent → sourceUser]
     const fullPath = [...ancestorIds, sourceUserId]
+
     const awardedTo: Array<{
       ownerUserId: string
       leg: VolumeLeg
       points: number
     }> = []
 
-    // ── Credit ALL ancestors' buckets in parallel ───────────────────────
-    // Each ancestor is independent — no ordering dependency between them.
-    // Idempotency is enforced per-ancestor via compound unique index on ledger.
-    await Promise.all(
-      Array.from({ length: fullPath.length - 1 }, (_, i) => async () => {
-        const ancestorUserId   = fullPath[i]
-        const nextUserIdInPath = fullPath[i + 1]
-        const ancestorObjId    = this.toObjectId(ancestorUserId)
+    // ── Credit each ancestor SEQUENTIALLY ────────────────────────────
+    //
+    // Sequential (not parallel) so that:
+    //  a) Each ancestor's bucket is fully written before its pairing check runs
+    //  b) No two concurrent tryPairIfPossible calls race on the same bucket
+    //
+    // The three writes per ancestor (bucket / user-field / ledger) remain
+    // parallel because they are independent of one another.
+    for (let i = 0; i < fullPath.length - 1; i++) {
+      const ancestorUserId   = fullPath[i]
+      const nextUserIdInPath = fullPath[i + 1]
+      const ancestorObjId    = this.toObjectId(ancestorUserId)
 
-        // ── Per-ancestor idempotency check ────────────────────────────
-        const alreadyDone = await this.volumeLedgerModel.exists({
-          eventKey,
-          ownerUserId: ancestorObjId,
-        })
-        if (alreadyDone) {
-          this.logger.warn(`[volume] Ancestor=${ancestorUserId} already credited for eventKey=${eventKey}, skipping`)
-          return
-        }
-
-        const ancestorNode: any = ancestorNodeMap.get(ancestorUserId)
-        if (!ancestorNode) {
-          this.logger.warn(`[volume] Ancestor node not found for userId=${ancestorUserId}, skipping`)
-          return
-        }
-
-        // Determine which leg the next node in path sits on
-        let leg: VolumeLeg | null = null
-
-        if (
-          ancestorNode.leftChildUserId &&
-          ancestorNode.leftChildUserId.toString() === nextUserIdInPath
-        ) {
-          leg = VolumeLeg.LEFT
-        } else if (
-          ancestorNode.rightChildUserId &&
-          ancestorNode.rightChildUserId.toString() === nextUserIdInPath
-        ) {
-          leg = VolumeLeg.RIGHT
-        }
-
-        if (!leg) {
-          this.logger.error(
-            `[volume] Could not resolve leg for ancestor=${ancestorUserId} toward source=${sourceUserId}, skipping`,
-          )
-          return
-        }
-
-        this.logger.log(`[volume] Crediting ancestor=${ancestorUserId} leg=${leg} +${points}pts`)
-
-        // ── Credit bucket, update user leg points, write ledger — in parallel
-        const [bucketUpdate] = await Promise.all([
-          this.volumeBucketModel.updateOne(
-            { ownerUserId: ancestorObjId, leg },
-            { $inc: { totalPoints: points, availablePoints: points } },
-            { upsert: true },
-          ),
-          this.userModel.updateOne(
-            { _id: ancestorObjId },
-            leg === VolumeLeg.LEFT
-              ? { $inc: { leftLegPoints: points } }
-              : { $inc: { rightLegPoints: points } },
-          ),
-          this.volumeLedgerModel.create({
-            eventKey,
-            ownerUserId:  ancestorObjId,
-            sourceUserId: this.toObjectId(sourceUserId),
-            leg,
-            membershipTier,
-            points,
-            reason,
-          }),
-        ])
-
-        this.logger.log(
-          `[volume] Bucket update — matched=${bucketUpdate.matchedCount} ` +
-          `modified=${bucketUpdate.modifiedCount} upserted=${bucketUpdate.upsertedCount}`,
+      // ── Idempotency: skip if already credited for this event ────────
+      const alreadyDone = await this.volumeLedgerModel.exists({
+        eventKey,
+        ownerUserId: ancestorObjId,
+      })
+      if (alreadyDone) {
+        this.logger.warn(
+          `[volume] Ancestor=${ancestorUserId} already credited for eventKey=${eventKey}, skipping`,
         )
+        continue
+      }
 
-        awardedTo.push({ ownerUserId: ancestorUserId, leg, points })
+      const ancestorNode: any = ancestorNodeMap.get(ancestorUserId)
+      if (!ancestorNode) {
+        this.logger.warn(
+          `[volume] Ancestor node not found for userId=${ancestorUserId}, skipping`,
+        )
+        continue
+      }
 
-        // ── Trigger auto-pairing (fire-and-forget) ────────────────────
-        this.pairingService
-          .tryPairIfPossible(ancestorUserId)
-          .then((result) => {
-            if (result.skipped) {
-              this.logger.debug(`[volume] Auto-pair skipped for ${ancestorUserId} — ${result.reason}`)
-            } else {
-              this.logger.log(
-                `[volume] Auto-pair SUCCESS for ${ancestorUserId} — ` +
-                `pairings=${result.pairingsMade} pts=${result.totalPairedPoints} php=${result.totalPayoutPhp}`,
-              )
-            }
-          })
-          .catch((err) => {
-            this.logger.error(`[volume] Auto-pair FAILED for ${ancestorUserId}: ${err.message}`)
-          })
-      }).map((fn) => fn()),
-    )
+      // ── Resolve which leg the next node sits on ─────────────────────
+      let leg: VolumeLeg | null = null
+
+      if (
+        ancestorNode.leftChildUserId &&
+        ancestorNode.leftChildUserId.toString() === nextUserIdInPath
+      ) {
+        leg = VolumeLeg.LEFT
+      } else if (
+        ancestorNode.rightChildUserId &&
+        ancestorNode.rightChildUserId.toString() === nextUserIdInPath
+      ) {
+        leg = VolumeLeg.RIGHT
+      }
+
+      if (!leg) {
+        this.logger.error(
+          `[volume] Could not resolve leg for ancestor=${ancestorUserId} toward source=${sourceUserId}, skipping`,
+        )
+        continue
+      }
+
+      this.logger.log(
+        `[volume] Crediting ancestor=${ancestorUserId} leg=${leg} +${points}pts`,
+      )
+
+      // ── Write bucket + user leg field + ledger (parallel, independent) ─
+      const [bucketUpdate] = await Promise.all([
+        this.volumeBucketModel.updateOne(
+          { ownerUserId: ancestorObjId, leg },
+          { $inc: { totalPoints: points, availablePoints: points } },
+          { upsert: true },
+        ),
+        this.userModel.updateOne(
+          { _id: ancestorObjId },
+          leg === VolumeLeg.LEFT
+            ? { $inc: { leftLegPoints: points } }
+            : { $inc: { rightLegPoints: points } },
+        ),
+        this.volumeLedgerModel.create({
+          eventKey,
+          ownerUserId:  ancestorObjId,
+          sourceUserId: this.toObjectId(sourceUserId),
+          leg,
+          membershipTier,
+          points,
+          reason,
+        }),
+      ])
+
+      this.logger.log(
+        `[volume] Bucket update — matched=${bucketUpdate.matchedCount} ` +
+        `modified=${bucketUpdate.modifiedCount} upserted=${bucketUpdate.upsertedCount}`,
+      )
+
+      awardedTo.push({ ownerUserId: ancestorUserId, leg, points })
+
+      // ── Auto-pair: awaited so the next ancestor sees the flushed bucket ─
+      //
+      // Awaiting (instead of fire-and-forget) is critical here:
+      //   - If this ancestor pairs and flushes both buckets to 0, the next
+      //     ancestor's credit will start from a clean state.
+      //   - Fire-and-forget would let the next ancestor's credit run
+      //     before the bucket flush completes, causing stale reads.
+      //
+      // Errors are caught and logged but do NOT abort the credit chain —
+      // volume crediting always completes even if pairing fails.
+      try {
+        const pairResult = await this.pairingService.tryPairIfPossible(ancestorUserId)
+
+        if (pairResult.skipped) {
+          this.logger.debug(
+            `[volume] Auto-pair skipped for ${ancestorUserId} — ${pairResult.reason}`,
+          )
+        } else {
+          this.logger.log(
+            `[volume] Auto-pair SUCCESS for ${ancestorUserId} — ` +
+            `pairings=${pairResult.pairingsMade} pts=${pairResult.totalPairedPoints} ` +
+            `php=${pairResult.totalPayoutPhp} ` +
+            `flushed L=${pairResult.leftFlushed} R=${pairResult.rightFlushed}`,
+          )
+        }
+      } catch (err: any) {
+        this.logger.error(
+          `[volume] Auto-pair FAILED for ${ancestorUserId}: ${err.message}`,
+        )
+      }
+    }
 
     this.logger.log(
       `[volume] creditVolumeToUplines complete — awardedTo=${awardedTo.length} ancestor(s)`,
@@ -360,6 +403,8 @@ export class VolumeService {
       },
       legs: {
         left: {
+          // totalPoints: lifetime accumulation, never decremented
+          // availablePoints: current cycle balance — flushed to 0 on pairing
           userFieldPoints: user.leftLegPoints  ?? 0,
           totalPoints:     leftBucket?.totalPoints     ?? 0,
           availablePoints: leftBucket?.availablePoints ?? 0,

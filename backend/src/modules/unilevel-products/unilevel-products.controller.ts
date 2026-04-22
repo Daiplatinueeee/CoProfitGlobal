@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
+import type { File } from 'multer';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 
@@ -74,7 +75,7 @@ export class UnilevelProductsController {
       },
     }),
   )
-  uploadProof(@UploadedFile() file: Express.Multer.File) {
+  uploadProof(@UploadedFile() file: File) {
     if (!file) {
       return { url: '' };
     }
