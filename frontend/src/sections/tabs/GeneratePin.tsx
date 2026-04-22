@@ -4,8 +4,8 @@ import {
   FileSpreadsheet, FileText, File,
   ChevronDown, Package, Tag,
 } from 'lucide-react';
-import { ExportModal } from './../../modals/ExportModal';
-import ProductPinTab from '../../modals/ProductPinsTab';
+import { ExportModal } from '../modals/ExportModal';
+import ProductPinTab from '../modals/ProductPinsTab';
 
 const API_BASE = 'https://coprofitglobal-production.up.railway.app';
 

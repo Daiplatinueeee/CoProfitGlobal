@@ -15,6 +15,7 @@ import {
 import { PlaceMemberDto } from './dto/place-member.dto'
 import {
   MembershipTier,
+  SystemRole,
   User,
   UserDocument,
 } from '../users/schemas/user.schema'
@@ -491,10 +492,11 @@ export class GenealogyService {
 
     await parentNode.save()
 
-    // ── Award placement bonuses to all ancestors ──────────────────────────
-    await this.awardPlacementBonuses(childNode, membershipTier, placerUser._id.toString())
-
-    await this.volumeService.awardActivationVolume(newUserId.toString())
+    // ── Award placement bonuses — run both in parallel ────────────────────
+    await Promise.all([
+      this.awardPlacementBonuses(childNode, membershipTier, placerUser._id.toString()),
+      this.volumeService.awardActivationVolume(newUserId.toString()),
+    ])
 
     const { leftAvailablePoints, rightAvailablePoints } =
       await this.getAvailablePoints(newUserId)
@@ -605,71 +607,215 @@ export class GenealogyService {
   ) {
     if (membershipTier === MembershipTier.FREE) return
 
-    for (const ancestorObjId of childNode.ancestors) {
-      const ancestorId = ancestorObjId.toString()
+    // Each ancestor is independent — process all in parallel
+    await Promise.all(
+      childNode.ancestors.map(async (ancestorObjId) => {
+        const ancestorId = ancestorObjId.toString()
 
-      const [ancestor, ancestorNode] = await Promise.all([
-        this.userModel
-          .findById(ancestorObjId)
-          .select('countedIndirectDepths')
-          .lean(),
-        this.genealogyModel
-          .findOne({ userId: ancestorObjId })
-          .select('depth')
-          .lean(),
-      ])
+        const [ancestor, ancestorNode] = await Promise.all([
+          this.userModel
+            .findById(ancestorObjId)
+            .select('countedIndirectDepths')
+            .lean(),
+          this.genealogyModel
+            .findOne({ userId: ancestorObjId })
+            .select('depth')
+            .lean(),
+        ])
 
-      if (!ancestor || !ancestorNode) continue
+        if (!ancestor || !ancestorNode) return
 
-      const depthDiff    = childNode.depth - (ancestorNode as any).depth
-      const isDirectRecruit = sponsorUserId === ancestorId
+        const depthDiff       = childNode.depth - (ancestorNode as any).depth
+        const isDirectRecruit = sponsorUserId === ancestorId
 
-      if (isDirectRecruit) {
-        // Reset this ancestor's indirect depth window — they personally recruited this member
-        await this.userModel.findByIdAndUpdate(ancestorObjId, {
-          $set: { countedIndirectDepths: [] },
-        })
+        if (isDirectRecruit) {
+          const amount = this.DIRECT_BONUS[membershipTier] ?? 0
+          await Promise.all([
+            this.userModel.findByIdAndUpdate(ancestorObjId, {
+              $set: { countedIndirectDepths: [] },
+            }),
+            amount > 0
+              ? this.walletService.credit({
+                  userId:   ancestorId,
+                  currency: WalletCurrency.PHP,
+                  amount,
+                  source:   WalletTxnSource.REFERRAL_DIRECT,
+                  refKey:   `ref_direct:${ancestorId}:${childNode.userId}`,
+                  note:     `Direct placement bonus — ${membershipTier} member placed`,
+                  meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff },
+                })
+              : Promise.resolve(),
+          ])
+        } else if (depthDiff >= 2) {
+          const relativeDepth  = depthDiff
+          const countedDepths: number[] = (ancestor as any).countedIndirectDepths ?? []
+          const alreadyCounted = countedDepths.includes(relativeDepth)
+          const canAddNewDepth = countedDepths.length < 5
 
-        const amount = this.DIRECT_BONUS[membershipTier] ?? 0
-        if (amount > 0) {
-          await this.walletService.credit({
-            userId:   ancestorId,
-            currency: WalletCurrency.PHP,
-            amount,
-            source:   WalletTxnSource.REFERRAL_DIRECT,
-            refKey:   `ref_direct:${ancestorId}:${childNode.userId}`,
-            note:     `Direct placement bonus — ${membershipTier} member placed`,
-            meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff },
-          })
+          if (!alreadyCounted && !canAddNewDepth) return  // 6th+ unseen depth — blocked
+
+          const amount = this.INDIRECT_BONUS[membershipTier] ?? 0
+          await Promise.all([
+            !alreadyCounted
+              ? this.userModel.findByIdAndUpdate(ancestorObjId, {
+                  $addToSet: { countedIndirectDepths: relativeDepth },
+                })
+              : Promise.resolve(),
+            amount > 0
+              ? this.walletService.credit({
+                  userId:   ancestorId,
+                  currency: WalletCurrency.PHP,
+                  amount,
+                  source:   WalletTxnSource.REFERRAL_INDIRECT,
+                  refKey:   `ref_indirect:${ancestorId}:${childNode.userId}`,
+                  note:     `Indirect placement bonus — ${membershipTier} at relative depth ${relativeDepth}`,
+                  meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff, relativeDepth, countedDepthsCount: countedDepths.length + (alreadyCounted ? 0 : 1) },
+                })
+              : Promise.resolve(),
+          ])
         }
-      } else if (depthDiff >= 2) {
-        // Indirect referral — check distinct depth level tracking
-        const relativeDepth     = depthDiff
-        const countedDepths: number[] = (ancestor as any).countedIndirectDepths ?? []
-        const alreadyCounted    = countedDepths.includes(relativeDepth)
-        const canAddNewDepth    = countedDepths.length < 5
+      }),
+    )
+  }
 
-        if (!alreadyCounted && !canAddNewDepth) continue  // 6th+ unseen depth — blocked
+  // ── Search unplaced members ───────────────────────────────────────────────
 
-        if (!alreadyCounted) {
-          await this.userModel.findByIdAndUpdate(ancestorObjId, {
-            $addToSet: { countedIndirectDepths: relativeDepth },
-          })
-        }
+  async searchUnplaced(q: string) {
+    if (!q || q.trim().length === 0) return []
 
-        const amount = this.INDIRECT_BONUS[membershipTier] ?? 0
-        if (amount > 0) {
-          await this.walletService.credit({
-            userId:   ancestorId,
-            currency: WalletCurrency.PHP,
-            amount,
-            source:   WalletTxnSource.REFERRAL_INDIRECT,
-            refKey:   `ref_indirect:${ancestorId}:${childNode.userId}`,
-            note:     `Indirect placement bonus — ${membershipTier} at relative depth ${relativeDepth}`,
-            meta:     { newMemberId: childNode.userId.toString(), membershipTier, depthDiff, relativeDepth, countedDepthsCount: countedDepths.length + (alreadyCounted ? 0 : 1) },
-          })
-        }
+    const regex = new RegExp(q.trim(), 'i')
+
+    const users = await this.userModel
+      .find({
+        role: SystemRole.USER,
+        $or: [
+          { username: regex },
+          { email:    regex },
+          { referralCode: regex },
+        ],
+      })
+      .select('_id username email referralCode profileImage membershipTier')
+      .limit(20)
+      .lean()
+
+    if (users.length === 0) return []
+
+    // Filter out users who already have a genealogy node
+    const userIds = users.map((u: any) => u._id)
+    const existingNodes = await this.genealogyModel
+      .find({ userId: { $in: userIds } })
+      .select('userId')
+      .lean()
+
+    const placedIds = new Set(existingNodes.map((n: any) => n.userId.toString()))
+
+    return users
+      .filter((u: any) => !placedIds.has(u._id.toString()))
+      .map((u: any) => ({
+        id:             u._id.toString(),
+        userId:         u._id.toString(),
+        username:       u.username,
+        email:          u.email,
+        referralCode:   u.referralCode ?? '',
+        profileImage:   u.profileImage ?? '',
+        membershipTier: u.membershipTier ?? null,
+      }))
+  }
+
+  // ── Place an existing (already-created) user into the tree ───────────────
+
+  async placeExistingMember(dto: {
+    parentUserId:     string
+    leg:              GenealogySide
+    placerUserId:     string
+    existingMemberId: string
+  }) {
+    for (const [field, value] of Object.entries({
+      parentUserId:     dto.parentUserId,
+      placerUserId:     dto.placerUserId,
+      existingMemberId: dto.existingMemberId,
+    })) {
+      if (!this.isValidObjectId(value)) {
+        throw new BadRequestException(`Invalid ${field}`)
       }
+    }
+
+    // Load parent node
+    const parentNode = await this.genealogyModel.findOne({
+      userId: this.toObjectId(dto.parentUserId),
+    })
+    if (!parentNode) throw new NotFoundException('Parent genealogy node not found')
+
+    if (dto.leg === GenealogySide.LEFT && parentNode.leftChildUserId) {
+      throw new BadRequestException('Left leg already occupied')
+    }
+    if (dto.leg === GenealogySide.RIGHT && parentNode.rightChildUserId) {
+      throw new BadRequestException('Right leg already occupied')
+    }
+
+    // Validate placer
+    const placerUser = await this.userModel.findById(dto.placerUserId)
+    if (!placerUser) throw new NotFoundException('Placer user not found')
+
+    // Load the existing user
+    const existingUser = await this.userModel.findById(dto.existingMemberId)
+    if (!existingUser) throw new NotFoundException('Existing user not found')
+
+    // Guard: must not already be in the tree
+    const alreadyPlaced = await this.genealogyModel.findOne({
+      userId: this.toObjectId(dto.existingMemberId),
+    })
+    if (alreadyPlaced) {
+      throw new BadRequestException('This user is already placed in the genealogy tree')
+    }
+
+    const existingUserId = (existingUser as any)._id as Types.ObjectId
+
+    // Set the placer as the direct referrer (sponsor)
+    await this.userModel.findByIdAndUpdate(existingUserId, {
+      $set: { sponsorId: placerUser._id },
+    })
+
+    // Create the genealogy node
+    const childNode = await this.genealogyModel.create({
+      userId:           existingUserId,
+      parentUserId:     parentNode.userId,
+      position:         dto.leg,
+      leftChildUserId:  null,
+      rightChildUserId: null,
+      depth:            parentNode.depth + 1,
+      ancestors:        [...(parentNode.ancestors ?? []), parentNode.userId],
+    })
+
+    // Link the child into the parent node
+    if (dto.leg === GenealogySide.LEFT) {
+      parentNode.leftChildUserId = childNode.userId
+    } else {
+      parentNode.rightChildUserId = childNode.userId
+    }
+    await parentNode.save()
+
+    const membershipTier = (existingUser as any).membershipTier as MembershipTier
+    await this.awardPlacementBonuses(childNode, membershipTier, placerUser._id.toString())
+
+    const { leftAvailablePoints, rightAvailablePoints } =
+      await this.getAvailablePoints(existingUserId)
+
+    return {
+      id:                   existingUserId.toString(),
+      userId:               existingUserId.toString(),
+      username:             (existingUser as any).username,
+      email:                (existingUser as any).email,
+      profileImage:         (existingUser as any).profileImage ?? '',
+      referralCode:         (existingUser as any).referralCode ?? '',
+      sponsorId:            placerUser._id.toString(),
+      membershipTier,
+      leftLegPoints:        (existingUser as any).leftLegPoints  ?? 0,
+      rightLegPoints:       (existingUser as any).rightLegPoints ?? 0,
+      leftAvailablePoints,
+      rightAvailablePoints,
+      parentUserId:         parentNode.userId.toString(),
+      leg:                  dto.leg,
     }
   }
 }

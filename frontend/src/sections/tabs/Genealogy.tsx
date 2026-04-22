@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import logo from './../../assets/refs/Logo.webp'
 import MemberDetailsPanel from './membersDetailPanel'
-import AddMemberModal, { EMPTY_ADD_MEMBER_FORM } from '../../modals/AddMemberModal'
-import type { AddMemberFormData } from '../../modals/AddMemberModal'
-import ChooseMemberTypeModal from '../../modals/ChooseTypeModal'
-import ExistingMemberModal from '../../modals/ExistingUserModal'
-import type { ExistingMemberResult } from '../../modals/ExistingUserModal'
+import AddMemberModal, { EMPTY_ADD_MEMBER_FORM } from '../modals/AddMemberModal'
+import type { AddMemberFormData } from '../modals/AddMemberModal'
+import ChooseMemberTypeModal from '../modals/ChooseTypeModal'
+import ExistingMemberModal from '../modals/ExistingUserModal'
+import type { ExistingMemberResult } from '../modals/ExistingUserModal'
+import ErrorModal from '../modals/errorModal'
+import SuccessModal from '../modals/sucessModal'
 
 interface Member {
   id: string
@@ -46,6 +48,7 @@ function Genealogy() {
   const ACTION_BTN_HEIGHT = 36
 
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
@@ -57,6 +60,8 @@ function Genealogy() {
   const [zoom, setZoom] = useState(1)
   const [dragging, setDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [svgSize, setSvgSize] = useState({ w: window.innerWidth, h: window.innerHeight })
+  const svgRef = React.useRef<SVGSVGElement>(null)
 
   // Touch state for mobile pan & pinch-to-zoom
   const lastTouchRef = React.useRef<{ x: number; y: number } | null>(null)
@@ -85,6 +90,10 @@ function Genealogy() {
 
   const [formData, setFormData] = useState<AddMemberFormData>(EMPTY_ADD_MEMBER_FORM)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+
+  // Success / Error feedback modals
+  const [successModal, setSuccessModal] = useState<{ title: string; message: string } | null>(null)
+  const [errorModal, setErrorModal] = useState<{ title: string; message: string } | null>(null)
 
   const NODE_WIDTH = 190
   const NODE_HEIGHT = 240
@@ -169,6 +178,36 @@ function Genealogy() {
     return () => window.removeEventListener('keydown', handleEscape)
   }, [resetModalState])
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (!currentUserId) return
+      fetchRootTree(currentUserId)
+        .then((treeData) => {
+          setOriginalRoot(treeData)
+          setTreeRoot(treeData)
+        })
+        .catch(() => {})
+    }
+
+    window.addEventListener('genealogy:refresh', handleRefresh)
+    window.addEventListener('cycle:changed', handleRefresh)
+    return () => {
+      window.removeEventListener('genealogy:refresh', handleRefresh)
+      window.removeEventListener('cycle:changed', handleRefresh)
+    }
+  }, [currentUserId, fetchRootTree])
+
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect
+      setSvgSize({ w: width, h: height })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const memberMap = useMemo(() => {
     const map = new Map<string, Member>()
 
@@ -250,6 +289,8 @@ function Genealogy() {
         return
       }
 
+      setSubmitting(true)
+
       const payload: Record<string, any> = {
         parentUserId: parent.userId || parent.id,
         leg,
@@ -277,6 +318,10 @@ function Genealogy() {
 
       if (!response.ok) {
         setFormErrors({ _root: result.message || 'Failed to add member' })
+        setErrorModal({
+          title: 'Failed to Add Member',
+          message: result.message || 'An unexpected error occurred. Please try again.',
+        })
         return
       }
 
@@ -285,9 +330,19 @@ function Genealogy() {
       setTreeRoot(refreshedTree)
 
       resetModalState()
+      setSuccessModal({
+        title: 'Member Added!',
+        message: 'The new member has been successfully added to the genealogy tree.',
+      })
     } catch (err: any) {
       setFormErrors({ _root: err.message || 'Failed to add member' })
+      setErrorModal({
+        title: 'Failed to Add Member',
+        message: err.message || 'An unexpected error occurred. Please try again.',
+      })
       console.error('Error adding member:', err)
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -308,14 +363,26 @@ function Genealogy() {
       const result = await response.json()
       if (!response.ok) {
         console.error('Failed to place existing member:', result.message)
+        setErrorModal({
+          title: 'Failed to Place Member',
+          message: result.message || 'Could not place the existing member. Please try again.',
+        })
         return
       }
       const refreshedTree = await fetchRootTree(currentUserId)
       setOriginalRoot(refreshedTree)
       setTreeRoot(refreshedTree)
       resetModalState()
+      setSuccessModal({
+        title: 'Member Placed!',
+        message: 'The existing member has been successfully placed in the genealogy tree.',
+      })
     } catch (err: any) {
       console.error('Error placing existing member:', err)
+      setErrorModal({
+        title: 'Placement Error',
+        message: err.message || 'An unexpected error occurred while placing the member.',
+      })
     }
   }
 
@@ -366,6 +433,13 @@ function Genealogy() {
     setSearchResults(results)
   }
 
+  // Visible world-space rectangle — add generous padding so nodes near edges aren't clipped
+  const CULL_PADDING = 400
+  const viewLeft   = (-pan.x - CULL_PADDING) / zoom
+  const viewTop    = (-pan.y - CULL_PADDING) / zoom
+  const viewRight  = (svgSize.w - pan.x + CULL_PADDING) / zoom
+  const viewBottom = (svgSize.h - pan.y + CULL_PADDING) / zoom
+
   const renderTree = (member: Member | null | undefined): React.ReactNode[] => {
     if (!member) return []
 
@@ -373,6 +447,15 @@ function Genealogy() {
     if (!pos) return []
 
     const elements: React.ReactNode[] = []
+
+    // Skip this node AND its subtree lines if completely outside viewport.
+    // Children may still be in view (e.g. zoomed out) so we skip only the node
+    // card itself, not the recursive calls.
+    const nodeVisible =
+      pos.x + NODE_WIDTH  >= viewLeft &&
+      pos.x               <= viewRight &&
+      pos.y + NODE_HEIGHT >= viewTop &&
+      pos.y               <= viewBottom
 
     if (member.leftChild) {
       const childPos = positions.get(member.leftChild.id)
@@ -410,7 +493,7 @@ function Genealogy() {
       elements.push(...renderTree(member.rightChild))
     }
 
-    elements.push(
+    if (nodeVisible) elements.push(
       <g
         key={`node-${member.id}`}
         onClick={() => {
@@ -717,6 +800,7 @@ function Genealogy() {
           modal={modal}
           formData={formData}
           formErrors={formErrors}
+          submitting={submitting}
           setFormData={setFormData}
           setFormErrors={setFormErrors}
           onAddMember={addNewMember}
@@ -732,6 +816,7 @@ function Genealogy() {
         />
 
         <svg
+          ref={svgRef}
           width="100%"
           height="100%"
           className="block cursor-grab active:cursor-grabbing"
@@ -754,6 +839,25 @@ function Genealogy() {
       <MemberDetailsPanel
         selectedMember={selectedMember}
         onClose={() => setSelectedMember(null)}
+      />
+
+      {/* Success feedback modal */}
+      <SuccessModal
+        isOpen={!!successModal}
+        onClose={() => setSuccessModal(null)}
+        title={successModal?.title}
+        message={successModal?.message}
+        autoClose={4000}
+      />
+
+      {/* Error feedback modal */}
+      <ErrorModal
+        isOpen={!!errorModal}
+        onClose={() => setErrorModal(null)}
+        title={errorModal?.title}
+        message={errorModal?.message}
+        retryLabel="Try Again"
+        onRetry={() => setErrorModal(null)}
       />
     </div>
   )

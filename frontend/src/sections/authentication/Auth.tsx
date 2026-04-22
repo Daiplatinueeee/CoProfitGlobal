@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { Mail, Eye, EyeOff, ArrowRight, CircleUserRound, Asterisk } from 'lucide-react';
 import { useNavigate } from "react-router-dom"
 
-import bg from "../assets/video refs/5c6e4f6f-0d2a-45fc-84a0-ad879be5d6b3.mp4";
-import ForgotPasswordModal from './tabs/ForgotPassword';
+import bg from "../../assets/video refs/5c6e4f6f-0d2a-45fc-84a0-ad879be5d6b3.mp4";
+import ForgotPasswordModal from '../tabs/ForgotPassword';
 
 export default function AuthPage() {
     const [isSignIn,] = useState(true);

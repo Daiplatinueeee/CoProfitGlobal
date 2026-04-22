@@ -7,8 +7,8 @@ import { LeadershipService } from './leadership.service';
 import { LeadershipQualification, LeadershipQualificationSchema } from './schemas/leadership-qualification.schema';
 import { LeadershipAward, LeadershipAwardSchema } from './schemas/leadership-award.schema';
 
-// Reads Activations (unilevel points)
-import { Activation, ActivationSchema } from '../activations/schemas/activation.schema';
+// Unilevel product purchases (source of unilevel PV for leadership qualification)
+import { UnilevelProductsModule } from '../unilevel-products/unilevel-products.module';
 
 // Reads Pairing awards (5% of pairing)
 import { PairingAward, PairingAwardSchema } from '../pairing/schemas/pairing-award.schema';
@@ -21,10 +21,10 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 @Module({
   imports: [
     WalletModule,
+    UnilevelProductsModule,
     MongooseModule.forFeature([
       { name: LeadershipQualification.name, schema: LeadershipQualificationSchema },
       { name: LeadershipAward.name, schema: LeadershipAwardSchema },
-      { name: Activation.name, schema: ActivationSchema },
       { name: PairingAward.name, schema: PairingAwardSchema },
       { name: GenealogyNode.name, schema: GenealogyNodeSchema },
       { name: User.name, schema: UserSchema },

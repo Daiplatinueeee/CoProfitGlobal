@@ -114,6 +114,14 @@ export default function MemberDetailsPanel({
   const [leadershipError, setLeadershipError] = useState<string | null>(null);
 
 
+  // Increments whenever a new AM/PM cycle starts, triggering all fetches to re-run
+  const [cycleKey, setCycleKey] = useState(0);
+  useEffect(() => {
+    const onCycleChanged = () => setCycleKey(k => k + 1);
+    window.addEventListener('cycle:changed', onCycleChanged);
+    return () => window.removeEventListener('cycle:changed', onCycleChanged);
+  }, []);
+
   // ─── Fetch referral counts ────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
@@ -145,7 +153,7 @@ export default function MemberDetailsPanel({
       }
     };
     run();
-  }, [id]);
+  }, [id, cycleKey]);
 
   // ─── Single wallet fetch — derives all four bonus PHP totals ─────────────
   useEffect(() => {
@@ -191,7 +199,7 @@ export default function MemberDetailsPanel({
       }
     };
     run();
-  }, [id]);
+  }, [id, cycleKey]);
 
   // ─── Fetch Sign-5 bonus (awards breakdown only) ───────────────────────────
   useEffect(() => {
@@ -226,7 +234,7 @@ export default function MemberDetailsPanel({
       }
     };
     run();
-  }, [id]);
+  }, [id, cycleKey]);
 
   // ─── Fetch leadership bonus (GET /leadership/status/:userId) ─────────────
   useEffect(() => {
@@ -268,7 +276,7 @@ export default function MemberDetailsPanel({
       }
     };
     run();
-  }, [id]);
+  }, [id, cycleKey]);
 
   if (!selectedMember) return null;
 

@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common'
 import { GenealogyService } from './genealogy.service'
 import { PlaceMemberDto } from './dto/place-member.dto'
+import { PlaceExistingMemberDto } from './dto/place-existing-member.dto'
 
 @Controller('genealogy')
 export class GenealogyController {
@@ -56,6 +57,18 @@ export class GenealogyController {
     @Param('targetUserId') targetUserId: string,
   ) {
     return this.genealogyService.getReferralRelation(rootUserId, targetUserId)
+  }
+
+  /** Search for users who exist but haven't been placed in the genealogy tree */
+  @Get('search-unplaced')
+  searchUnplaced(@Query('q') q: string) {
+    return this.genealogyService.searchUnplaced(q ?? '')
+  }
+
+  /** Place an already-existing user into the tree; placer becomes their direct referrer */
+  @Post('place-existing')
+  placeExistingMember(@Body() dto: PlaceExistingMemberDto) {
+    return this.genealogyService.placeExistingMember(dto)
   }
 
 }

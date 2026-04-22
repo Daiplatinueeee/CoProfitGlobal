@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock } from 'lucide-react';
 
@@ -6,6 +6,7 @@ import GeneratePin from '../tabs/GeneratePin';
 import UsersOverview from '../tabs/UsersOverview';
 import PendingPayouts from '../tabs/PendingPayouts';
 import PendingWithdrawGC from '../tabs/PendingWithdrawGC';
+import PendingUnilevelPurchases from '../tabs/PendingUnilevelPurchases';
 
 const KEYFRAMES = `
   @keyframes crane-swing {
@@ -306,6 +307,13 @@ function UnderDevelopmentContent() {
     return () => clearInterval(id);
   }, []);
 
+ const navigate = useNavigate();
+ 
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) navigate('/');
+  }, [navigate]);
+
   return (
     <div className="min-h-full bg-white rounded-3xl overflow-hidden flex flex-col">
 
@@ -368,12 +376,34 @@ export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  const lastPeriodKey = useRef<string | null>(null);
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:3000/pairing/current-period', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return;
+        const { periodKey } = await res.json();
+        if (lastPeriodKey.current && lastPeriodKey.current !== periodKey) {
+          window.dispatchEvent(new CustomEvent('cycle:changed'));
+        }
+        lastPeriodKey.current = periodKey;
+      } catch { /* silently ignore network errors */ }
+    };
+    check();
+    const id = setInterval(check, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'generate-pin', label: 'Generate PIN', icon: Lock },
     { id: 'users', label: 'Users Overview', icon: Users },
     { id: 'pendingPayouts', label: 'Pending Payouts', icon: ClipboardClock },
     { id: 'pendingWithdrawGC', label: 'Pending Withdrawals (GC)', icon: ClipboardClock },
+    { id: 'pendingUnilevel', label: 'Pending Unilevel Purchases', icon: ClipboardClock },
   ], []);
 
   const renderTabContent = () => {
@@ -382,6 +412,7 @@ export default function AdminDashboard() {
       'users': <UsersOverview />,
       'pendingPayouts': <PendingPayouts />,
       'pendingWithdrawGC': <PendingWithdrawGC />,
+      'pendingUnilevel': <PendingUnilevelPurchases />,
     };
     return map[activeTab] ?? <div />;
   };

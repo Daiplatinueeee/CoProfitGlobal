@@ -9,6 +9,15 @@ export class PairingController {
   constructor(private readonly pairingService: PairingService) {}
 
   /**
+   * Returns the current cycle periodKey (e.g. "2026-04-22-AM").
+   * Frontend polls this to detect AM/PM cycle transitions.
+   */
+  @Get('current-period')
+  currentPeriod() {
+    return { periodKey: this.pairingService.getCurrentPeriodKey() };
+  }
+
+  /**
    * Manually trigger pairing for a user (admin / testing).
    * Body: { userId, cycle: 'AM' | 'PM', dateKey?: 'YYYY-MM-DD' }
    */

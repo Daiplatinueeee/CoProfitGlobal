@@ -19,10 +19,16 @@ import {
   ProductPinDocument,
   PinStatus,
 } from '../product-pins/schema/product-pins.schema';
+import {
+  VolumeBucket,
+  VolumeBucketDocument,
+  VolumeLeg,
+} from '../volume/schemas/volume-bucket.schema';
 
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateTierDto } from './dto/admin-update-tier.dto';
 import { AdminGeneratePinsDto } from './dto/admin-generate-pins.dto';
+import { PairingService } from '../pairing/pairing.service';
 
 @Injectable()
 export class AdminService {
@@ -31,7 +37,10 @@ export class AdminService {
     private readonly pinModel: Model<ProductPinDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectModel(VolumeBucket.name)
+    private readonly volumeBucketModel: Model<VolumeBucketDocument>,
     private readonly usersService: UsersService,
+    private readonly pairingService: PairingService,
   ) {}
 
   private isValidObjectId(id: string) {
@@ -138,67 +147,125 @@ export class AdminService {
     const users = await this.userModel
       .find()
       .select(
-        '_id name username email role membershipTier referralCode sponsorId packagePin leftLegPoints rightLegPoints age contact address beneficiary birthday isActive createdAt updatedAt',
+        '_id name username email role membershipTier referralCode sponsorId packagePin leftLegPoints rightLegPoints age contact address beneficiary birthday profileImage isActive createdAt updatedAt',
       )
       .sort({ createdAt: -1 })
       .lean();
 
-    return users.map((user: any) => ({
-      id: user._id.toString(),
-      name: user.name ?? '',
-      username: user.username ?? '',
-      email: user.email,
-      role: user.role,
-      membershipTier: user.membershipTier,
-      referralCode: user.referralCode ?? null,
-      sponsorId: user.sponsorId ? user.sponsorId.toString() : null,
-      packagePin: user.packagePin ?? null,
-      leftLegPoints: user.leftLegPoints ?? 0,
-      rightLegPoints: user.rightLegPoints ?? 0,
-      age: user.age ?? null,
-      contact: user.contact ?? '',
-      address: user.address ?? '',
-      beneficiary: user.beneficiary ?? '',
-      birthday: user.birthday ?? '',
-      isActive: user.isActive !== undefined ? user.isActive : true,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    }));
+    // Batch-fetch all VolumeBucket records for these users (single query, not N+1)
+    const userIds = users.map((u: any) => u._id);
+    const buckets = await this.volumeBucketModel
+      .find({ ownerUserId: { $in: userIds } })
+      .select('ownerUserId leg availablePoints')
+      .lean();
+
+    const bucketMap = new Map<string, { left: number; right: number }>();
+    for (const b of buckets as any[]) {
+      const key = b.ownerUserId.toString();
+      if (!bucketMap.has(key)) bucketMap.set(key, { left: 0, right: 0 });
+      if (b.leg === VolumeLeg.LEFT)  bucketMap.get(key)!.left  = b.availablePoints ?? 0;
+      if (b.leg === VolumeLeg.RIGHT) bucketMap.get(key)!.right = b.availablePoints ?? 0;
+    }
+
+    return users.map((user: any) => {
+      const avail = bucketMap.get(user._id.toString()) ?? { left: 0, right: 0 };
+      return {
+        id: user._id.toString(),
+        name: user.name ?? '',
+        username: user.username ?? '',
+        email: user.email,
+        role: user.role,
+        membershipTier: user.membershipTier,
+        referralCode: user.referralCode ?? null,
+        sponsorId: user.sponsorId ? user.sponsorId.toString() : null,
+        packagePin: user.packagePin ?? null,
+        leftLegPoints: user.leftLegPoints ?? 0,
+        rightLegPoints: user.rightLegPoints ?? 0,
+        leftAvailablePoints: avail.left,
+        rightAvailablePoints: avail.right,
+        age: user.age ?? null,
+        contact: user.contact ?? '',
+        address: user.address ?? '',
+        beneficiary: user.beneficiary ?? '',
+        birthday: user.birthday ?? '',
+        profileImage: user.profileImage ?? '',
+        isActive: user.isActive !== undefined ? user.isActive : true,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
+    });
   }
 
   async updateMembershipTier(userId: string, dto: AdminUpdateTierDto) {
     return this.usersService.updateMembershipTier(userId, dto.membershipTier);
   }
 
+  async getAvailablePoints(userId: string) {
+    if (!this.isValidObjectId(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
+    const uid = new Types.ObjectId(userId);
+    const [left, right] = await Promise.all([
+      this.volumeBucketModel.findOne({ ownerUserId: uid, leg: VolumeLeg.LEFT }).lean(),
+      this.volumeBucketModel.findOne({ ownerUserId: uid, leg: VolumeLeg.RIGHT }).lean(),
+    ]);
+    return {
+      leftAvailablePoints: (left as any)?.availablePoints ?? 0,
+      rightAvailablePoints: (right as any)?.availablePoints ?? 0,
+    };
+  }
+
   async updateLegPoints(
     userId: string,
-    dto: { leftLegPoints?: number; rightLegPoints?: number },
+    dto: { leftAvailablePoints?: number; rightAvailablePoints?: number },
   ) {
     if (!this.isValidObjectId(userId)) {
       throw new BadRequestException('Invalid userId');
     }
 
-    const update: any = {};
-    if (dto.leftLegPoints !== undefined) update.leftLegPoints = dto.leftLegPoints;
-    if (dto.rightLegPoints !== undefined) update.rightLegPoints = dto.rightLegPoints;
-
-    if (Object.keys(update).length === 0) {
+    if (dto.leftAvailablePoints === undefined && dto.rightAvailablePoints === undefined) {
       throw new BadRequestException('No fields provided to update');
     }
 
-    const user = await this.userModel
-      .findByIdAndUpdate(userId, { $set: update }, { returnDocument: 'after' })
-      .select('_id name username leftLegPoints rightLegPoints')
-      .lean();
+    const uid = new Types.ObjectId(userId);
 
+    const user = await this.userModel.findById(uid).select('_id name username').lean();
     if (!user) throw new NotFoundException('User not found');
+
+    const upserts: Promise<any>[] = [];
+
+    if (dto.leftAvailablePoints !== undefined) {
+      upserts.push(
+        this.volumeBucketModel.findOneAndUpdate(
+          { ownerUserId: uid, leg: VolumeLeg.LEFT },
+          { $set: { availablePoints: dto.leftAvailablePoints } },
+          { upsert: true, returnDocument: 'after' },
+        ).lean(),
+      );
+    }
+
+    if (dto.rightAvailablePoints !== undefined) {
+      upserts.push(
+        this.volumeBucketModel.findOneAndUpdate(
+          { ownerUserId: uid, leg: VolumeLeg.RIGHT },
+          { $set: { availablePoints: dto.rightAvailablePoints } },
+          { upsert: true, returnDocument: 'after' },
+        ).lean(),
+      );
+    }
+
+    await Promise.all(upserts);
+
+    // Trigger pairing now that available points have been updated
+    await this.pairingService.tryPairIfPossible(userId);
+
+    const updated = await this.getAvailablePoints(userId);
 
     return {
       id: (user as any)._id.toString(),
       name: (user as any).name,
       username: (user as any).username,
-      leftLegPoints: (user as any).leftLegPoints ?? 0,
-      rightLegPoints: (user as any).rightLegPoints ?? 0,
+      ...updated,
     };
   }
 
