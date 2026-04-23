@@ -135,6 +135,7 @@ export class GenealogyService {
       address:              (user as any).address    ?? '',
       beneficiary:          (user as any).beneficiary ?? '',
       birthday:             (user as any).birthday   ?? '',
+      createdAt:            (user as any).createdAt  ?? null,
     }
   }
 
