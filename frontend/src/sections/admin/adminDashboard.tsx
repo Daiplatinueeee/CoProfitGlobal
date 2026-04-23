@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock } from 'lucide-react';
+import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock, Tag } from 'lucide-react';
 
 import GeneratePin from '../tabs/GeneratePin';
+import GenerateProductPin from '../tabs/GenerateProductPin';
 import UsersOverview from '../tabs/UsersOverview';
 import PendingPayouts from '../tabs/PendingPayouts';
 import PendingWithdrawGC from '../tabs/PendingWithdrawGC';
@@ -399,7 +400,8 @@ export default function AdminDashboard() {
 
   const menuItems = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
-    { id: 'generate-pin', label: 'Generate PIN', icon: Lock },
+    { id: 'generate-pin', label: 'Generate Package PIN', icon: Lock },
+    { id: 'product-pins', label: 'Generate Product PIN', icon: Tag },
     { id: 'users', label: 'Users Overview', icon: Users },
     { id: 'pendingPayouts', label: 'Pending Payouts', icon: ClipboardClock },
     { id: 'pendingWithdrawGC', label: 'Pending Withdrawals (GC)', icon: ClipboardClock },
@@ -409,6 +411,7 @@ export default function AdminDashboard() {
   const renderTabContent = () => {
     const map: Record<string, React.ReactElement> = {
       'generate-pin': <GeneratePin />,
+      'product-pins': <GenerateProductPin />,
       'users': <UsersOverview />,
       'pendingPayouts': <PendingPayouts />,
       'pendingWithdrawGC': <PendingWithdrawGC />,

@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Copy, RefreshCw, Eye, EyeOff, Download,
   FileSpreadsheet, FileText, File,
-  ChevronDown, Package, Tag,
+  ChevronDown, Package,
 } from 'lucide-react';
 import { ExportModal } from '../modals/ExportModal';
-import ProductPinTab from '../modals/ProductPinsTab';
 
 export const API_BASE = 'http://localhost:3000';
 
@@ -441,11 +440,7 @@ export function PinDetailModal({ pin, onClose }: { pin: PIN; onClose: () => void
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
-type ActiveTab = 'package' | 'product';
-
 function GeneratePin() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('package');
-
   // Package PIN state
   const [pins, setPins] = useState<PIN[]>([]);
   const [selectedPin, setSelectedPin] = useState<PIN | null>(null);
@@ -458,12 +453,8 @@ function GeneratePin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Type-selection modal
+  // Quantity modal
   const [showTypeModal, setShowTypeModal] = useState(false);
-
-  // Pending info passed to ProductPinTab when user picks "Product PIN"
-  const [pendingProductTier, setPendingProductTier] = useState<Tier | null>(null);
-  const [pendingProductQty, setPendingProductQty] = useState<number>(1);
 
   // ── Package PIN fetch ──────────────────────────────────────────────────────
 
@@ -536,19 +527,7 @@ function GeneratePin() {
     }
   };
 
-  // ── User picks "Product PIN" in the type modal ─────────────────────────────
-
-  const handleConfirmProduct = () => {
-    if (!selectedTier) return;
-    setPendingProductTier(selectedTier);
-    setPendingProductQty(quantity);
-    setShowTypeModal(false);
-    setSelectedTier(null);
-    setQuantity(1);
-    setActiveTab('product');
-  };
-
-  // ── Derived (package tab) ──────────────────────────────────────────────────
+  // ── Derived ────────────────────────────────────────────────────────────────
 
   const filteredPins = pins.filter((pin) => {
     if (filterTier !== 'all' && pin.tier !== filterTier) return false;
@@ -566,34 +545,8 @@ function GeneratePin() {
 
         {/* ── Page Header ── */}
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Generate PIN</h1>
-          <p className="text-sm text-slate-400 mt-1">Create and manage your package and product PINs</p>
-        </div>
-
-        {/* ── Tabs ── */}
-        <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit mb-8">
-          <button
-            onClick={() => setActiveTab('package')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              activeTab === 'package'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            Package PINs
-          </button>
-          <button
-            onClick={() => setActiveTab('product')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              activeTab === 'product'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <Tag className="w-4 h-4" />
-            Product PINs
-          </button>
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Generate Package PIN</h1>
+          <p className="text-sm text-slate-400 mt-1">Create and manage package PINs for member registrations</p>
         </div>
 
         {/* ── Error ── */}
@@ -667,9 +620,8 @@ function GeneratePin() {
           </div>
         )}
 
-        {/* ── Tab Content ── */}
-        {activeTab === 'package' ? (
-          <>
+        {/* ── Package PIN Content ── */}
+        <>
             {/* Package header row */}
             <div className="mb-4 flex items-center justify-between">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
@@ -738,7 +690,7 @@ function GeneratePin() {
             {pins.length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
                 <p className="text-slate-400 text-sm">
-                  No package PINs yet. Select a tier, click <strong>Generate PIN</strong>, then choose <strong>Package PIN</strong>.
+                  No package PINs yet. Select a tier above and click <strong>Generate PIN</strong> to get started.
                 </p>
               </div>
             ) : filteredPins.length === 0 ? (
@@ -768,15 +720,6 @@ function GeneratePin() {
             {selectedPin && <PinDetailModal pin={selectedPin} onClose={() => setSelectedPin(null)} />}
             {showExportModal && <ExportModal pins={filteredPins} onClose={() => setShowExportModal(false)} />}
           </>
-        ) : (
-          /* ── Product PIN Tab ── */
-          <ProductPinTab
-            API_BASE={API_BASE}
-            pendingTier={pendingProductTier}
-            pendingQuantity={pendingProductQty}
-            onPendingConsumed={() => { setPendingProductTier(null); setPendingProductQty(1); }}
-          />
-        )}
 
         {/* ── Type-Selection Modal ── */}
         {showTypeModal && selectedTier && (
@@ -791,9 +734,9 @@ function GeneratePin() {
               <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">
-                    Generate {selectedTier.charAt(0).toUpperCase() + selectedTier.slice(1)} PIN{quantity > 1 ? 's' : ''}
+                    Generate {selectedTier.charAt(0).toUpperCase() + selectedTier.slice(1)} Package PIN{quantity > 1 ? 's' : ''}
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Choose the PIN type and quantity below</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Set the quantity and confirm below</p>
                 </div>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 capitalize ${tierConfig[selectedTier].bg} ${tierConfig[selectedTier].text} ${tierConfig[selectedTier].ring}`}>
                   {tierConfig[selectedTier].label}
@@ -828,49 +771,20 @@ function GeneratePin() {
                 </div>
               </div>
 
-              {/* Type choice */}
-              <div className="px-6 py-5">
-                <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3">What type of PIN?</p>
-                <div className="grid grid-cols-2 gap-3">
-
-                  {/* Package PIN */}
-                  <button
-                    onClick={handleConfirmPackage}
-                    className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-slate-200 hover:border-slate-900 hover:bg-slate-50 transition-all group"
-                  >
-                    <div className="w-11 h-11 rounded-xl bg-slate-100 group-hover:bg-slate-900 flex items-center justify-center transition-colors">
-                      <Package className="w-5 h-5 text-slate-500 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-slate-800">Package PIN</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Bulk / package use</p>
-                    </div>
-                  </button>
-
-                  {/* Product PIN */}
-                  <button
-                    onClick={handleConfirmProduct}
-                    className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-slate-200 hover:border-green-600 hover:bg-green-50 transition-all group"
-                  >
-                    <div className="w-11 h-11 rounded-xl bg-slate-100 group-hover:bg-green-700 flex items-center justify-center transition-colors">
-                      <Tag className="w-5 h-5 text-slate-500 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-slate-800">Product PIN</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Individual product</p>
-                    </div>
-                  </button>
-
-                </div>
-              </div>
-
-              {/* Cancel */}
-              <div className="px-6 pb-5 flex justify-end">
+              {/* Actions */}
+              <div className="px-6 py-5 flex items-center justify-end gap-3">
                 <button
                   onClick={() => { setShowTypeModal(false); setSelectedTier(null); setQuantity(1); }}
                   className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   Cancel
+                </button>
+                <button
+                  onClick={handleConfirmPackage}
+                  className="flex items-center gap-2 text-sm font-medium px-5 py-2 rounded-lg bg-slate-900 hover:bg-slate-700 text-white transition-colors"
+                >
+                  <Package className="w-4 h-4" />
+                  Generate Package PIN{quantity > 1 ? 's' : ''}
                 </button>
               </div>
             </div>
