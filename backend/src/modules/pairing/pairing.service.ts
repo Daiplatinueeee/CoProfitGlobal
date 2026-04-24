@@ -388,7 +388,7 @@ export class PairingService {
         userId:   parentIdStr,
         currency: WalletCurrency.PHP,
         amount:   bonusPhp,
-        source:   WalletTxnSource.PAIRING,
+        source:   WalletTxnSource.LEADERSHIP,
         refKey:   `pairing:topline5pct:${parentIdStr}:from:${userId}:${periodKey}`,
         note:     `Pairing topline bonus (5%) — downline pairing ${periodKey}`,
         meta:     { pairedPoints, childPayoutPhp: payoutPhp, bonusPhp, leg, periodKey },
