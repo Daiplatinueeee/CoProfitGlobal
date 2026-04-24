@@ -1,25 +1,47 @@
-import { useState } from 'react';
-import { RefreshCw, Tag } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Tag, RefreshCw } from 'lucide-react';
 import ProductPinTab from '../modals/ProductPinsTab';
-import { API_BASE, tierConfig, FREE_STATIC_PIN, type Tier } from './GeneratePin';
+import { API_BASE } from './GeneratePin';
+
+interface Product {
+  _id: string;
+  name: string;
+  price: number;
+  pv: number;
+  status: string;
+}
 
 export default function GenerateProductPin() {
-  const [selectedTier, setSelectedTier] = useState<Tier | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Passed down to ProductPinsTab to trigger generation
-  const [pendingTier, setPendingTier] = useState<Tier | null>(null);
+  const [pendingProductId, setPendingProductId] = useState<string | null>(null);
+  const [pendingProductName, setPendingProductName] = useState<string>('');
   const [pendingQty, setPendingQty] = useState(1);
 
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    fetch(`${API_BASE}/unilevel-products/admin/products`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data: Product[]) => setProducts(data.filter((p) => p.status === 'active')))
+      .catch(() => setError('Failed to load products'))
+      .finally(() => setLoadingProducts(false));
+  }, []);
+
   const handleGenerate = () => {
-    if (!selectedTier || selectedTier === 'free') return;
+    if (!selectedProduct) return;
     setLoading(true);
     setError(null);
-    setPendingTier(selectedTier);
+    setPendingProductId(selectedProduct._id);
+    setPendingProductName(selectedProduct.name);
     setPendingQty(quantity);
-    setSelectedTier(null);
+    setSelectedProduct(null);
     setQuantity(1);
   };
 
@@ -30,10 +52,9 @@ export default function GenerateProductPin() {
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Generate Product PIN</h1>
-          <p className="text-sm text-slate-400 mt-1">Create and manage product-specific PINs for individual product redemptions</p>
+          <p className="text-sm text-slate-400 mt-1">Select a product and generate PINs for user redemption</p>
         </div>
 
-        {/* Error */}
         {error && (
           <div className="mb-5 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center justify-between">
             <span>{error}</span>
@@ -41,52 +62,51 @@ export default function GenerateProductPin() {
           </div>
         )}
 
-        {/* Tier Selection */}
+        {/* Product Selection */}
         <div className="mb-6 sm:mb-8">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Select Tier</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-            <button
-              onClick={() => setSelectedTier('free')}
-              className={`rounded-2xl border p-4 text-left transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 ${
-                selectedTier === 'free'
-                  ? `${tierConfig.free.bg} ${tierConfig.free.ring} ring-1 border-transparent`
-                  : 'bg-white border-slate-100 hover:border-slate-200'
-              }`}
-            >
-              <p className={`text-sm font-semibold ${selectedTier === 'free' ? tierConfig.free.text : 'text-slate-700'}`}>Free</p>
-              <p className="text-xs text-slate-400 mt-0.5">Static PIN</p>
-              {selectedTier === 'free' && <span className="mt-2 inline-flex text-xs font-medium text-slate-500">✓ Selected</span>}
-            </button>
-            {(['bronze', 'silver', 'gold', 'platinum'] as Tier[]).map((tier) => (
-              <button
-                key={tier}
-                onClick={() => setSelectedTier(tier)}
-                className={`rounded-2xl border p-4 text-left transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 ${
-                  selectedTier === tier
-                    ? `${tierConfig[tier].bg} ${tierConfig[tier].ring} ring-1 border-transparent`
-                    : 'bg-white border-slate-100 hover:border-slate-200'
-                }`}
-              >
-                <p className={`text-sm font-semibold capitalize ${selectedTier === tier ? tierConfig[tier].text : 'text-slate-700'}`}>{tier}</p>
-                {selectedTier === tier && <span className="mt-2 inline-flex text-xs font-medium text-slate-500">✓ Selected</span>}
-              </button>
-            ))}
-          </div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Select Product</p>
 
-          {selectedTier === 'free' && (
-            <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600">
-              <p className="font-semibold text-slate-700 mb-0.5">Free Account — Static PIN</p>
-              <p>
-                The PIN for free accounts is fixed:{' '}
-                <span className="font-mono font-bold tracking-widest text-slate-900">{FREE_STATIC_PIN}</span>
-              </p>
-              <p className="mt-1 text-slate-400 text-xs">Free accounts do not receive any bonus.</p>
+          {loadingProducts ? (
+            <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
+              <RefreshCw className="w-4 h-4 animate-spin" /> Loading products…
+            </div>
+          ) : products.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4">No active products found.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {products.map((product) => {
+                const isSelected = selectedProduct?._id === product._id;
+                return (
+                  <button
+                    key={product._id}
+                    onClick={() => setSelectedProduct(isSelected ? null : product)}
+                    className={`rounded-2xl border p-4 text-left transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 ${
+                      isSelected
+                        ? 'bg-slate-900 border-transparent ring-1 ring-slate-700'
+                        : 'bg-white border-slate-100 hover:border-slate-200'
+                    }`}
+                  >
+                    <p className={`text-sm font-semibold ${isSelected ? 'text-white' : 'text-slate-800'}`}>
+                      {product.name}
+                    </p>
+                    <p className={`text-xs mt-1 ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
+                      ₱{product.price.toLocaleString()}
+                    </p>
+                    <p className={`text-xs font-medium mt-0.5 ${isSelected ? 'text-emerald-300' : 'text-emerald-600'}`}>
+                      {product.pv} PV
+                    </p>
+                    {isSelected && (
+                      <span className="mt-2 inline-flex text-xs font-medium text-slate-300">✓ Selected</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
 
         {/* Quantity + Generate */}
-        {selectedTier && selectedTier !== 'free' && (
+        {selectedProduct && (
           <div className="mb-8 flex flex-wrap items-end gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
@@ -121,12 +141,12 @@ export default function GenerateProductPin() {
               className="flex items-center gap-2 text-sm font-medium py-2.5 px-5 rounded-lg bg-slate-900 hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400 text-white transition-colors"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? 'Generating…' : `Generate Product PIN${quantity > 1 ? 's' : ''}`}
+              {loading ? 'Generating…' : `Generate ${quantity} PIN${quantity > 1 ? 's' : ''} for ${selectedProduct.name}`}
             </button>
           </div>
         )}
 
-        {!selectedTier && (
+        {!selectedProduct && !loadingProducts && (
           <div className="mb-8 flex items-center gap-2">
             <button
               disabled
@@ -135,17 +155,18 @@ export default function GenerateProductPin() {
               <Tag className="w-4 h-4" />
               Generate Product PIN
             </button>
-            <p className="text-xs text-red-500">Please select a tier to generate a PIN</p>
+            <p className="text-xs text-red-500">Please select a product to generate PINs</p>
           </div>
         )}
 
-        {/* Product PINs list — handles its own fetching and generation trigger */}
         <ProductPinTab
           API_BASE={API_BASE}
-          pendingTier={pendingTier}
+          pendingProductId={pendingProductId}
+          pendingProductName={pendingProductName}
           pendingQuantity={pendingQty}
           onPendingConsumed={() => {
-            setPendingTier(null);
+            setPendingProductId(null);
+            setPendingProductName('');
             setPendingQty(1);
             setLoading(false);
           }}

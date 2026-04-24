@@ -22,6 +22,9 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SubmitPurchaseDto } from './dto/submit-purchase.dto';
 import { ApprovePurchaseDto } from './dto/approve-purchase.dto';
+import { RedeemPinDto } from './dto/redeem-pin.dto';
+import { RedeemRewardDto } from './dto/redeem-reward.dto';
+import { CreateLifestyleRewardDto } from '../admin/dto/create-lifestyle-reward.dto';
 import { PurchaseStatus } from './schemas/unilevel-purchase.schema';
 
 const uploadDir = join(process.cwd(), 'uploads', 'unilevel-proofs');
@@ -51,6 +54,12 @@ export class UnilevelProductsController {
   @Get('my/purchases')
   myPurchases(@Request() req: any, @Query('monthKey') monthKey?: string) {
     return this.service.getMyPurchases(req.user.sub, monthKey);
+  }
+
+  /** GET /unilevel-products/my/pin-history */
+  @Get('my/pin-history')
+  myPinHistory(@Request() req: any) {
+    return this.service.getMyPinHistory(req.user.sub);
   }
 
   /** POST /unilevel-products/upload-proof — upload payment proof image */
@@ -87,6 +96,26 @@ export class UnilevelProductsController {
     return this.service.submitPurchase(req.user.sub, dto);
   }
 
+  /** POST /unilevel-products/redeem-pin — redeem a product PIN for PV */
+  @Post('redeem-pin')
+  redeemPin(@Request() req: any, @Body() dto: RedeemPinDto) {
+    return this.service.redeemPin(req.user.sub, dto);
+  }
+
+  // ─── User: Lifestyle rewards ─────────────────────────────────────────────────
+
+  /** GET /unilevel-products/lifestyle-rewards — list active rewards */
+  @Get('lifestyle-rewards')
+  listLifestyleRewards() {
+    return this.service.listLifestyleRewards();
+  }
+
+  /** POST /unilevel-products/redeem-lifestyle-reward — spend PV on a reward */
+  @Post('redeem-lifestyle-reward')
+  redeemLifestyleReward(@Request() req: any, @Body() dto: RedeemRewardDto) {
+    return this.service.redeemLifestyleReward(req.user.sub, dto);
+  }
+
   // ─── Admin: Product management ───────────────────────────────────────────────
 
   /** POST /unilevel-products/admin/products */
@@ -105,6 +134,29 @@ export class UnilevelProductsController {
   @Get('admin/products')
   listAllProducts() {
     return this.service.listProducts(true);
+  }
+
+  // ─── Admin: Lifestyle reward management ─────────────────────────────────────
+
+  /** POST /unilevel-products/admin/lifestyle-rewards */
+  @Post('admin/lifestyle-rewards')
+  createLifestyleReward(@Body() dto: CreateLifestyleRewardDto) {
+    return this.service.createLifestyleReward(dto);
+  }
+
+  /** PATCH /unilevel-products/admin/lifestyle-rewards/:id */
+  @Patch('admin/lifestyle-rewards/:id')
+  updateLifestyleReward(
+    @Param('id') id: string,
+    @Body() dto: Partial<CreateLifestyleRewardDto>,
+  ) {
+    return this.service.updateLifestyleReward(id, dto);
+  }
+
+  /** GET /unilevel-products/admin/lifestyle-rewards — list all */
+  @Get('admin/lifestyle-rewards')
+  listAllLifestyleRewards() {
+    return this.service.listAllLifestyleRewards();
   }
 
   // ─── Admin: Purchase review ──────────────────────────────────────────────────

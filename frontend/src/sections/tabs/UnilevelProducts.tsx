@@ -38,6 +38,7 @@ interface ApiPurchase {
 interface PvStatus {
   monthKey: string;
   totalPv: number;
+  availablePv: number;
   threshold: number;
   qualified: boolean;
 }
@@ -176,10 +177,11 @@ export default function UnilevelProducts() {
 
   // ─── Derived ───────────────────────────────────────────────────────────────
 
-  const currentPv   = pvStatus?.totalPv   ?? 0;
-  const threshold   = pvStatus?.threshold ?? 1500;
-  const qualified   = pvStatus?.qualified ?? false;
-  const pctProgress = Math.min(100, Math.round((currentPv / threshold) * 100));
+  const currentPv    = pvStatus?.totalPv     ?? 0;
+  const availablePv  = pvStatus?.availablePv ?? 0;
+  const threshold    = pvStatus?.threshold   ?? 1500;
+  const qualified    = pvStatus?.qualified   ?? false;
+  const pctProgress  = Math.min(100, Math.round((currentPv / threshold) * 100));
 
   const totalPurchasePHP = selectedProduct ? selectedProduct.price * purchaseQuantity : 0;
   const totalPurchasePV  = selectedProduct ? selectedProduct.pv    * purchaseQuantity : 0;
@@ -638,7 +640,7 @@ export default function UnilevelProducts() {
         </div>
         <div className="text-right">
           <p className="text-xs text-slate-400">Your Balance</p>
-          <p className="text-sm font-semibold text-slate-900">{currentPv} PV</p>
+          <p className="text-sm font-semibold text-slate-900">{availablePv} PV</p>
         </div>
       </div>
 
@@ -664,7 +666,7 @@ export default function UnilevelProducts() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
           {rewards.map(reward => {
-            const canAfford  = currentPv >= reward.pointsCost;
+            const canAfford  = availablePv >= reward.pointsCost;
             const inStock    = reward.stock > 0;
             const isRedeeming = redeemingReward === reward._id;
             const err        = rewardError[reward._id];
@@ -708,7 +710,7 @@ export default function UnilevelProducts() {
 
                   {!canAfford && inStock && (
                     <p className="text-xs text-amber-600 mt-1.5">
-                      Need {(reward.pointsCost - currentPv).toLocaleString()} more PV
+                      Need {(reward.pointsCost - availablePv).toLocaleString()} more PV
                     </p>
                   )}
 

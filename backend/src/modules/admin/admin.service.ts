@@ -24,10 +24,27 @@ import {
   VolumeBucketDocument,
   VolumeLeg,
 } from '../volume/schemas/volume-bucket.schema';
+import {
+  UnilevelPin,
+  UnilevelPinDocument,
+  UnilevelPinStatus,
+} from '../unilevel-products/schemas/unilevel-pin.schema';
+import {
+  LifestyleReward,
+  LifestyleRewardDocument,
+  RewardStatus,
+} from '../unilevel-products/schemas/lifestyle-reward.schema';
+import {
+  UnilevelProduct,
+  UnilevelProductDocument,
+  ProductStatus,
+} from '../unilevel-products/schemas/unilevel-product.schema';
 
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateTierDto } from './dto/admin-update-tier.dto';
 import { AdminGeneratePinsDto } from './dto/admin-generate-pins.dto';
+import { GenerateProductPinDto } from './dto/generate-product-pin.dto';
+import { CreateLifestyleRewardDto } from './dto/create-lifestyle-reward.dto';
 import { PairingService } from '../pairing/pairing.service';
 
 @Injectable()
@@ -39,6 +56,12 @@ export class AdminService {
     private readonly userModel: Model<UserDocument>,
     @InjectModel(VolumeBucket.name)
     private readonly volumeBucketModel: Model<VolumeBucketDocument>,
+    @InjectModel(UnilevelPin.name)
+    private readonly unilevelPinModel: Model<UnilevelPinDocument>,
+    @InjectModel(LifestyleReward.name)
+    private readonly rewardModel: Model<LifestyleRewardDocument>,
+    @InjectModel(UnilevelProduct.name)
+    private readonly unilevelProductModel: Model<UnilevelProductDocument>,
     private readonly usersService: UsersService,
     private readonly pairingService: PairingService,
   ) {}
@@ -406,4 +429,174 @@ export class AdminService {
       status: PinStatus.VOID,
     };
   }
-} 
+
+  // ─── Product PIN (unilevel redemption PINs) ──────────────────────────────────
+
+  async generateProductPins(adminId: string, dto: GenerateProductPinDto) {
+    if (!this.isValidObjectId(adminId)) {
+      throw new BadRequestException('Invalid adminId');
+    }
+    if (!this.isValidObjectId(dto.productId)) {
+      throw new BadRequestException('Invalid productId');
+    }
+
+    const product = await this.unilevelProductModel
+      .findById(new Types.ObjectId(dto.productId))
+      .lean();
+
+    if (!product) throw new NotFoundException('Product not found');
+    if ((product as any).status !== ProductStatus.ACTIVE) {
+      throw new BadRequestException('Product is inactive and cannot have PINs generated');
+    }
+
+    const adminObjId = new Types.ObjectId(adminId);
+    const pins: string[] = [];
+
+    for (let i = 0; i < dto.quantity; i++) {
+      let inserted = false;
+
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const pin = this.generatePinRaw();
+
+        try {
+          const doc = new this.unilevelPinModel({
+            pin,
+            productId:        (product as any)._id,
+            pv:               (product as any).pv,
+            productName:      (product as any).name,
+            note:             dto.note ?? '',
+            status:           UnilevelPinStatus.UNUSED,
+            createdByAdminId: adminObjId,
+            usedByUserId:     null,
+            usedAt:           null,
+            monthKey:         null,
+          });
+
+          await doc.save();
+          pins.push(pin);
+          inserted = true;
+          break;
+        } catch (e: any) {
+          if (e?.code === 11000 && e?.keyPattern?.pin) {
+            console.warn(`Product PIN "${pin}" already exists, retrying...`);
+            continue;
+          }
+          throw new BadRequestException(e?.message ?? 'Failed to save product PIN');
+        }
+      }
+
+      if (!inserted) {
+        throw new BadRequestException('Could not generate a unique product PIN after 10 attempts');
+      }
+    }
+
+    return {
+      productId:   (product as any)._id.toString(),
+      productName: (product as any).name,
+      pv:          (product as any).pv,
+      quantity:    dto.quantity,
+      pins,
+    };
+  }
+
+  async listProductPins(
+    status?: UnilevelPinStatus,
+    limit = 50,
+    productId?: string,
+  ) {
+    const q: any = {};
+    if (status) q.status = status;
+    if (productId && this.isValidObjectId(productId)) {
+      q.productId = new Types.ObjectId(productId);
+    }
+
+    const rows = await this.unilevelPinModel
+      .find(q)
+      .sort({ createdAt: -1 })
+      .limit(Math.min(limit, 200))
+      .lean();
+
+    return rows.map((r: any) => ({
+      id:               r._id.toString(),
+      pin:              r.pin,
+      productId:        r.productId ? r.productId.toString() : null,
+      productName:      r.productName,
+      pv:               r.pv,
+      status:           r.status,
+      usedByUserId:     r.usedByUserId ? r.usedByUserId.toString() : null,
+      usedAt:           r.usedAt ?? null,
+      monthKey:         r.monthKey ?? null,
+      createdByAdminId: r.createdByAdminId ? r.createdByAdminId.toString() : null,
+      createdAt:        r.createdAt,
+    }));
+  }
+
+  async voidProductPin(pinId: string) {
+    if (!this.isValidObjectId(pinId)) {
+      throw new BadRequestException('Invalid pinId');
+    }
+
+    const pin = await this.unilevelPinModel.findById(pinId);
+    if (!pin) throw new NotFoundException('Product PIN not found');
+    if (pin.status === UnilevelPinStatus.USED) {
+      throw new BadRequestException('Cannot void a USED product PIN');
+    }
+
+    await this.unilevelPinModel.updateOne(
+      { _id: pin._id },
+      { $set: { status: UnilevelPinStatus.VOID } },
+    );
+
+    return { id: pin._id.toString(), status: UnilevelPinStatus.VOID };
+  }
+
+  // ─── Lifestyle reward management (admin) ─────────────────────────────────────
+
+  async createLifestyleReward(dto: CreateLifestyleRewardDto) {
+    const reward = await this.rewardModel.create({
+      name:        dto.name,
+      description: dto.description ?? '',
+      pointsCost:  dto.pointsCost,
+      imageUrl:    dto.imageUrl ?? '',
+      category:    dto.category ?? '',
+      stock:       dto.stock,
+      sortOrder:   dto.sortOrder ?? 0,
+      status:      RewardStatus.ACTIVE,
+    });
+    return this.formatReward(reward.toObject());
+  }
+
+  async updateLifestyleReward(id: string, dto: Partial<CreateLifestyleRewardDto>) {
+    if (!this.isValidObjectId(id)) throw new BadRequestException('Invalid reward id');
+    const reward = await this.rewardModel.findByIdAndUpdate(
+      new Types.ObjectId(id),
+      { $set: dto },
+      { new: true },
+    ).lean();
+    if (!reward) throw new NotFoundException('Reward not found');
+    return this.formatReward(reward);
+  }
+
+  async listAllLifestyleRewards() {
+    const rows = await this.rewardModel
+      .find({})
+      .sort({ sortOrder: 1, createdAt: 1 })
+      .lean();
+    return rows.map(this.formatReward);
+  }
+
+  private formatReward(doc: any) {
+    return {
+      _id:         doc._id?.toString(),
+      name:        doc.name,
+      description: doc.description ?? '',
+      pointsCost:  doc.pointsCost,
+      imageUrl:    doc.imageUrl ?? '',
+      category:    doc.category ?? '',
+      stock:       doc.stock,
+      status:      doc.status,
+      sortOrder:   doc.sortOrder ?? 0,
+      createdAt:   doc.createdAt,
+    };
+  }
+}

@@ -15,6 +15,8 @@ import { AdminService } from './admin.service';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateTierDto } from './dto/admin-update-tier.dto';
 import { AdminGeneratePinsDto } from './dto/admin-generate-pins.dto';
+import { GenerateProductPinDto } from './dto/generate-product-pin.dto';
+import { CreateLifestyleRewardDto } from './dto/create-lifestyle-reward.dto';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -25,6 +27,7 @@ import {
   SystemRole,
 } from '../users/schemas/user.schema';
 import { PinStatus } from '../product-pins/schema/product-pins.schema';
+import { UnilevelPinStatus } from '../unilevel-products/schemas/unilevel-pin.schema';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -85,5 +88,31 @@ export class AdminController {
   @Patch('pins/:id/void')
   voidPin(@Param('id') id: string) {
     return this.adminService.voidPin(id);
+  }
+
+  // ─── Product PINs (unilevel redemption PINs) ─────────────────────────────────
+
+  @Post('product-pins/generate')
+  generateProductPins(@Req() req: any, @Body() dto: GenerateProductPinDto) {
+    const adminId = req.user?.sub || req.user?.id;
+    return this.adminService.generateProductPins(adminId, dto);
+  }
+
+  @Get('product-pins')
+  listProductPins(
+    @Query('productId') productId?: string,
+    @Query('status') status?: UnilevelPinStatus,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminService.listProductPins(
+      status,
+      limit ? Number(limit) : 50,
+      productId,
+    );
+  }
+
+  @Patch('product-pins/:id/void')
+  voidProductPin(@Param('id') id: string) {
+    return this.adminService.voidProductPin(id);
   }
 }

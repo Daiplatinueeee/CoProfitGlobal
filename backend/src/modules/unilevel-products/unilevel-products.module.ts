@@ -7,13 +7,19 @@ import { UnilevelProductsService } from './unilevel-products.service';
 
 import { UnilevelProduct, UnilevelProductSchema } from './schemas/unilevel-product.schema';
 import { UnilevelPurchase, UnilevelPurchaseSchema } from './schemas/unilevel-purchase.schema';
+import { UnilevelPin, UnilevelPinSchema } from './schemas/unilevel-pin.schema';
+import { LifestyleReward, LifestyleRewardSchema } from './schemas/lifestyle-reward.schema';
+import { RewardRedemption, RewardRedemptionSchema } from './schemas/reward-redemption.schema';
 
 @Module({
   imports: [
     MulterModule.register({}),
     MongooseModule.forFeature([
-      { name: UnilevelProduct.name, schema: UnilevelProductSchema },
+      { name: UnilevelProduct.name,  schema: UnilevelProductSchema },
       { name: UnilevelPurchase.name, schema: UnilevelPurchaseSchema },
+      { name: UnilevelPin.name,      schema: UnilevelPinSchema },
+      { name: LifestyleReward.name,  schema: LifestyleRewardSchema },
+      { name: RewardRedemption.name, schema: RewardRedemptionSchema },
     ]),
   ],
   controllers: [UnilevelProductsController],

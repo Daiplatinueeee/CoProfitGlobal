@@ -14,6 +14,18 @@ import {
   VolumeBucket,
   VolumeBucketSchema,
 } from '../volume/schemas/volume-bucket.schema';
+import {
+  UnilevelPin,
+  UnilevelPinSchema,
+} from '../unilevel-products/schemas/unilevel-pin.schema';
+import {
+  LifestyleReward,
+  LifestyleRewardSchema,
+} from '../unilevel-products/schemas/lifestyle-reward.schema';
+import {
+  UnilevelProduct,
+  UnilevelProductSchema,
+} from '../unilevel-products/schemas/unilevel-product.schema';
 import { RolesGuard } from '../auth/roles.guard';
 import { PairingModule } from '../pairing/pairing.module';
 
@@ -22,9 +34,12 @@ import { PairingModule } from '../pairing/pairing.module';
     UsersModule,
     PairingModule,
     MongooseModule.forFeature([
-      { name: User.name, schema: UserSchema },
-      { name: ProductPin.name, schema: ProductPinSchema },
-      { name: VolumeBucket.name, schema: VolumeBucketSchema },
+      { name: User.name,           schema: UserSchema },
+      { name: ProductPin.name,     schema: ProductPinSchema },
+      { name: VolumeBucket.name,   schema: VolumeBucketSchema },
+      { name: UnilevelPin.name,      schema: UnilevelPinSchema },
+      { name: LifestyleReward.name,  schema: LifestyleRewardSchema },
+      { name: UnilevelProduct.name,  schema: UnilevelProductSchema },
     ]),
   ],
   controllers: [AdminController],
