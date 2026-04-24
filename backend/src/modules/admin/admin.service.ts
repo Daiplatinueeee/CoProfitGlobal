@@ -34,16 +34,11 @@ import {
   LifestyleRewardDocument,
   RewardStatus,
 } from '../unilevel-products/schemas/lifestyle-reward.schema';
-import {
-  UnilevelProduct,
-  UnilevelProductDocument,
-  ProductStatus,
-} from '../unilevel-products/schemas/unilevel-product.schema';
 
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateTierDto } from './dto/admin-update-tier.dto';
 import { AdminGeneratePinsDto } from './dto/admin-generate-pins.dto';
-import { GenerateProductPinDto } from './dto/generate-product-pin.dto';
+import { AdminGenerateUnilevelPinDto } from './dto/admin-generate-unilevel-pin.dto';
 import { CreateLifestyleRewardDto } from './dto/create-lifestyle-reward.dto';
 import { PairingService } from '../pairing/pairing.service';
 
@@ -60,8 +55,6 @@ export class AdminService {
     private readonly unilevelPinModel: Model<UnilevelPinDocument>,
     @InjectModel(LifestyleReward.name)
     private readonly rewardModel: Model<LifestyleRewardDocument>,
-    @InjectModel(UnilevelProduct.name)
-    private readonly unilevelProductModel: Model<UnilevelProductDocument>,
     private readonly usersService: UsersService,
     private readonly pairingService: PairingService,
   ) {}
@@ -89,7 +82,9 @@ export class AdminService {
       pinDoc = await this.pinModel.findOne({ pin: dto.packagePin });
 
       if (!pinDoc) {
-        throw new BadRequestException('Invalid package PIN — PIN does not exist');
+        throw new BadRequestException(
+          'Invalid package PIN — PIN does not exist',
+        );
       }
       if (pinDoc.status !== PinStatus.UNUSED) {
         throw new BadRequestException(
@@ -143,7 +138,10 @@ export class AdminService {
         console.log('PIN marked as USED successfully:', dto.packagePin);
       } catch (err: any) {
         // Rollback: delete the user we just created so data stays consistent
-        console.error('Failed to mark PIN as USED — rolling back user creation:', err.message);
+        console.error(
+          'Failed to mark PIN as USED — rolling back user creation:',
+          err.message,
+        );
         await this.userModel.deleteOne({ _id: (created as any)._id });
         throw new BadRequestException(
           'Failed to mark PIN as used — user creation has been rolled back. Please try again.',
@@ -186,8 +184,10 @@ export class AdminService {
     for (const b of buckets as any[]) {
       const key = b.ownerUserId.toString();
       if (!bucketMap.has(key)) bucketMap.set(key, { left: 0, right: 0 });
-      if (b.leg === VolumeLeg.LEFT)  bucketMap.get(key)!.left  = b.availablePoints ?? 0;
-      if (b.leg === VolumeLeg.RIGHT) bucketMap.get(key)!.right = b.availablePoints ?? 0;
+      if (b.leg === VolumeLeg.LEFT)
+        bucketMap.get(key)!.left = b.availablePoints ?? 0;
+      if (b.leg === VolumeLeg.RIGHT)
+        bucketMap.get(key)!.right = b.availablePoints ?? 0;
     }
 
     return users.map((user: any) => {
@@ -219,6 +219,65 @@ export class AdminService {
     });
   }
 
+  async upgradePackage(userId: string, packagePin: string) {
+    if (!this.isValidObjectId(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
+
+    const uid = new Types.ObjectId(userId);
+
+    // ── 1. Find the user ──────────────────────────────────────────────────────
+    const user = await this.userModel
+      .findById(uid)
+      .select('_id name username email membershipTier packagePin')
+      .lean();
+
+    if (!user) throw new NotFoundException('User not found');
+
+    // ── 2. Look up the PIN ────────────────────────────────────────────────────
+    const pinDoc = await this.pinModel.findOne({ pin: packagePin });
+
+    if (!pinDoc) {
+      throw new BadRequestException('Invalid package PIN — PIN does not exist');
+    }
+
+    if (pinDoc.status !== PinStatus.UNUSED) {
+      throw new BadRequestException(
+        `PIN is already ${pinDoc.status.toLowerCase()} and cannot be used`,
+      );
+    }
+
+    const newTier: MembershipTier = pinDoc.tier;
+
+    // ── 3. Update the user's membership tier ─────────────────────────────────
+    await this.userModel.updateOne(
+      { _id: uid },
+      { $set: { membershipTier: newTier, packagePin } },
+    );
+
+    // ── 4. Mark the PIN as USED ───────────────────────────────────────────────
+    await this.pinModel.updateOne(
+      { _id: pinDoc._id },
+      {
+        $set: {
+          status: PinStatus.USED,
+          usedByUserId: uid,
+          usedAt: new Date(),
+        },
+      },
+    );
+
+    return {
+      id: (user as any)._id.toString(),
+      name: (user as any).name,
+      username: (user as any).username,
+      email: (user as any).email,
+      previousTier: (user as any).membershipTier,
+      newTier,
+      packagePin,
+    };
+  }
+
   async updateMembershipTier(userId: string, dto: AdminUpdateTierDto) {
     return this.usersService.updateMembershipTier(userId, dto.membershipTier);
   }
@@ -229,8 +288,12 @@ export class AdminService {
     }
     const uid = new Types.ObjectId(userId);
     const [left, right] = await Promise.all([
-      this.volumeBucketModel.findOne({ ownerUserId: uid, leg: VolumeLeg.LEFT }).lean(),
-      this.volumeBucketModel.findOne({ ownerUserId: uid, leg: VolumeLeg.RIGHT }).lean(),
+      this.volumeBucketModel
+        .findOne({ ownerUserId: uid, leg: VolumeLeg.LEFT })
+        .lean(),
+      this.volumeBucketModel
+        .findOne({ ownerUserId: uid, leg: VolumeLeg.RIGHT })
+        .lean(),
     ]);
     return {
       leftAvailablePoints: (left as any)?.availablePoints ?? 0,
@@ -246,34 +309,44 @@ export class AdminService {
       throw new BadRequestException('Invalid userId');
     }
 
-    if (dto.leftAvailablePoints === undefined && dto.rightAvailablePoints === undefined) {
+    if (
+      dto.leftAvailablePoints === undefined &&
+      dto.rightAvailablePoints === undefined
+    ) {
       throw new BadRequestException('No fields provided to update');
     }
 
     const uid = new Types.ObjectId(userId);
 
-    const user = await this.userModel.findById(uid).select('_id name username').lean();
+    const user = await this.userModel
+      .findById(uid)
+      .select('_id name username')
+      .lean();
     if (!user) throw new NotFoundException('User not found');
 
     const upserts: Promise<any>[] = [];
 
     if (dto.leftAvailablePoints !== undefined) {
       upserts.push(
-        this.volumeBucketModel.findOneAndUpdate(
-          { ownerUserId: uid, leg: VolumeLeg.LEFT },
-          { $set: { availablePoints: dto.leftAvailablePoints } },
-          { upsert: true, returnDocument: 'after' },
-        ).lean(),
+        this.volumeBucketModel
+          .findOneAndUpdate(
+            { ownerUserId: uid, leg: VolumeLeg.LEFT },
+            { $set: { availablePoints: dto.leftAvailablePoints } },
+            { upsert: true, returnDocument: 'after' },
+          )
+          .lean(),
       );
     }
 
     if (dto.rightAvailablePoints !== undefined) {
       upserts.push(
-        this.volumeBucketModel.findOneAndUpdate(
-          { ownerUserId: uid, leg: VolumeLeg.RIGHT },
-          { $set: { availablePoints: dto.rightAvailablePoints } },
-          { upsert: true, returnDocument: 'after' },
-        ).lean(),
+        this.volumeBucketModel
+          .findOneAndUpdate(
+            { ownerUserId: uid, leg: VolumeLeg.RIGHT },
+            { $set: { availablePoints: dto.rightAvailablePoints } },
+            { upsert: true, returnDocument: 'after' },
+          )
+          .lean(),
       );
     }
 
@@ -309,6 +382,8 @@ export class AdminService {
     return pin;
   }
 
+  // ─── Package PINs (membership tier activation) ───────────────────────────────
+
   async generatePins(adminId: string, dto: AdminGeneratePinsDto) {
     if (!this.isValidObjectId(adminId)) {
       throw new BadRequestException('Invalid adminId');
@@ -340,12 +415,10 @@ export class AdminService {
           break;
         } catch (e: any) {
           if (e?.code === 11000) {
-            // Only retry on duplicate pin — any other 11000 is a schema bug
             if (e?.keyPattern?.pin) {
               console.warn(`PIN "${pin}" already exists, retrying...`);
               continue;
             }
-            // Different field caused 11000 — log and throw immediately
             console.error('Unexpected duplicate key on field:', {
               keyPattern: e?.keyPattern,
               keyValue: e?.keyValue,
@@ -430,26 +503,19 @@ export class AdminService {
     };
   }
 
-  // ─── Product PIN (unilevel redemption PINs) ──────────────────────────────────
+  // ─── Unilevel PINs (product redemption) ──────────────────────────────────────
 
-  async generateProductPins(adminId: string, dto: GenerateProductPinDto) {
+  async generateUnilevelPins(
+    adminId: string,
+    dto: AdminGenerateUnilevelPinDto,
+  ) {
     if (!this.isValidObjectId(adminId)) {
       throw new BadRequestException('Invalid adminId');
     }
-    if (!this.isValidObjectId(dto.productId)) {
-      throw new BadRequestException('Invalid productId');
-    }
-
-    const product = await this.unilevelProductModel
-      .findById(new Types.ObjectId(dto.productId))
-      .lean();
-
-    if (!product) throw new NotFoundException('Product not found');
-    if ((product as any).status !== ProductStatus.ACTIVE) {
-      throw new BadRequestException('Product is inactive and cannot have PINs generated');
-    }
 
     const adminObjId = new Types.ObjectId(adminId);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
     const pins: string[] = [];
 
     for (let i = 0; i < dto.quantity; i++) {
@@ -461,15 +527,11 @@ export class AdminService {
         try {
           const doc = new this.unilevelPinModel({
             pin,
-            productId:        (product as any)._id,
-            pv:               (product as any).pv,
-            productName:      (product as any).name,
+            pv:               dto.pv,
             note:             dto.note ?? '',
             status:           UnilevelPinStatus.UNUSED,
             createdByAdminId: adminObjId,
-            usedByUserId:     null,
-            usedAt:           null,
-            monthKey:         null,
+            expiresAt,
           });
 
           await doc.save();
@@ -478,37 +540,28 @@ export class AdminService {
           break;
         } catch (e: any) {
           if (e?.code === 11000 && e?.keyPattern?.pin) {
-            console.warn(`Product PIN "${pin}" already exists, retrying...`);
+            console.warn(`Unilevel PIN "${pin}" already exists, retrying...`);
             continue;
           }
-          throw new BadRequestException(e?.message ?? 'Failed to save product PIN');
+          throw new BadRequestException(
+            e?.message ?? 'Failed to save unilevel PIN',
+          );
         }
       }
 
       if (!inserted) {
-        throw new BadRequestException('Could not generate a unique product PIN after 10 attempts');
+        throw new BadRequestException(
+          'Could not generate a unique unilevel PIN after 10 attempts',
+        );
       }
     }
 
-    return {
-      productId:   (product as any)._id.toString(),
-      productName: (product as any).name,
-      pv:          (product as any).pv,
-      quantity:    dto.quantity,
-      pins,
-    };
+    return { pv: dto.pv, quantity: dto.quantity, pins };
   }
 
-  async listProductPins(
-    status?: UnilevelPinStatus,
-    limit = 50,
-    productId?: string,
-  ) {
+  async listUnilevelPins(status?: UnilevelPinStatus, limit = 50) {
     const q: any = {};
     if (status) q.status = status;
-    if (productId && this.isValidObjectId(productId)) {
-      q.productId = new Types.ObjectId(productId);
-    }
 
     const rows = await this.unilevelPinModel
       .find(q)
@@ -517,40 +570,32 @@ export class AdminService {
       .lean();
 
     return rows.map((r: any) => ({
-      id:               r._id.toString(),
-      pin:              r.pin,
-      productId:        r.productId ? r.productId.toString() : null,
-      productName:      r.productName,
-      pv:               r.pv,
-      status:           r.status,
-      usedByUserId:     r.usedByUserId ? r.usedByUserId.toString() : null,
-      usedAt:           r.usedAt ?? null,
-      monthKey:         r.monthKey ?? null,
-      createdByAdminId: r.createdByAdminId ? r.createdByAdminId.toString() : null,
-      createdAt:        r.createdAt,
+      _id:       r._id.toString(),
+      pin:       r.pin,
+      pv:        r.pv,
+      status:    r.status,
+      createdAt: r.createdAt,
+      expiresAt: r.expiresAt ?? null,
     }));
   }
 
-  async voidProductPin(pinId: string) {
+  async deleteUnilevelPin(pinId: string) {
     if (!this.isValidObjectId(pinId)) {
       throw new BadRequestException('Invalid pinId');
     }
 
     const pin = await this.unilevelPinModel.findById(pinId);
-    if (!pin) throw new NotFoundException('Product PIN not found');
+    if (!pin) throw new NotFoundException('Unilevel PIN not found');
     if (pin.status === UnilevelPinStatus.USED) {
-      throw new BadRequestException('Cannot void a USED product PIN');
+      throw new BadRequestException('Cannot delete a USED unilevel PIN');
     }
 
-    await this.unilevelPinModel.updateOne(
-      { _id: pin._id },
-      { $set: { status: UnilevelPinStatus.VOID } },
-    );
+    await this.unilevelPinModel.deleteOne({ _id: pin._id });
 
-    return { id: pin._id.toString(), status: UnilevelPinStatus.VOID };
+    return { id: pin._id.toString(), deleted: true };
   }
 
-  // ─── Lifestyle reward management (admin) ─────────────────────────────────────
+  // ─── Lifestyle reward management ─────────────────────────────────────────────
 
   async createLifestyleReward(dto: CreateLifestyleRewardDto) {
     const reward = await this.rewardModel.create({
@@ -566,13 +611,15 @@ export class AdminService {
     return this.formatReward(reward.toObject());
   }
 
-  async updateLifestyleReward(id: string, dto: Partial<CreateLifestyleRewardDto>) {
-    if (!this.isValidObjectId(id)) throw new BadRequestException('Invalid reward id');
-    const reward = await this.rewardModel.findByIdAndUpdate(
-      new Types.ObjectId(id),
-      { $set: dto },
-      { new: true },
-    ).lean();
+  async updateLifestyleReward(
+    id: string,
+    dto: Partial<CreateLifestyleRewardDto>,
+  ) {
+    if (!this.isValidObjectId(id))
+      throw new BadRequestException('Invalid reward id');
+    const reward = await this.rewardModel
+      .findByIdAndUpdate(new Types.ObjectId(id), { $set: dto }, { new: true })
+      .lean();
     if (!reward) throw new NotFoundException('Reward not found');
     return this.formatReward(reward);
   }

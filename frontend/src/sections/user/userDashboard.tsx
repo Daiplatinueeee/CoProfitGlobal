@@ -654,14 +654,15 @@ export default function UserDashboard() {
     setShowMuteTooltip(false);
   };
 
-  const TIER_META: Record<string, { label: string; price: string; gradient: string }> = {
+  const TIER_META: Record<string, { label: string; price: string; gradient: string; isFree?: boolean }> = {
+    free: { label: 'Free', price: '₱0', gradient: 'from-slate-700 via-slate-600 to-slate-500', isFree: true },
     bronze: { label: 'Bronze', price: '₱1,998', gradient: 'from-amber-700 via-amber-500 to-amber-400' },
     silver: { label: 'Silver', price: '₱5,998', gradient: 'from-gray-500 via-gray-400 to-gray-300' },
     gold: { label: 'Gold', price: '₱8,998', gradient: 'from-yellow-600 via-yellow-400 to-yellow-300' },
     platinum: { label: 'Platinum', price: '₱12,998', gradient: 'from-gray-600 via-gray-400 to-gray-300' },
   };
 
-  const tier = TIER_META[currentUser?.membershipTier?.toLowerCase() ?? ''] ?? TIER_META.bronze;
+  const tier = TIER_META[currentUser?.membershipTier?.toLowerCase() ?? ''] ?? TIER_META.free;
 
   // ── Dynamic profile display ──────────────────────────────────────────
   const displayName = currentUser?.name || currentUser?.username || 'User';
@@ -969,61 +970,143 @@ export default function UserDashboard() {
       </div>
 
       {/* ── Current Package ───────────────────────────────────────────── */}
-      <div className={`relative bg-linear-to-br ${tier.gradient} rounded-3xl overflow-hidden border border-white/20 shadow-xl`}>
-        {/* decorative circles */}
-        <div className="absolute -top-10 -right-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-black/10 rounded-full blur-2xl pointer-events-none" />
+      {tier.isFree ? (
+        /* ── Free Tier Design ── */
+        <div className="relative rounded-3xl overflow-hidden shadow-xl border border-dashed border-slate-300 bg-white">
+          {/* Subtle dot-grid background */}
+          <div className="absolute inset-0 opacity-[0.035]"
+            style={{ backgroundImage: 'radial-gradient(circle, #64748b 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
 
-        <div className="relative p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+          <div className="relative p-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
 
-            {/* Left — tier info */}
-            <div className="flex items-center gap-5">
-              <div>
-                <p className="text-xs uppercase tracking-widest text-white/70 mb-1">Current Package</p>
-                <p className="text-3xl sm:text-4xl text-white drop-shadow-sm leading-none mb-2">
-                  {tier.label}
-                </p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs font-medium text-white/60 uppercase tracking-wide">Package Value</span>
-                  <span className="h-3 w-px bg-white/30" />
-                  <span className="text-lg text-white/95">{tier.price}</span>
+              {/* Left — free tier info */}
+              <div className="flex items-center gap-5">
+                {/* Lock / free badge icon */}
+                <div className="shrink-0 w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center shadow-inner">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
                 </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">Current Package</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-3xl sm:text-4xl font-semibold text-slate-700 leading-none">Free</p>
+                    <span className="text-[10px] font-bold uppercase tracking-widest bg-slate-100 border border-slate-200 text-slate-500 px-2 py-0.5 rounded-full">No Package</span>
+                  </div>
+                  <p className="text-sm text-slate-400">You haven't subscribed to a package yet.</p>
+                </div>
+              </div>
+
+              {/* Right — subscribe CTA */}
+              <div className="flex flex-col items-start sm:items-end gap-3">
+                <button
+                  onClick={() => setActiveTab('subscription')}
+                  className="group relative px-6 py-3 rounded-2xl bg-slate-900 text-white text-sm font-medium shadow-lg hover:bg-slate-800 hover:shadow-xl transition-all active:scale-95 whitespace-nowrap overflow-hidden"
+                >
+                  {/* shimmer sweep */}
+                  <span className="absolute inset-0 -skew-x-12 translate-x-[-120%] group-hover:translate-x-[150%] transition-transform duration-700 bg-white/10 w-1/2" />
+                  <span className="relative flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Get Started
+                  </span>
+                </button>
+                <p className="text-xs text-slate-400">Start with Bronze at <span className="font-semibold text-slate-600">₱1,998</span></p>
+              </div>
+
+            </div>
+
+            {/* Benefits teaser strip */}
+            <div className="mt-6 pt-5 border-t border-slate-100">
+              <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-3">Unlock with a Package</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { icon: '🤝', label: 'Pairing Bonus' },
+                  { icon: '✍️', label: 'Sign-5 Bonus' },
+                  { icon: '👑', label: 'Leadership Bonus' },
+                  { icon: '💰', label: 'Referral Income' },
+                ].map(({ icon, label }) => (
+                  <div key={label} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-base grayscale opacity-50">{icon}</span>
+                    <span className="text-xs text-slate-400 font-medium leading-tight">{label}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Right — upgrade CTA */}
-            <div className="flex flex-col items-start sm:items-end gap-2">
-              <button
-                onClick={() => setActiveTab('subscription')}
-                className="px-6 py-3 rounded-2xl bg-white text-gray-900 text-sm shadow-lg hover:bg-white/90 hover:shadow-xl transition-all active:scale-95 whitespace-nowrap"
-              >
-                Upgrade Subscription
-              </button>
-              <p className="text-xs text-white">Unlock higher rewards with a bigger package</p>
-            </div>
-
-          </div>
-
-          {/* tier progress strip */}
-          <div className="mt-6 pt-5 border-t border-white/20 grid grid-cols-4 gap-2">
-            {(['Bronze', 'Silver', 'Gold', 'Platinum'] as const).map((t) => {
-              const tiers = ['Bronze', 'Silver', 'Gold', 'Platinum'];
-              const currentIdx = tiers.indexOf(tier.label);
-              const thisIdx = tiers.indexOf(t);
-              const isActive = t === tier.label;
-              const isPast = thisIdx < currentIdx;
-              return (
-                <div key={t} className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl transition-all
-                  ${isActive ? 'bg-white/30 border border-white/60' : isPast ? 'opacity-80' : 'opacity-50'}`}>
-                  <span className={`text-xs drop-shadow ${isActive ? 'text-white' : 'text-white'}`}>{t}</span>
-                  {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+            {/* Tier path — all locked */}
+            <div className="mt-4 grid grid-cols-4 gap-2">
+              {(['Bronze', 'Silver', 'Gold', 'Platinum'] as const).map((t) => (
+                <div key={t} className="flex flex-col items-center gap-1 py-2 px-1 rounded-xl opacity-40 border border-dashed border-slate-200 bg-slate-50">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span className="text-xs text-slate-500">{t}</span>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        /* ── Paid Tier Design (original) ── */
+        <div className={`relative bg-linear-to-br ${tier.gradient} rounded-3xl overflow-hidden border border-white/20 shadow-xl`}>
+          {/* decorative circles */}
+          <div className="absolute -top-10 -right-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-black/10 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative p-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+
+              {/* Left — tier info */}
+              <div className="flex items-center gap-5">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-white/70 mb-1">Current Package</p>
+                  <p className="text-3xl sm:text-4xl text-white drop-shadow-sm leading-none mb-2">
+                    {tier.label}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs font-medium text-white/60 uppercase tracking-wide">Package Value</span>
+                    <span className="h-3 w-px bg-white/30" />
+                    <span className="text-lg text-white/95">{tier.price}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right — upgrade CTA */}
+              <div className="flex flex-col items-start sm:items-end gap-2">
+                <button
+                  onClick={() => setActiveTab('subscription')}
+                  className="px-6 py-3 rounded-2xl bg-white text-gray-900 text-sm shadow-lg hover:bg-white/90 hover:shadow-xl transition-all active:scale-95 whitespace-nowrap"
+                >
+                  Upgrade Subscription
+                </button>
+                <p className="text-xs text-white">Unlock higher rewards with a bigger package</p>
+              </div>
+
+            </div>
+
+            {/* tier progress strip */}
+            <div className="mt-6 pt-5 border-t border-white/20 grid grid-cols-4 gap-2">
+              {(['Bronze', 'Silver', 'Gold', 'Platinum'] as const).map((t) => {
+                const tiers = ['Bronze', 'Silver', 'Gold', 'Platinum'];
+                const currentIdx = tiers.indexOf(tier.label);
+                const thisIdx = tiers.indexOf(t);
+                const isActive = t === tier.label;
+                const isPast = thisIdx < currentIdx;
+                return (
+                  <div key={t} className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl transition-all
+                    ${isActive ? 'bg-white/30 border border-white/60' : isPast ? 'opacity-80' : 'opacity-50'}`}>
+                    <span className={`text-xs drop-shadow ${isActive ? 'text-white' : 'text-white'}`}>{t}</span>
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Referral Stats & Genealogy ────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

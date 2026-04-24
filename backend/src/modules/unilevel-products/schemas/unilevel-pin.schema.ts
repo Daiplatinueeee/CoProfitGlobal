@@ -20,7 +20,7 @@ export class UnilevelPin {
   @Prop({ required: true, min: 0 })
   pv: number;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   productName: string;
 
   @Prop({ type: String, enum: Object.values(UnilevelPinStatus), default: UnilevelPinStatus.UNUSED })
