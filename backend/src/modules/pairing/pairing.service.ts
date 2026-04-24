@@ -76,20 +76,24 @@ export class PairingService {
     return new Date().toISOString().slice(0, 10);
   }
 
+  private getCurrentCycle(): PairingCycle {
+    return new Date().getHours() < 12 ? PairingCycle.AM : PairingCycle.PM;
+  }
+
   private getCapForTier(tier: MembershipTier): number {
     return this.TIER_CAP_MAP[tier] ?? this.TIER_CAP_MAP[MembershipTier.BRONZE];
   }
 
   /**
-   * Sum of all pairedPoints for this user today.
-   * Used to enforce the daily cap (safety net) across multiple pairings.
+   * Sum of all pairedPoints for this user in the current cycle (AM or PM).
+   * Used to enforce the per-cycle cap so each 12-hour window gets a fresh limit.
    */
-  private async getDailyCapUsed(userId: Types.ObjectId, dateKey: string): Promise<number> {
+  private async getDailyCapUsed(userId: Types.ObjectId, cyclePeriodPrefix: string): Promise<number> {
     const result = await this.awardModel.aggregate([
       {
         $match: {
           userId,
-          periodKey: { $regex: `^${dateKey}` },
+          periodKey: { $regex: `^${cyclePeriodPrefix}` },
         },
       },
       { $group: { _id: null, total: { $sum: '$pairedPoints' } } },
@@ -98,13 +102,14 @@ export class PairingService {
   }
 
   /**
-   * How many pairing records exist for this user today — used to build
-   * the sequential periodKey: YYYY-MM-DD-1, YYYY-MM-DD-2, …
+   * How many pairing records exist for this user in the current cycle — used to
+   * build the sequential periodKey: YYYY-MM-DD-AM-1, YYYY-MM-DD-AM-2, …
+   * Sequence restarts at 1 each cycle.
    */
-  private async getDailySequence(userId: Types.ObjectId, dateKey: string): Promise<number> {
+  private async getDailySequence(userId: Types.ObjectId, cyclePeriodPrefix: string): Promise<number> {
     const count = await this.awardModel.countDocuments({
       userId,
-      periodKey: { $regex: `^${dateKey}-` },
+      periodKey: { $regex: `^${cyclePeriodPrefix}-` },
     });
     return count + 1;
   }
@@ -132,8 +137,10 @@ export class PairingService {
    *   left=0, right=5, cap=3  → one side empty  → R stays 5 (held for next cycle)
    */
   async tryPairIfPossible(userIdStr: string): Promise<TryPairResult> {
-    const userId  = this.toObjectId(userIdStr);
-    const dateKey = this.todayDateKey();
+    const userId            = this.toObjectId(userIdStr);
+    const dateKey           = this.todayDateKey();
+    const currentCycle      = this.getCurrentCycle();
+    const cyclePeriodPrefix = `${dateKey}-${currentCycle}`;
 
     // ── Resolve user ────────────────────────────────────────────────────
     const user = await this.userModel
@@ -177,7 +184,7 @@ export class PairingService {
     // Both sides have points so a pairing event is occurring.
     // If the cap is exhausted, we still flush both buckets to 0 —
     // excess points above the safety net are discarded, no payout issued.
-    const capUsed      = await this.getDailyCapUsed(userId, dateKey);
+    const capUsed      = await this.getDailyCapUsed(userId, cyclePeriodPrefix);
     const capRemaining = dailyCap - capUsed;
 
     if (capRemaining <= 0) {
@@ -221,8 +228,8 @@ export class PairingService {
     const leftFlushed  = leftAvailable  - pairedPoints; // always >= 0
     const rightFlushed = rightAvailable - pairedPoints; // always >= 0
 
-    const seq       = await this.getDailySequence(userId, dateKey);
-    const periodKey = `${dateKey}-${seq}`;
+    const seq       = await this.getDailySequence(userId, cyclePeriodPrefix);
+    const periodKey = `${cyclePeriodPrefix}-${seq}`;
 
     // ── SAFETY-NET FLUSH: set BOTH buckets to 0 ─────────────────────────
     //
@@ -244,7 +251,7 @@ export class PairingService {
       this.stateModel.create({
         userId,
         periodKey,
-        cycle:          `SEQ-${seq}`,
+        cycle:          currentCycle,
         membershipTier: tier,
         capLimit:       dailyCap,
         capUsed:        capUsed + pairedPoints,
@@ -258,7 +265,7 @@ export class PairingService {
       this.awardModel.create({
         userId,
         periodKey,
-        cycle:           `SEQ-${seq}`,
+        cycle:           currentCycle,
         membershipTier:  tier,
         pairedPoints,
         payoutPhp,
@@ -276,7 +283,7 @@ export class PairingService {
         amount:   gcAwarded,
         source:   WalletTxnSource.PAIRING,
         refKey:   `pairing:gc:${userIdStr}:${periodKey}`,
-        note:     `GC reward — seq ${seq} (${dateKey}) | ${gcAwarded} GC (every 5th point)`,
+        note:     `GC reward — ${periodKey} | ${gcAwarded} GC (every 5th point)`,
         meta: {
           periodKey,
           seq,
@@ -301,7 +308,7 @@ export class PairingService {
         source:   WalletTxnSource.PAIRING,
         refKey:   `pairing:${userIdStr}:${periodKey}`,
         note:
-          `Pairing bonus — seq ${seq} (${dateKey}) | ` +
+          `Pairing bonus — ${periodKey} | ` +
           `${phpPoints} pts × ₱${this.RATE_PHP_PER_POINT}` +
           (leftFlushed + rightFlushed > 0
             ? ` | flushed L=${leftFlushed} R=${rightFlushed} (safety net)`
@@ -331,7 +338,7 @@ export class PairingService {
     }
 
     this.logger.log(
-      `[tryPair] ${userIdStr} seq=${seq} — ` +
+      `[tryPair] ${userIdStr} ${periodKey} — ` +
       `${pairedPoints} pts paired → ₱${payoutPhp} | ` +
       `cap ${capUsed + pairedPoints}/${dailyCap} | ` +
       `flushed L=${leftFlushed} R=${rightFlushed}`,
