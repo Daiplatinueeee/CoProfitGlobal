@@ -1,0 +1,74 @@
+[
+  {
+    "_id": "prod_001",
+    "name": "Vitaboost Collagen Drink",
+    "price": 1299,
+    "pv": 150,
+    "description": "Premium collagen with hyaluronic acid for skin radiance",
+    "features": ["Marine Collagen", "Vitamin C", "Hyaluronic Acid"],
+    "status": "active"
+  },
+  {
+    "_id": "prod_002",
+    "name": "Slimtea Detox Blend",
+    "price": 899,
+    "pv": 100,
+    "description": "14-day detox tea blend for cleansing and weight support",
+    "features": ["Organic Green Tea", "Ginger Extract", "Senna Leaf"],
+    "status": "active"
+  },
+  {
+    "_id": "prod_003",
+    "name": "ProWhey Protein Shake",
+    "price": 2199,
+    "pv": 250,
+    "description": "High-protein shake for muscle recovery and growth",
+    "features": ["25g Protein per Serving", "Low Sugar", "Chocolate & Vanilla variants"],
+    "status": "active"
+  },
+  {
+    "_id": "prod_004",
+    "name": "ImmunoPlus Multivitamins",
+    "price": 699,
+    "pv": 80,
+    "description": "Complete daily vitamins with zinc, iron, and vitamin D3",
+    "features": ["Vitamin D3", "Zinc", "Iron", "B-Complex"],
+    "status": "active"
+  },
+  {
+    "_id": "prod_005",
+    "name": "GlowBerry Facial Serum",
+    "price": 1599,
+    "pv": 180,
+    "description": "Niacinamide & berry extract serum for bright, even skin tone",
+    "features": ["10% Niacinamide", "Acai Berry Extract", "Peptide Complex"],
+    "status": "active"
+  },
+  {
+    "_id": "prod_006",
+    "name": "OmegaGuard Fish Oil",
+    "price": 999,
+    "pv": 120,
+    "description": "Enteric-coated omega-3 for heart and brain health",
+    "features": ["EPA & DHA", "No Fishy Aftertaste", "Enteric-Coated"],
+    "status": "active"
+  },
+  {
+    "_id": "prod_007",
+    "name": "HydroFuel Electrolyte Mix",
+    "price": 549,
+    "pv": 60,
+    "description": "Rapid rehydration electrolyte powder in 3 tropical flavors",
+    "features": ["Sodium", "Potassium", "Magnesium", "No Artificial Colors"],
+    "status": "active"
+  },
+  {
+    "_id": "prod_008",
+    "name": "SleepWell Melatonin Gummies",
+    "price": 799,
+    "pv": 90,
+    "description": "Tasty gummies with 5mg melatonin for restful nights",
+    "features": ["5mg Melatonin", "Passionflower Extract", "Vegan & Gluten-Free"],
+    "status": "active"
+  }
+]

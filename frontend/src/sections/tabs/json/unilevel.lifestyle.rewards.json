@@ -1,0 +1,15 @@
+[
+  {
+    "_id": "lr-001",
+    "name": "Eat All You Can Buffet Experience",
+    "description": "Enjoy an unlimited eat-all-you-can dining experience for two at Ayala Malls Central Bloc, featuring a wide selection of local and international dishes.",
+    "pointsCost": 100,
+    "imageUrl": "",
+    "category": "Dining",
+    "stock": 10,
+    "partner": "Ayala Malls Central Bloc",
+    "location": "Cebu IT Park, Cebu City",
+    "validUntil": "2026-12-31",
+    "terms": "Valid for dine-in only. Advance reservation may be required depending on restaurant availability. Not valid during holidays or peak hours."
+  }
+]
