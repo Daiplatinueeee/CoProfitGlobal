@@ -7,7 +7,7 @@ import sampleLifestyleRewards from './json/unilevel.lifestyle.rewards.json';
 
 import redeem1 from '../../assets/lifestyle rewards/Eat-All-You-Can-Restaurants-in-IT-Park-Cebu-11-1024x683.jpg'
 
-const API_BASE_URL = 'https://coprofitglobal-production.up.railway.app';
+const API_BASE_URL = 'https://coprofitglobal-production-0787.up.railway.app';
 
 // ─── Reward Images ────────────────────────────────────────────────────────────
 const rewardImages: Record<string, string> = {

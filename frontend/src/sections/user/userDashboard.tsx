@@ -294,7 +294,7 @@ function WelcomeConstructionScene() {
   );
 }
 
-const API_BASE_URL = 'https://coprofitglobal-production.up.railway.app';
+const API_BASE_URL = 'https://coprofitglobal-production-0787.up.railway.app';
 
 const formatPhp = (amount: number) =>
   amount.toLocaleString('en-PH', { minimumFractionDigits: 2 });

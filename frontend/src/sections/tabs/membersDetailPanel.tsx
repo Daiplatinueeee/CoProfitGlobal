@@ -90,7 +90,7 @@ export default function MemberDetailsPanel({
   selectedMember,
   onClose,
 }: MemberDetailsPanelProps) {
-  const BASE = 'https://coprofitglobal-production.up.railway.app';
+  const BASE = 'https://coprofitglobal-production-0787.up.railway.app';
   const id = selectedMember?.id;
 
   // Referral counts

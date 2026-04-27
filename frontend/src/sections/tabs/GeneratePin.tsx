@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { ExportModal } from '../modals/ExportModal';
 
-const API_BASE = 'https://coprofitglobal-production.up.railway.app';
+const API_BASE = 'https://coprofitglobal-production-0787.up.railway.app';
 
 // ─── Shared types ───────────────────────────────────────────────────────────────
 

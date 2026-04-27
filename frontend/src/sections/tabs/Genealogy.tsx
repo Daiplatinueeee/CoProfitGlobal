@@ -41,7 +41,7 @@ interface NodePosition {
   y: number
 }
 
-const API_BASE_URL = 'https://coprofitglobal-production.up.railway.app'
+const API_BASE_URL = 'https://coprofitglobal-production-0787.up.railway.app'
 
 function Genealogy() {
   const ACTION_BTN_WIDTH = 110

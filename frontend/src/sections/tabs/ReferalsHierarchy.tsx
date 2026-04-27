@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import defaultLogo from './../../assets/refs/Logo.webp';
 
-const API_BASE_URL = 'https://coprofitglobal-production.up.railway.app';
+const API_BASE_URL = 'https://coprofitglobal-production-0787.up.railway.app';
 
 function getAuthContext() {
   const token = localStorage.getItem('accessToken');

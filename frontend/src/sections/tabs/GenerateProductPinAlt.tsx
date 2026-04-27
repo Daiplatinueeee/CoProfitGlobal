@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Clock, Hash, Plus, X, RefreshCw, AlertTriangle, KeyRound } from 'lucide-react';
 
-const API_BASE = 'https://coprofitglobal-production.up.railway.app';
+const API_BASE = 'https://coprofitglobal-production-0787.up.railway.app';
 
 interface ProductPin {
   _id: string;

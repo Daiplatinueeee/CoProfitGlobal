@@ -3,7 +3,7 @@ import { Search, Pencil, OctagonMinus, ArrowUpCircle, KeyRound, X } from 'lucide
 
 import CreateUserModal from '../modals/CreateUserModal';
 
-const API_BASE = 'https://coprofitglobal-production.up.railway.app';
+const API_BASE = 'https://coprofitglobal-production-0787.up.railway.app';
 
 interface User {
   id: string;
