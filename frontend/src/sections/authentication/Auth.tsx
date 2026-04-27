@@ -147,6 +147,19 @@ export default function AuthPage() {
         }
     };
 
+    // Global Enter key listener — fires regardless of which element has focus
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Enter' && !isLoading) {
+                e.preventDefault();
+                handleSubmit(e as unknown as React.FormEvent);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [formData, isSignIn, rememberMe, isLoading]);
+
+
     return (
         <div className="flex h-screen bg-white overflow-hidden">
             {/* Left Side - Login Form */}

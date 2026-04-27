@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Pencil, OctagonMinus } from 'lucide-react';
+import { Search, Pencil, OctagonMinus, ArrowUpCircle, KeyRound, X } from 'lucide-react';
 
 import CreateUserModal from '../modals/CreateUserModal';
 
@@ -42,9 +42,10 @@ function InfoField({ label, value }: { label: string; value?: string }) {
 }
 
 const tierConfig: Record<string, { bg: string; text: string; ring: string; label: string }> = {
-  bronze:   { bg: 'bg-amber-50',  text: 'text-amber-700',  ring: 'ring-amber-200',  label: 'Bronze'   },
-  silver:   { bg: 'bg-slate-50',  text: 'text-slate-600',  ring: 'ring-slate-200',  label: 'Silver'   },
-  gold:     { bg: 'bg-yellow-50', text: 'text-yellow-700', ring: 'ring-yellow-200', label: 'Gold'     },
+  free: { bg: 'bg-slate-50', text: 'text-slate-400', ring: 'ring-slate-200', label: 'Free' },
+  bronze: { bg: 'bg-amber-50', text: 'text-amber-700', ring: 'ring-amber-200', label: 'Bronze' },
+  silver: { bg: 'bg-slate-50', text: 'text-slate-600', ring: 'ring-slate-200', label: 'Silver' },
+  gold: { bg: 'bg-yellow-50', text: 'text-yellow-700', ring: 'ring-yellow-200', label: 'Gold' },
   platinum: { bg: 'bg-purple-50', text: 'text-purple-700', ring: 'ring-purple-200', label: 'Platinum' },
 };
 
@@ -58,12 +59,14 @@ function UserDetailModal({
   onToggleStatus,
   onDelete,
   onEditPoints,
+  onUpgrade,
 }: {
   user: User;
   onClose: () => void;
   onToggleStatus: (id: string) => void;
   onDelete: (id: string) => void;
   onEditPoints: (user: User) => void;
+  onUpgrade: (user: User) => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
@@ -87,11 +90,10 @@ function UserDetailModal({
               <button
                 onClick={() => onToggleStatus(user.id)}
                 title="Click to toggle status"
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 transition-colors ${
-                  user.isActive
-                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
-                    : 'bg-red-50 text-red-600 ring-red-200 hover:bg-red-100'
-                }`}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 transition-colors ${user.isActive
+                  ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
+                  : 'bg-red-50 text-red-600 ring-red-200 hover:bg-red-100'
+                  }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
                 {user.isActive ? 'Active' : 'Inactive'}
@@ -124,12 +126,12 @@ function UserDetailModal({
           <div className="px-6 py-5 border-b border-slate-100">
             <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">Personal Information</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <InfoField label="Full Name"   value={user.name} />
-              <InfoField label="Age"         value={user.age?.toString() ?? '—'} />
-              <InfoField label="Birthday"    value={user.bday || '—'} />
-              <InfoField label="Contact"     value={user.contact || '—'} />
+              <InfoField label="Full Name" value={user.name} />
+              <InfoField label="Age" value={user.age?.toString() ?? '—'} />
+              <InfoField label="Birthday" value={user.bday || '—'} />
+              <InfoField label="Contact" value={user.contact || '—'} />
               <InfoField label="Beneficiary" value={user.beneficiary || '—'} />
-              <InfoField label="Address"     value={user.address || '—'} />
+              <InfoField label="Address" value={user.address || '—'} />
             </div>
           </div>
 
@@ -159,7 +161,7 @@ function UserDetailModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 flex items-center justify-between shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
           <button
             onClick={() => { onDelete(user.id); onClose(); }}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors"
@@ -167,12 +169,22 @@ function UserDetailModal({
             <OctagonMinus className="w-3.5 h-3.5" />
             Restrict User
           </button>
-          <button
-            onClick={onClose}
-            className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            Close
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onUpgrade(user)}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-violet-700 border border-violet-200 bg-violet-50 hover:bg-violet-100 px-3 py-2 rounded-lg transition-colors"
+            >
+              <ArrowUpCircle className="w-3.5 h-3.5" />
+              Upgrade Package
+            </button>
+            <button
+              onClick={onClose}
+              className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -184,16 +196,14 @@ function UserCard({ user, onClick }: { user: User; onClick: () => void }) {
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-2xl border cursor-pointer transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 group ${
-        user.isActive ? 'border-slate-100' : 'border-slate-100 opacity-60'
-      }`}
+      className={`bg-white rounded-2xl border cursor-pointer transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 group ${user.isActive ? 'border-slate-100' : 'border-slate-100 opacity-60'
+        }`}
     >
       {/* Avatar + Identity */}
       <div className="px-5 pt-6 pb-4 flex flex-col items-center text-center">
         <div className="relative mb-3">
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-semibold text-base overflow-hidden ${
-            user.isActive ? 'bg-slate-900' : 'bg-slate-300'
-          }`}>
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-semibold text-base overflow-hidden ${user.isActive ? 'bg-slate-900' : 'bg-slate-300'
+            }`}>
             {user.profilePicture
               ? <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
               : getInitials(user.name)
@@ -206,7 +216,7 @@ function UserCard({ user, onClick }: { user: User; onClick: () => void }) {
         <p className="text-xs text-slate-400 mt-0.5 truncate w-full px-1">{user.email}</p>
 
         <div className="mt-2.5">
-          {user.tier ? (
+          {user.tier && tierConfig[user.tier] ? (
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 capitalize ${tierConfig[user.tier].bg} ${tierConfig[user.tier].text} ${tierConfig[user.tier].ring}`}>
               {tierConfig[user.tier].label}
             </span>
@@ -265,6 +275,14 @@ function UsersOverview() {
   const [editPointsLoading, setEditPointsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // ── Upgrade Package state ─────────────────────────────────────────────────
+  const [upgradeUser, setUpgradeUser] = useState<User | null>(null);
+  const [upgradePin, setUpgradePin] = useState('');
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
+  const [generatePinTier, setGeneratePinTier] = useState<string>('');
+  const [generatePinLoading, setGeneratePinLoading] = useState(false);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -439,6 +457,81 @@ function UsersOverview() {
     }
   };
 
+  const openUpgrade = (user: User) => {
+    setSelectedUser(null);
+    setUpgradePin('');
+    setUpgradeError(null);
+    setGeneratePinTier('');
+    setUpgradeUser(user);
+  };
+
+  const handleGeneratePinForUpgrade = async () => {
+    if (!generatePinTier) { setUpgradeError('Please select a tier to generate a PIN.'); return; }
+    setGeneratePinLoading(true);
+    setUpgradeError(null);
+    try {
+      const response = await fetch(`${API_BASE}/admin/pins/generate`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ tier: generatePinTier, quantity: 1 }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setUpgradeError(
+          Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Failed to generate PIN.',
+        );
+        return;
+      }
+      // API returns an array of generated pin objects
+      const pins: any[] = Array.isArray(data) ? data : (data.pins ?? []);
+      const generatedPin: string = pins[0]?.pin ?? '';
+      if (!generatedPin || generatedPin.startsWith('$2')) {
+        setUpgradeError('Generated PIN is hashed — please void it and try again.');
+        return;
+      }
+      setUpgradePin(generatedPin);
+    } catch (err) {
+      setUpgradeError(err instanceof Error ? err.message : 'Failed to generate PIN.');
+    } finally {
+      setGeneratePinLoading(false);
+    }
+  };
+
+  const handleUpgradePackage = async () => {
+    if (!upgradeUser) return;
+    const pin = upgradePin.trim();
+    if (!pin) { setUpgradeError('Package PIN is required.'); return; }
+
+    setUpgradeLoading(true);
+    setUpgradeError(null);
+    try {
+      const response = await fetch(`${API_BASE}/admin/users/${upgradeUser.id}/upgrade-package`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ packagePin: pin }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setUpgradeError(
+          Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Upgrade failed.',
+        );
+        return;
+      }
+      // Update local user tier from response
+      const newTier: Tier = data.newTier ?? data.membershipTier ?? upgradeUser.tier;
+      setUpgradeUser(null);
+      setUpgradePin('');
+      setGeneratePinTier('');
+      setSuccessMessage(`Package upgraded to ${newTier ? tierConfig[newTier]?.label ?? newTier : 'new tier'} successfully!`);
+      setTimeout(() => setSuccessMessage(null), 3500);
+      await fetchUsers();
+    } catch (err) {
+      setUpgradeError(err instanceof Error ? err.message : 'An unexpected error occurred.');
+    } finally {
+      setUpgradeLoading(false);
+    }
+  };
+
   const handleToggleStatus = async (userId: string) => {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
@@ -493,10 +586,10 @@ function UsersOverview() {
   const displayedUsers = filteredUsers.slice(0, displayCount);
 
   const tierFilterActiveClass: Record<string, string> = {
-    all:      'bg-slate-900 text-white',
-    bronze:   'bg-amber-500 text-white',
-    silver:   'bg-slate-500 text-white',
-    gold:     'bg-yellow-500 text-white',
+    all: 'bg-slate-900 text-white',
+    bronze: 'bg-amber-500 text-white',
+    silver: 'bg-slate-500 text-white',
+    gold: 'bg-yellow-500 text-white',
     platinum: 'bg-purple-600 text-white',
   };
 
@@ -564,11 +657,10 @@ function UsersOverview() {
                   <button
                     key={tier}
                     onClick={() => { setFilterTier(tier); setDisplayCount(12); }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
-                      filterTier === tier
-                        ? tierFilterActiveClass[tier]
-                        : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
-                    }`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${filterTier === tier
+                      ? tierFilterActiveClass[tier]
+                      : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                      }`}
                   >
                     {tier === 'all' ? 'All' : tier} ({count})
                   </button>
@@ -624,6 +716,7 @@ function UsersOverview() {
             onToggleStatus={handleToggleStatus}
             onDelete={handleDeleteUser}
             onEditPoints={openEditPoints}
+            onUpgrade={openUpgrade}
           />
         )}
 
@@ -677,6 +770,154 @@ function UsersOverview() {
                   className="text-sm px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50 transition-colors"
                 >
                   {editPointsLoading ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upgrade Package Modal */}
+        {upgradeUser && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
+            <div
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => { setUpgradeUser(null); setUpgradePin(''); setUpgradeError(null); setGeneratePinTier(''); }}
+            />
+            <div className="relative z-10 w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-violet-50 flex items-center justify-center">
+                    <ArrowUpCircle className="w-4 h-4 text-violet-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Upgrade Package</h3>
+                    <p className="text-xs text-slate-400 mt-0.5 truncate max-w-45">@{upgradeUser.username}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setUpgradeUser(null); setUpgradePin(''); setUpgradeError(null); setGeneratePinTier(''); }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Current tier badge */}
+              <div className="px-6 pt-5 pb-1">
+                <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">Current Package</p>
+                {upgradeUser.tier ? (
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ring-1 capitalize ${tierConfig[upgradeUser.tier].bg} ${tierConfig[upgradeUser.tier].text} ${tierConfig[upgradeUser.tier].ring}`}>
+                    {tierConfig[upgradeUser.tier].label}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-400 ring-1 ring-slate-200">
+                    No Package
+                  </span>
+                )}
+              </div>
+
+              {/* Generate PIN section */}
+              <div className="px-6 pt-5 pb-4 border-b border-slate-100 space-y-3">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Generate a New PIN</p>
+                <div className="flex flex-wrap gap-2">
+                  {(['bronze', 'silver', 'gold', 'platinum'] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => { setGeneratePinTier(t); setUpgradeError(null); }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize ring-1 transition-colors ${generatePinTier === t
+                        ? `${tierConfig[t].bg} ${tierConfig[t].text} ${tierConfig[t].ring} ring-2`
+                        : 'bg-white text-slate-500 ring-slate-200 hover:bg-slate-50'
+                        }`}
+                    >
+                      {tierConfig[t].label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={handleGeneratePinForUpgrade}
+                  disabled={generatePinLoading || !generatePinTier}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {generatePinLoading ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-slate-400/40 border-t-slate-600 rounded-full animate-spin" />
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-3 h-3" />
+                      Generate & Auto-fill PIN
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* PIN input */}
+              <div className="px-6 py-5 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+                    Package PIN
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Enter or generate a package PIN"
+                      value={upgradePin}
+                      onChange={(e) => { setUpgradePin(e.target.value); setUpgradeError(null); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleUpgradePackage(); }}
+                      autoFocus
+                      className={`w-full pl-9 pr-4 py-2.5 border rounded-lg text-sm text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 transition-colors ${upgradeError
+                        ? 'border-red-300 focus:ring-red-100'
+                        : upgradePin
+                          ? 'border-emerald-300 focus:ring-emerald-100'
+                          : 'border-slate-200 focus:ring-slate-200'
+                        }`}
+                    />
+                  </div>
+                  {upgradeError && (
+                    <p className="mt-2 text-xs text-red-600 flex items-start gap-1">
+                      <span className="mt-0.5 shrink-0">⚠</span>
+                      {upgradeError}
+                    </p>
+                  )}
+                  {upgradePin && !upgradeError && (
+                    <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
+                      <span>✓</span> PIN ready — click Confirm Upgrade to proceed.
+                    </p>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400">
+                  Generate a new PIN above, or paste an existing one. The tier is determined automatically by the PIN.
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
+                <button
+                  onClick={() => { setUpgradeUser(null); setUpgradePin(''); setUpgradeError(null); setGeneratePinTier(''); }}
+                  className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpgradePackage}
+                  disabled={upgradeLoading || !upgradePin.trim()}
+                  className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
+                >
+                  {upgradeLoading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Upgrading…
+                    </>
+                  ) : (
+                    <>
+                      <ArrowUpCircle className="w-3.5 h-3.5" />
+                      Confirm Upgrade
+                    </>
+                  )}
                 </button>
               </div>
             </div>

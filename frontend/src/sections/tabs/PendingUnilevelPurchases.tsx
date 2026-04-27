@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check, X, ExternalLink } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'https://coprofitglobal-production.up.railway.app';
 
 interface PurchaseRecord {
   _id: string;

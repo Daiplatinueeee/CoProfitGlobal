@@ -23,7 +23,7 @@ export class UnilevelPurchase {
   @Prop({ type: Types.ObjectId, ref: 'UnilevelProduct', required: true })
   productId: Types.ObjectId;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   productName: string; // snapshot at time of purchase
 
   @Prop({ required: true })
