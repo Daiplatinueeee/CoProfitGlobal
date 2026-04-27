@@ -129,12 +129,20 @@ export class PairingService {
    *                               BOTH buckets still → 0 (safety-net discard)
    *  3. The cap resets at each AM/PM cycle flush (scheduler).
    *
-   * FLUSH RULES — only ONE side being empty keeps points alive:
+   * FLUSH RULES:
    *
-   *   left=3, right=5, cap=3  → pairedPoints=3  → L→0  R→0  (2 flushed from R)
-   *   left=7, right=1, cap=3  → pairedPoints=1  → L→0  R→0  (6 flushed from L)
-   *   left=7, right=1, cap=0  → cap exhausted   → L→0  R→0  (all flushed, no payout)
-   *   left=0, right=5, cap=3  → one side empty  → R stays 5 (held for next cycle)
+   *   Cap NOT exhausted after pairing — remainder carries over:
+   *     left=7, right=5, cap=10 → pairedPoints=5 → L→2  R→0  (cap 5/10, room left)
+   *     left=3, right=5, cap=10 → pairedPoints=3 → L→0  R→2  (cap 3/10, room left)
+   *
+   *   Cap EXHAUSTED by this pairing — safety-net discard fires immediately:
+   *     left=7, right=5, cap=3  → pairedPoints=3 → L→0  R→0  (cap 3/3, remainder flushed)
+   *
+   *   Cap already exhausted before pairing — full flush, no payout:
+   *     left=7, right=1, cap=0  → cap exhausted  → L→0  R→0  (no payout)
+   *
+   *   One side empty — points held for next event:
+   *     left=0, right=5, cap=3  → one side empty → R stays 5 (held for next cycle)
    */
   async tryPairIfPossible(userIdStr: string): Promise<TryPairResult> {
     const userId            = this.toObjectId(userIdStr);
@@ -224,25 +232,35 @@ export class PairingService {
     const phpPoints = pairedPoints - gcAwarded;
     const payoutPhp = phpPoints * this.RATE_PHP_PER_POINT;
 
-    // Points discarded on each side beyond what was paired
-    const leftFlushed  = leftAvailable  - pairedPoints; // always >= 0
-    const rightFlushed = rightAvailable - pairedPoints; // always >= 0
+    // ── Determine post-pairing remainder vs safety-net flush ─────────────
+    //
+    // If this pairing exhausts the cap (capUsed + paired >= dailyCap),
+    // the remainder is discarded immediately — no more pairings can fire
+    // this cycle anyway, so carrying those points forward would be misleading.
+    //
+    // If the cap still has room, the remainder survives for the next event.
+    const newCapUsed     = capUsed + pairedPoints;
+    const capNowExhausted = newCapUsed >= dailyCap;
+
+    const leftRemaining  = capNowExhausted ? 0 : leftAvailable  - pairedPoints;
+    const rightRemaining = capNowExhausted ? 0 : rightAvailable - pairedPoints;
+
+    // What was discarded beyond the paired amount (safety-net discard)
+    const leftFlushed  = capNowExhausted ? leftAvailable  - pairedPoints : 0;
+    const rightFlushed = capNowExhausted ? rightAvailable - pairedPoints : 0;
 
     const seq       = await this.getDailySequence(userId, cyclePeriodPrefix);
     const periodKey = `${cyclePeriodPrefix}-${seq}`;
 
-    // ── SAFETY-NET FLUSH: set BOTH buckets to 0 ─────────────────────────
-    //
-    // When pairing fires, any remainder beyond the paired amount is discarded.
-    // Points only survive across cycles when NO pairing occurs (one side empty).
+    // ── Write remainder (or 0 if cap exhausted) back to both buckets ────
     await Promise.all([
       this.bucketModel.updateOne(
         { ownerUserId: userId, leg: VolumeLeg.LEFT },
-        { $set: { availablePoints: 0 } },
+        { $set: { availablePoints: leftRemaining } },
       ),
       this.bucketModel.updateOne(
         { ownerUserId: userId, leg: VolumeLeg.RIGHT },
-        { $set: { availablePoints: 0 } },
+        { $set: { availablePoints: rightRemaining } },
       ),
     ]);
 
@@ -254,13 +272,13 @@ export class PairingService {
         cycle:          currentCycle,
         membershipTier: tier,
         capLimit:       dailyCap,
-        capUsed:        capUsed + pairedPoints,
+        capUsed:        newCapUsed,
         leftAvailable,
         rightAvailable,
         pairedPoints,
         payoutPhp,
-        leftCarryOut:  0, // always 0 — both sides flushed on every pairing
-        rightCarryOut: 0,
+        leftCarryOut:  leftRemaining,  // remainder carried into the next pairing event
+        rightCarryOut: rightRemaining,
       }),
       this.awardModel.create({
         userId,
@@ -291,7 +309,7 @@ export class PairingService {
           pairedPoints,
           gcAwarded,
           capLimit:       dailyCap,
-          capUsed:        capUsed + pairedPoints,
+          capUsed:        newCapUsed,
           leftAvailable,
           rightAvailable,
           leftFlushed,
@@ -310,9 +328,11 @@ export class PairingService {
         note:
           `Pairing bonus — ${periodKey} | ` +
           `${phpPoints} pts × ₱${this.RATE_PHP_PER_POINT}` +
-          (leftFlushed + rightFlushed > 0
-            ? ` | flushed L=${leftFlushed} R=${rightFlushed} (safety net)`
-            : ''),
+          (capNowExhausted && (leftFlushed + rightFlushed) > 0
+            ? ` | cap hit — flushed L=${leftFlushed} R=${rightFlushed}`
+            : leftRemaining + rightRemaining > 0
+              ? ` | carry L=${leftRemaining} R=${rightRemaining}`
+              : ''),
         meta: {
           periodKey,
           seq,
@@ -320,7 +340,8 @@ export class PairingService {
           pairedPoints,
           phpPoints,
           capLimit:        dailyCap,
-          capUsed:         capUsed + pairedPoints,
+          capUsed:         newCapUsed,
+          capNowExhausted,
           ratePhpPerPoint: this.RATE_PHP_PER_POINT,
           leftAvailable,
           rightAvailable,
@@ -340,8 +361,9 @@ export class PairingService {
     this.logger.log(
       `[tryPair] ${userIdStr} ${periodKey} — ` +
       `${pairedPoints} pts paired → ₱${payoutPhp} | ` +
-      `cap ${capUsed + pairedPoints}/${dailyCap} | ` +
-      `flushed L=${leftFlushed} R=${rightFlushed}`,
+      `cap ${newCapUsed}/${dailyCap}${capNowExhausted ? ' [EXHAUSTED]' : ''} | ` +
+      `flushed L=${leftFlushed} R=${rightFlushed} | ` +
+      `remaining L=${leftRemaining} R=${rightRemaining}`,
     );
 
     return {
@@ -573,8 +595,8 @@ export class PairingService {
       rightAvailable: s.rightAvailable,
       pairedPoints:   s.pairedPoints,
       payoutPhp:      s.payoutPhp,
-      leftCarryOut:   s.leftCarryOut,   // always 0 — flushed on pairing
-      rightCarryOut:  s.rightCarryOut,  // always 0 — flushed on pairing
+      leftCarryOut:   s.leftCarryOut,   // remainder carried into next pairing event
+      rightCarryOut:  s.rightCarryOut,  // remainder carried into next pairing event
       createdAt:      s.createdAt,
     };
   }
