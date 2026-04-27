@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Clock, Hash, Plus, X, RefreshCw, AlertTriangle, KeyRound } from 'lucide-react';
-import { API_BASE } from './GeneratePin';
+
+const API_BASE = 'https://coprofitglobal-production.up.railway.app';
 
 interface ProductPin {
   _id: string;
@@ -126,8 +127,8 @@ export default function GenerateProductPin() {
   };
 
   /* ── derived stats (dynamic from fetched pins) ── */
-  const totalPins  = pins.length;
-  const usedPins   = pins.filter((p) => p.status === 'used').length;
+  const totalPins = pins.length;
+  const usedPins = pins.filter((p) => p.status === 'used').length;
   const unusedPins = pins.filter((p) => p.status === 'unused').length;
 
   /* ════════════════════════ RENDER ════════════════════════ */
@@ -259,7 +260,7 @@ export default function GenerateProductPin() {
                   </tr>
                 ) : (
                   pins.map((pin) => {
-                    const expiry    = resolveExpiry(pin);
+                    const expiry = resolveExpiry(pin);
                     const isExpired = expiry < new Date();
 
                     return (
