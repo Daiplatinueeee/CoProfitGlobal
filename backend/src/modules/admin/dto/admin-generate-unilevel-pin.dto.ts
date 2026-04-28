@@ -1,10 +1,9 @@
 // src/admin/dto/admin-generate-unilevel-pin.dto.ts
-import { IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class AdminGenerateUnilevelPinDto {
-  @IsNumber()
-  @Min(0)
-  pv: number;
+  @IsMongoId()
+  productId: string;
 
   @IsInt()
   @Min(1)

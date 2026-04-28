@@ -34,6 +34,10 @@ import {
   LifestyleRewardDocument,
   RewardStatus,
 } from '../unilevel-products/schemas/lifestyle-reward.schema';
+import {
+  UnilevelProduct,
+  UnilevelProductDocument,
+} from '../unilevel-products/schemas/unilevel-product.schema';
 
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateTierDto } from './dto/admin-update-tier.dto';
@@ -55,6 +59,8 @@ export class AdminService {
     private readonly unilevelPinModel: Model<UnilevelPinDocument>,
     @InjectModel(LifestyleReward.name)
     private readonly rewardModel: Model<LifestyleRewardDocument>,
+    @InjectModel(UnilevelProduct.name)
+    private readonly unilevelProductModel: Model<UnilevelProductDocument>,
     private readonly usersService: UsersService,
     private readonly pairingService: PairingService,
   ) {}
@@ -512,10 +518,19 @@ export class AdminService {
     if (!this.isValidObjectId(adminId)) {
       throw new BadRequestException('Invalid adminId');
     }
+    if (!this.isValidObjectId(dto.productId)) {
+      throw new BadRequestException('Invalid productId');
+    }
 
-    const adminObjId = new Types.ObjectId(adminId);
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    const product = await this.unilevelProductModel
+      .findById(dto.productId)
+      .lean();
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    const adminObjId   = new Types.ObjectId(adminId);
+    const productObjId = new Types.ObjectId(dto.productId);
     const pins: string[] = [];
 
     for (let i = 0; i < dto.quantity; i++) {
@@ -527,11 +542,12 @@ export class AdminService {
         try {
           const doc = new this.unilevelPinModel({
             pin,
-            pv:               dto.pv,
+            productId:        productObjId,
+            productName:      product.name,
+            pv:               product.pv,
             note:             dto.note ?? '',
             status:           UnilevelPinStatus.UNUSED,
             createdByAdminId: adminObjId,
-            expiresAt,
           });
 
           await doc.save();
@@ -556,7 +572,7 @@ export class AdminService {
       }
     }
 
-    return { pv: dto.pv, quantity: dto.quantity, pins };
+    return { pv: product.pv, productName: product.name, quantity: dto.quantity, pins };
   }
 
   async listUnilevelPins(status?: UnilevelPinStatus, limit = 50) {
@@ -570,12 +586,15 @@ export class AdminService {
       .lean();
 
     return rows.map((r: any) => ({
-      _id:       r._id.toString(),
-      pin:       r.pin,
-      pv:        r.pv,
-      status:    r.status,
-      createdAt: r.createdAt,
-      expiresAt: r.expiresAt ?? null,
+      id:            r._id.toString(),
+      pin:           r.pin,
+      productId:     r.productId ? r.productId.toString() : null,
+      productName:   r.productName ?? null,
+      pv:            r.pv,
+      status:        r.status,
+      createdAt:     r.createdAt,
+      usedAt:        r.usedAt ?? null,
+      usedByUserId:  r.usedByUserId ? r.usedByUserId.toString() : null,
     }));
   }
 

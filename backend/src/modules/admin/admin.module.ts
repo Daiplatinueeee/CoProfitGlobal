@@ -22,6 +22,10 @@ import {
   LifestyleReward,
   LifestyleRewardSchema,
 } from '../unilevel-products/schemas/lifestyle-reward.schema';
+import {
+  UnilevelProduct,
+  UnilevelProductSchema,
+} from '../unilevel-products/schemas/unilevel-product.schema';
 import { RolesGuard } from '../auth/roles.guard';
 import { PairingModule } from '../pairing/pairing.module';
 
@@ -35,6 +39,7 @@ import { PairingModule } from '../pairing/pairing.module';
       { name: VolumeBucket.name,  schema: VolumeBucketSchema },
       { name: UnilevelPin.name,   schema: UnilevelPinSchema },
       { name: LifestyleReward.name, schema: LifestyleRewardSchema },
+      { name: UnilevelProduct.name, schema: UnilevelProductSchema },
     ]),
   ],
   controllers: [AdminController],

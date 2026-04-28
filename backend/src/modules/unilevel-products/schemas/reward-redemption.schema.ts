@@ -17,6 +17,9 @@ export class RewardRedemption {
   @Prop({ required: true, min: 0 })
   pvCost: number;
 
+  @Prop({ required: true, unique: true })
+  couponCode: string;
+
   @Prop({ type: Date, default: () => new Date() })
   redeemedAt: Date;
 }
@@ -24,3 +27,4 @@ export class RewardRedemption {
 export const RewardRedemptionSchema = SchemaFactory.createForClass(RewardRedemption);
 
 RewardRedemptionSchema.index({ userId: 1 });
+RewardRedemptionSchema.index({ couponCode: 1 }, { unique: true });

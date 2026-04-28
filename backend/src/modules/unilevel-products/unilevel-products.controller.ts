@@ -62,6 +62,12 @@ export class UnilevelProductsController {
     return this.service.getMyPinHistory(req.user.sub);
   }
 
+  /** GET /unilevel-products/my/reward-history */
+  @Get('my/reward-history')
+  myRewardHistory(@Request() req: any) {
+    return this.service.getMyRewardRedemptionHistory(req.user.sub);
+  }
+
   /** POST /unilevel-products/upload-proof — upload payment proof image */
   @Post('upload-proof')
   @UseInterceptors(

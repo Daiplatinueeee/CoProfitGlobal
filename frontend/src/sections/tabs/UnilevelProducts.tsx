@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Upload, CheckCircle, X, AlertCircle, KeyRound, Gift, ShoppingBag, MapPin, Tag } from 'lucide-react';
+import { CheckCircle, X, AlertCircle, KeyRound, Gift, ShoppingBag, MapPin, Tag, History, Copy } from 'lucide-react';
 
 import defaultProductImg from '../../assets/pk1.jpeg';
 import sampleProducts from './json/unilevel.products.data.json';
@@ -27,23 +27,6 @@ interface ApiProduct {
   status: 'active' | 'inactive';
 }
 
-interface ApiPurchase {
-  _id: string;
-  productId: string;
-  productName: string;
-  price: number;
-  pv: number;
-  quantity: number;
-  totalPrice: number;
-  totalPv: number;
-  monthKey: string;
-  paymentMethod: string;
-  proofImageUrl: string;
-  status: 'pending' | 'approved' | 'rejected';
-  adminNote: string;
-  createdAt: string;
-}
-
 interface PvStatus {
   monthKey: string;
   totalPv: number;
@@ -52,13 +35,12 @@ interface PvStatus {
   qualified: boolean;
 }
 
-interface PinRedemption {
+interface RewardRedemption {
   _id: string;
-  pin: string;
-  productName: string;
-  pv: number;
+  rewardName: string;
+  pvCost: number;
+  couponCode: string;
   redeemedAt: string;
-  status: 'active' | 'void';
 }
 
 interface LifestyleReward {
@@ -76,12 +58,6 @@ interface LifestyleReward {
   terms?: string;
 }
 
-const paymentMethods = [
-  { id: 'gcash',   name: 'GCash',        account: '09XX-XXXX-XXX',       icon: '💳' },
-  { id: 'bank',    name: 'Bank Transfer', account: 'XX-XXXXXX-XXXX',      icon: '🏦' },
-  { id: 'paymaya', name: 'PayMaya',       account: 'XXXX-XXXX-XXXX-XXXX', icon: '💰' },
-];
-
 function resolveImage(imageUrl: string): string {
   return imageUrl && imageUrl.trim() !== '' ? imageUrl : defaultProductImg;
 }
@@ -93,7 +69,6 @@ type MainTab = 'shop' | 'rewards';
 export default function UnilevelProducts() {
   // Core data — use sample data for products
   const [products] = useState<ApiProduct[]>(sampleProducts as ApiProduct[]);
-  const [, setPurchases] = useState<ApiPurchase[]>([]);
   const [pvStatus, setPvStatus]   = useState<PvStatus | null>(null);
   const [loading, setLoading]     = useState(false);
 
@@ -103,23 +78,11 @@ export default function UnilevelProducts() {
   // PIN redemption modal
   const [showPinModal, setShowPinModal] = useState(false);
 
-  // Purchase modal
-  const [selectedProduct, setSelectedProduct]     = useState<ApiProduct | null>(null);
-  const [purchaseQuantity, setPurchaseQuantity]   = useState(1);
-  const [selectedPayMethod, setSelectedPayMethod] = useState('gcash');
-  const [proofFile, setProofFile]                 = useState<File | null>(null);
-  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-  const [showPurchaseSheet, setShowPurchaseSheet] = useState(false);
-  const [submitLoading, setSubmitLoading]         = useState(false);
-  const [submitError, setSubmitError]             = useState('');
-
   // PIN redemption
-  const [pinInput, setPinInput]               = useState('');
-  const [pinLoading, setPinLoading]           = useState(false);
-  const [pinError, setPinError]               = useState('');
-  const [pinSuccess, setPinSuccess]           = useState('');
-  const [, setPinHistory]           = useState<PinRedemption[]>([]);
-  const [, setPinHistoryLoading] = useState(false);
+  const [pinInput, setPinInput]   = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError]   = useState('');
+  const [pinSuccess, setPinSuccess] = useState('');
 
   // Lifestyle rewards
   const [rewards, setRewards]               = useState<LifestyleReward[]>(sampleLifestyleRewards as LifestyleReward[]);
@@ -127,45 +90,29 @@ export default function UnilevelProducts() {
   const [rewardError, setRewardError]       = useState<Record<string, string>>({});
   const [redeemingReward, setRedeemingReward] = useState<string | null>(null);
 
+  // Reward redemption history + success modal
+  const [rewardRedemptions, setRewardRedemptions]       = useState<RewardRedemption[]>([]);
+  const [rewardHistoryLoading, setRewardHistoryLoading] = useState(false);
+  const [lastRedemption, setLastRedemption]             = useState<RewardRedemption | null>(null);
+  const [copiedCode, setCopiedCode]                     = useState(false);
+
   // ─── Fetch ─────────────────────────────────────────────────────────────────
 
   const token = () => localStorage.getItem('accessToken');
   const authHeaders = () => ({ Authorization: `Bearer ${token()}` });
 
-  const refreshPvAndPurchases = useCallback(() => {
-    const h = authHeaders();
-    return Promise.all([
-      fetch(`${API_BASE_URL}/unilevel-products/my/pv-status`, { headers: h }).then(r => r.json()),
-      fetch(`${API_BASE_URL}/unilevel-products/my/purchases`, { headers: h }).then(r => r.json()),
-    ]).then(([pvJson, purchasesJson]) => {
-      setPvStatus(pvJson?.monthKey ? pvJson : null);
-      setPurchases(Array.isArray(purchasesJson) ? purchasesJson : []);
-    });
+  const refreshPv = useCallback(() => {
+    return fetch(`${API_BASE_URL}/unilevel-products/my/pv-status`, { headers: authHeaders() })
+      .then(r => r.json())
+      .then(pvJson => setPvStatus(pvJson?.monthKey ? pvJson : null));
   }, []);
 
   const refreshData = useCallback(() => {
-    const h = authHeaders();
     setLoading(true);
-    Promise.all([
-      fetch(`${API_BASE_URL}/unilevel-products/my/pv-status`, { headers: h }).then(r => r.json()),
-      fetch(`${API_BASE_URL}/unilevel-products/my/purchases`, { headers: h }).then(r => r.json()),
-    ])
-      .then(([pvJson, purchasesJson]) => {
-        setPvStatus(pvJson?.monthKey ? pvJson : null);
-        setPurchases(Array.isArray(purchasesJson) ? purchasesJson : []);
-      })
+    refreshPv()
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
-
-  const fetchPinHistory = useCallback(() => {
-    setPinHistoryLoading(true);
-    fetch(`${API_BASE_URL}/unilevel-products/my/pin-history`, { headers: authHeaders() })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setPinHistory(Array.isArray(data) ? data : []))
-      .catch(() => setPinHistory([]))
-      .finally(() => setPinHistoryLoading(false));
-  }, []);
+  }, [refreshPv]);
 
   const fetchRewards = useCallback(() => {
     setRewardsLoading(true);
@@ -176,15 +123,23 @@ export default function UnilevelProducts() {
       .finally(() => setRewardsLoading(false));
   }, []);
 
+  const fetchRewardHistory = useCallback(() => {
+    setRewardHistoryLoading(true);
+    fetch(`${API_BASE_URL}/unilevel-products/my/reward-history`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setRewardRedemptions(Array.isArray(data) ? data : []))
+      .catch(() => setRewardRedemptions([]))
+      .finally(() => setRewardHistoryLoading(false));
+  }, []);
+
   useEffect(() => { refreshData(); }, [refreshData]);
 
   useEffect(() => {
-    if (activeTab === 'rewards') fetchRewards();
-  }, [activeTab, fetchRewards]);
-
-  useEffect(() => {
-    if (showPinModal) fetchPinHistory();
-  }, [showPinModal, fetchPinHistory]);
+    if (activeTab === 'rewards') {
+      fetchRewards();
+      fetchRewardHistory();
+    }
+  }, [activeTab, fetchRewards, fetchRewardHistory]);
 
   // ─── Derived ───────────────────────────────────────────────────────────────
 
@@ -194,60 +149,7 @@ export default function UnilevelProducts() {
   const qualified   = pvStatus?.qualified   ?? false;
   const pctProgress = Math.min(100, Math.round((currentPv / threshold) * 100));
 
-  const totalPurchasePHP = selectedProduct ? selectedProduct.price * purchaseQuantity : 0;
-  const totalPurchasePV  = selectedProduct ? selectedProduct.pv    * purchaseQuantity : 0;
-
   // ─── Handlers ──────────────────────────────────────────────────────────────
-
-  const closePurchaseModal = () => {
-    setShowPurchaseModal(false);
-    setShowPurchaseSheet(false);
-    setSelectedProduct(null);
-    setPurchaseQuantity(1);
-    setProofFile(null);
-    setSubmitError('');
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) setProofFile(e.target.files[0]);
-  };
-
-  const handlePurchaseSubmit = async () => {
-    if (!selectedProduct || !proofFile) return;
-    setSubmitLoading(true);
-    setSubmitError('');
-    try {
-      const formData = new FormData();
-      formData.append('file', proofFile);
-      const uploadRes = await fetch(`${API_BASE_URL}/unilevel-products/upload-proof`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: formData,
-      });
-      const uploadJson = await uploadRes.json();
-      if (!uploadRes.ok) throw new Error(uploadJson?.message ?? 'File upload failed');
-
-      const purchaseRes = await fetch(`${API_BASE_URL}/unilevel-products/purchase`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({
-          productId:     selectedProduct._id,
-          quantity:      purchaseQuantity,
-          paymentMethod: selectedPayMethod,
-          proofImageUrl: uploadJson.url ?? '',
-        }),
-      });
-      const purchaseJson = await purchaseRes.json();
-      if (!purchaseRes.ok) throw new Error(purchaseJson?.message ?? 'Purchase submission failed');
-
-      closePurchaseModal();
-      refreshData();
-    } catch (err: any) {
-      setSubmitError(err.message ?? 'Something went wrong');
-    } finally {
-      setSubmitLoading(false);
-    }
-  };
 
   const handleRedeemPin = async () => {
     const pin = pinInput.trim().toUpperCase();
@@ -265,8 +167,7 @@ export default function UnilevelProducts() {
       if (!res.ok) throw new Error(json?.message ?? 'PIN redemption failed');
       setPinInput('');
       setPinSuccess(json?.message ?? 'PIN redeemed successfully!');
-      fetchPinHistory();
-      refreshPvAndPurchases();
+      refreshPv();
     } catch (err: any) {
       setPinError(err.message ?? 'Something went wrong');
     } finally {
@@ -285,8 +186,17 @@ export default function UnilevelProducts() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? 'Redemption failed');
+      setLastRedemption({
+        _id:        '',
+        rewardName: json.reward?.name ?? '',
+        pvCost:     json.pvSpent ?? 0,
+        couponCode: json.couponCode ?? '',
+        redeemedAt: new Date().toISOString(),
+      });
+      setCopiedCode(false);
       fetchRewards();
-      refreshPvAndPurchases();
+      fetchRewardHistory();
+      refreshPv();
     } catch (err: any) {
       setRewardError(prev => ({ ...prev, [rewardId]: err.message ?? 'Something went wrong' }));
     } finally {
@@ -302,155 +212,6 @@ export default function UnilevelProducts() {
   ];
 
   // ─── Sub-components ────────────────────────────────────────────────────────
-
-  const PurchaseForm = () => (
-    <div className="px-4 sm:px-6 py-5 space-y-5">
-      {selectedProduct && (
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-100">
-            <img
-              src={resolveImage(selectedProduct.imageUrl)}
-              alt={selectedProduct.name}
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-900 truncate">{selectedProduct.name}</p>
-            <p className="text-xs text-slate-400 mt-0.5">{selectedProduct.pv} PV earned per unit</p>
-            <p className="text-xs font-medium text-slate-600">₱{selectedProduct.price.toLocaleString()} / unit</p>
-          </div>
-        </div>
-      )}
-
-      <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
-          Quantity
-        </label>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setPurchaseQuantity(q => Math.max(1, q - 1))}
-            className="w-10 h-10 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-900 transition-colors text-sm shrink-0"
-          >−</button>
-          <input
-            type="number"
-            min="1"
-            value={purchaseQuantity}
-            onChange={e => setPurchaseQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-            className="flex-1 px-3 py-2.5 border border-slate-200 rounded-lg text-center text-slate-900 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-          />
-          <button
-            onClick={() => setPurchaseQuantity(q => q + 1)}
-            className="w-10 h-10 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-slate-900 transition-colors text-sm shrink-0"
-          >+</button>
-        </div>
-      </div>
-
-      {selectedProduct && (
-        <div className="rounded-xl border border-slate-100 px-4 py-3 space-y-2">
-          {[
-            { label: 'Unit Price', value: `₱${selectedProduct.price.toLocaleString()}` },
-            { label: 'Unit PV',    value: `+${selectedProduct.pv} PV` },
-            { label: 'Quantity',   value: String(purchaseQuantity) },
-          ].map(row => (
-            <div key={row.label} className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">{row.label}</span>
-              <span className="text-xs font-semibold text-slate-900">{row.value}</span>
-            </div>
-          ))}
-          <div className="border-t border-slate-100 pt-2 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-900">Total to Pay</span>
-              <span className="text-sm font-semibold text-slate-900">₱{totalPurchasePHP.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-emerald-700">PV You'll Earn</span>
-              <span className="text-sm font-semibold text-emerald-700">+{totalPurchasePV} PV</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
-          Payment Method
-        </label>
-        <div className="space-y-2">
-          {paymentMethods.map(method => (
-            <label
-              key={method.id}
-              htmlFor={`pay-${method.id}`}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-all ${
-                selectedPayMethod === method.id
-                  ? 'border-slate-900 bg-slate-50'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <input
-                type="radio"
-                id={`pay-${method.id}`}
-                name="purchasePayMethod"
-                value={method.id}
-                checked={selectedPayMethod === method.id}
-                onChange={e => setSelectedPayMethod(e.target.value)}
-                className="sr-only"
-              />
-              <span className="text-base">{method.icon}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900">{method.name}</p>
-                <p className="text-xs text-slate-400">{method.account}</p>
-              </div>
-              {selectedPayMethod === method.id && (
-                <div className="w-2 h-2 rounded-full bg-slate-900 shrink-0" />
-              )}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
-          Payment Proof
-        </label>
-        <input
-          type="file"
-          onChange={handleFileChange}
-          className="sr-only"
-          id="purchaseProofInput"
-          accept=".pdf,.jpg,.jpeg,.png"
-        />
-        <label
-          htmlFor="purchaseProofInput"
-          className="flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-lg p-5 cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-all"
-        >
-          <Upload size={20} className="text-slate-300 mb-1.5" />
-          <p className="text-xs font-medium text-slate-500">Click to upload</p>
-          <p className="text-xs text-slate-300 mt-0.5">PNG, JPG, PDF up to 10 MB</p>
-        </label>
-        {proofFile && (
-          <div className="mt-2 flex items-center gap-2 text-emerald-600">
-            <CheckCircle size={14} />
-            <span className="text-xs font-medium truncate">{proofFile.name}</span>
-          </div>
-        )}
-      </div>
-
-      {submitError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <p className="text-xs font-medium text-red-700">{submitError}</p>
-        </div>
-      )}
-
-      <button
-        onClick={handlePurchaseSubmit}
-        disabled={!proofFile || submitLoading}
-        className="w-full bg-slate-900 hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-medium py-3 px-4 rounded-lg transition-colors disabled:cursor-not-allowed"
-      >
-        {submitLoading ? 'Submitting…' : 'Submit Purchase'}
-      </button>
-    </div>
-  );
-
-  // ─── Tab panels ────────────────────────────────────────────────────────────
 
   const ShopPanel = () => (
     <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
@@ -499,21 +260,18 @@ export default function UnilevelProducts() {
               <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
                 PV
               </th>
-              <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
-                {/* Action header removed */}
-              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">
+                <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-400">
                   Loading…
                 </td>
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-16 text-center">
+                <td colSpan={5} className="px-6 py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300">
                       <ShoppingBag size={18} />
@@ -584,6 +342,13 @@ export default function UnilevelProducts() {
       </div>
     </div>
   );
+
+  const handleCopyCoupon = (code: string) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    });
+  };
 
   const LifestyleRewardsPanel = () => (
     <div>
@@ -702,6 +467,119 @@ export default function UnilevelProducts() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ─── Redemption History ─── */}
+      <div className="mt-10">
+        <div className="flex items-center gap-2 mb-4">
+          <History size={15} className="text-slate-400" />
+          <h3 className="text-sm font-semibold text-slate-900">Redemption History</h3>
+        </div>
+
+        {rewardHistoryLoading ? (
+          <div className="space-y-2">
+            {[1,2,3].map(i => (
+              <div key={i} className="h-12 bg-slate-50 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        ) : rewardRedemptions.length === 0 ? (
+          <div className="rounded-xl border border-slate-100 py-10 text-center">
+            <Gift size={28} className="mx-auto mb-2 text-slate-200" />
+            <p className="text-xs text-slate-400">No rewards redeemed yet</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-slate-100 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Reward</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden sm:table-cell">Coupon Code</th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">PV Used</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {rewardRedemptions.map(r => (
+                  <tr key={r._id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="text-xs font-medium text-slate-800">{r.rewardName}</p>
+                      {/* Coupon shown inline on mobile */}
+                      <p className="text-xs font-mono text-violet-600 mt-0.5 sm:hidden">{r.couponCode}</p>
+                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded">
+                          {r.couponCode}
+                        </span>
+                        <button
+                          onClick={() => handleCopyCoupon(r.couponCode)}
+                          className="text-slate-300 hover:text-slate-500 transition-colors"
+                          title="Copy coupon code"
+                        >
+                          <Copy size={12} />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-xs font-semibold text-violet-700">{r.pvCost.toLocaleString()} PV</span>
+                    </td>
+                    <td className="px-4 py-3 text-right hidden md:table-cell">
+                      <span className="text-xs text-slate-400">
+                        {new Date(r.redeemedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ─── Redemption Success Modal ─── */}
+      {lastRedemption && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-sm shadow-xl">
+            <div className="px-6 pt-6 pb-2 text-center">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-3">
+                <CheckCircle size={24} className="text-emerald-500" />
+              </div>
+              <h3 className="text-base font-semibold text-slate-900">Reward Redeemed!</h3>
+              <p className="text-xs text-slate-400 mt-1">{lastRedemption.rewardName}</p>
+            </div>
+
+            <div className="px-6 py-4">
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wide text-center mb-2">Your Coupon Code</p>
+              <div className="flex items-center gap-2 bg-violet-50 border border-violet-100 rounded-xl px-4 py-3">
+                <span className="flex-1 font-mono text-base font-bold text-violet-700 tracking-widest text-center">
+                  {lastRedemption.couponCode}
+                </span>
+                <button
+                  onClick={() => handleCopyCoupon(lastRedemption.couponCode)}
+                  className="shrink-0 text-violet-400 hover:text-violet-600 transition-colors"
+                  title="Copy"
+                >
+                  {copiedCode ? <CheckCircle size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                </button>
+              </div>
+              {copiedCode && (
+                <p className="text-xs text-emerald-600 text-center mt-1.5">Copied to clipboard!</p>
+              )}
+              <p className="text-xs text-slate-400 text-center mt-3">
+                {lastRedemption.pvCost.toLocaleString()} PV used · Present this code to the partner to claim your reward
+              </p>
+            </div>
+
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => setLastRedemption(null)}
+                className="w-full bg-slate-900 hover:bg-slate-700 text-white text-sm font-medium py-2.5 rounded-xl transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -855,52 +733,6 @@ export default function UnilevelProducts() {
         {activeTab === 'rewards' && <LifestyleRewardsPanel />}
 
       </div>
-
-      {/* ─── Desktop Purchase Modal ─── */}
-      {showPurchaseModal && selectedProduct && (
-        <div className="hidden sm:flex fixed inset-0 bg-black/40 backdrop-blur-sm items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-md relative shadow-xl max-h-[92dvh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white z-10">
-              <h3 className="text-base font-semibold text-slate-900">Purchase Product</h3>
-              <button
-                onClick={closePurchaseModal}
-                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <PurchaseForm />
-          </div>
-        </div>
-      )}
-
-      {/* ─── Mobile Purchase Bottom Sheet ─── */}
-      {showPurchaseSheet && selectedProduct && (
-        <div className="sm:hidden fixed inset-0 z-50 flex flex-col justify-end">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={closePurchaseModal}
-          />
-          <div className="relative bg-white rounded-t-2xl w-full max-h-[92dvh] flex flex-col shadow-2xl">
-            <div className="flex justify-center pt-3 pb-1 shrink-0">
-              <div className="w-10 h-1 bg-slate-200 rounded-full" />
-            </div>
-            <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100 shrink-0">
-              <h2 className="text-base font-semibold text-slate-900">Purchase Product</h2>
-              <button
-                onClick={closePurchaseModal}
-                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
-                aria-label="Close"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <div className="overflow-y-auto overscroll-contain flex-1">
-              <PurchaseForm />
-            </div>
-          </div>
-        </div>
-      )}
 
       <PinModalPanel />
     </div>
