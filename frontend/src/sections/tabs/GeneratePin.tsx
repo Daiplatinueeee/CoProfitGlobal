@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Copy, RefreshCw, Eye, EyeOff, Download,
   FileSpreadsheet, FileText, File,
-  ChevronDown, Package,
+  ChevronDown, Package, KeyRound, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { ExportModal } from '../modals/ExportModal';
 
@@ -25,6 +25,8 @@ export type Tier = 'free' | 'bronze' | 'silver' | 'gold' | 'platinum';
 type ExportFormat = 'excel' | 'word' | 'pdf';
 
 export const FREE_STATIC_PIN = 'AB1234';
+
+const PINS_PER_PAGE = 6;
 
 export function mapApiPin(r: any): PIN {
   const createdDate = r.createdAt ? new Date(r.createdAt) : new Date();
@@ -289,7 +291,7 @@ function PinExportMenu({ pin }: { pin: PIN }) {
   );
 }
 
-// ─── PIN Card (exported for ProductPinTab) ──────────────────────────────────────
+// ─── PIN Card (kept as export for any external consumers) ───────────────────────
 
 export function PinCard({ pin, onClick }: { pin: PIN; onClick: () => void }) {
   const sc = statusConfig[pin.status];
@@ -446,7 +448,7 @@ function GeneratePin() {
   const [selectedPin, setSelectedPin] = useState<PIN | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedTier, setSelectedTier] = useState<Tier | null>(null);
-  const [displayCount, setDisplayCount] = useState(12);
+  const [currentPage, setCurrentPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<'all' | 'USED' | 'UNUSED' | 'VOID'>('all');
   const [filterTier, setFilterTier] = useState<Tier | 'all'>('all');
   const [quantity, setQuantity] = useState<number>(1);
@@ -510,6 +512,7 @@ function GeneratePin() {
       setPins((prev) => [...newPins, ...prev]);
       setSelectedTier(null);
       setQuantity(1);
+      setCurrentPage(1);
 
       setTimeout(async () => {
         const token2 = localStorage.getItem('accessToken');
@@ -535,7 +538,9 @@ function GeneratePin() {
     return pin.status === filterStatus;
   });
 
-  const displayedPins = filteredPins.slice(0, displayCount);
+  const totalPages = Math.max(1, Math.ceil(filteredPins.length / PINS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedPins = filteredPins.slice((safePage - 1) * PINS_PER_PAGE, safePage * PINS_PER_PAGE);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -557,7 +562,7 @@ function GeneratePin() {
           </div>
         )}
 
-        {/* ── Tier Selection (shared across both tabs) ── */}
+        {/* ── Tier Selection ── */}
         <div className="mb-6 sm:mb-8">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Select Tier</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
@@ -620,106 +625,220 @@ function GeneratePin() {
           </div>
         )}
 
-        {/* ── Package PIN Content ── */}
+        {/* ── Package PIN Table ── */}
         <>
-            {/* Package header row */}
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                Generated Package PINs
-              </p>
-              <div className="flex items-center gap-2">
+          {/* Table header row */}
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+              Generated Package PINs
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchPins}
+                className="text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Refresh
+              </button>
+              {pins.length > 0 && (
                 <button
-                  onClick={fetchPins}
-                  className="text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors"
+                  onClick={() => setShowExportModal(true)}
+                  className="text-xs font-medium bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors"
                 >
-                  Refresh
+                  Bulk Export
                 </button>
-                {pins.length > 0 && (
-                  <button
-                    onClick={() => setShowExportModal(true)}
-                    className="text-xs font-medium bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    Bulk Export
-                  </button>
-                )}
-              </div>
+              )}
             </div>
+          </div>
 
-            {/* Filters */}
-            {pins.length > 0 && (
-              <div className="mb-6 space-y-3">
-                {/* Tier filters — horizontal scroll on mobile */}
-                <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
-                  {(['all', 'free', 'bronze', 'silver', 'gold', 'platinum'] as const).map((t) => (
+          {/* Filters */}
+          {pins.length > 0 && (
+            <div className="mb-6 space-y-3">
+              <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
+                {(['all', 'free', 'bronze', 'silver', 'gold', 'platinum'] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => { setFilterTier(t); setCurrentPage(1); }}
+                    className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+                      filterTier === t
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {t === 'all' ? 'All Tiers' : t}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
+                {(['all', 'UNUSED', 'USED', 'VOID'] as const).map((s) => {
+                  const count = s === 'all' ? pins.length : pins.filter((p) => p.status === s).length;
+                  return (
                     <button
-                      key={t}
-                      onClick={() => { setFilterTier(t); setDisplayCount(12); }}
-                      className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
-                        filterTier === t
+                      key={s}
+                      onClick={() => { setFilterStatus(s); setCurrentPage(1); }}
+                      className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        filterStatus === s
                           ? 'bg-slate-900 text-white'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
-                      {t === 'all' ? 'All Tiers' : t}
+                      {s === 'all' ? `All (${count})` : `${s.charAt(0) + s.slice(1).toLowerCase()} (${count})`}
                     </button>
-                  ))}
-                </div>
-                {/* Status filters — horizontal scroll on mobile */}
-                <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
-                  {(['all', 'UNUSED', 'USED', 'VOID'] as const).map((s) => {
-                    const count = s === 'all' ? pins.length : pins.filter((p) => p.status === s).length;
-                    return (
-                      <button
-                        key={s}
-                        onClick={() => { setFilterStatus(s); setDisplayCount(12); }}
-                        className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          filterStatus === s
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        {s === 'all' ? `All (${count})` : `${s.charAt(0) + s.slice(1).toLowerCase()} (${count})`}
-                      </button>
-                    );
-                  })}
-                </div>
+                  );
+                })}
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Cards */}
-            {pins.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
-                <p className="text-slate-400 text-sm">
-                  No package PINs yet. Select a tier above and click <strong>Generate PIN</strong> to get started.
+          {/* Table */}
+          {pins.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
+              <p className="text-slate-400 text-sm">
+                No package PINs yet. Select a tier above and click <strong>Generate PIN</strong> to get started.
+              </p>
+            </div>
+          ) : filteredPins.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
+              <p className="text-slate-400 text-sm">No PINs match the selected filter.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+
+              {/* Table Card Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">All Package PINs</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {filteredPins.length} PIN{filteredPins.length !== 1 ? 's' : ''} found
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-100 text-slate-600 ring-1 ring-slate-200 px-3 py-1 rounded-full">
+                  <KeyRound className="w-3 h-3" />
+                  PIN Registry
+                </span>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                        Date Created
+                      </th>
+                      <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                        Package PIN
+                      </th>
+                      <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">
+                        Tier
+                      </th>
+                      <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                        Status
+                      </th>
+                      <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden lg:table-cell">
+                        Used At
+                      </th>
+                      <th className="text-right px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                        Export
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {paginatedPins.map((pin) => {
+                      const sc = statusConfig[pin.status];
+                      const tc = tierConfig[pin.tier];
+                      return (
+                        <tr
+                          key={pin.id}
+                          onClick={() => setSelectedPin(pin)}
+                          className="hover:bg-slate-50 transition-colors duration-150 cursor-pointer"
+                        >
+                          {/* Date Created */}
+                          <td className="px-3 sm:px-6 py-3 sm:py-4">
+                            <p className="font-medium text-slate-900 text-xs sm:text-sm">{pin.createdAt}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{pin.createdTime}</p>
+                          </td>
+
+                          {/* Package PIN */}
+                          <td className="px-3 sm:px-6 py-3 sm:py-4">
+                            <span className="inline-flex items-center gap-1.5 font-mono text-xs sm:text-sm font-semibold text-slate-800 bg-slate-100 ring-1 ring-slate-200 px-2.5 py-1 rounded-lg tracking-widest select-all">
+                              <KeyRound className="w-3 h-3 text-slate-400 shrink-0" />
+                              {isHashedPin(pin.pin)
+                                ? <span className="text-red-500 font-sans text-xs font-medium not-italic">hashed</span>
+                                : '••••••'
+                              }
+                            </span>
+                          </td>
+
+                          {/* Tier */}
+                          <td className="px-3 sm:px-6 py-3 sm:py-4 hidden md:table-cell">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 capitalize ${tc.bg} ${tc.text} ${tc.ring}`}>
+                              {tc.label}
+                            </span>
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-3 sm:px-6 py-3 sm:py-4 text-center">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ${sc.bg} ${sc.text} ${sc.ring}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                              {sc.label}
+                            </span>
+                          </td>
+
+                          {/* Used At */}
+                          <td className="px-3 sm:px-6 py-3 sm:py-4 hidden lg:table-cell">
+                            <span className="text-xs text-slate-500">
+                              {pin.usedAt ?? <span className="text-slate-300">—</span>}
+                            </span>
+                          </td>
+
+                          {/* Export */}
+                          <td className="px-3 sm:px-6 py-3 sm:py-4 text-right">
+                            <PinExportMenu pin={pin} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Footer */}
+              <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t border-slate-100">
+                <p className="text-xs text-slate-400">
+                  Showing{' '}
+                  <span className="font-medium text-slate-600">
+                    {(safePage - 1) * PINS_PER_PAGE + 1}–{Math.min(safePage * PINS_PER_PAGE, filteredPins.length)}
+                  </span>{' '}
+                  of <span className="font-medium text-slate-600">{filteredPins.length}</span> PINs
                 </p>
-              </div>
-            ) : filteredPins.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
-                <p className="text-slate-400 text-sm">No PINs match the selected filter.</p>
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {displayedPins.map((pin) => (
-                    <PinCard key={pin.id} pin={pin} onClick={() => setSelectedPin(pin)} />
-                  ))}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage === 1}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    Prev
+                  </button>
+                  <span className="text-xs font-medium text-slate-600 px-1">
+                    Page {safePage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safePage === totalPages}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    Next
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                {displayCount < filteredPins.length && (
-                  <div className="mt-6 text-center">
-                    <button
-                      onClick={() => setDisplayCount(displayCount + 12)}
-                      className="text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-6 py-2.5 rounded-xl transition-colors"
-                    >
-                      Show More ({filteredPins.length - displayCount} remaining)
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
+              </div>
+            </div>
+          )}
 
-            {selectedPin && <PinDetailModal pin={selectedPin} onClose={() => setSelectedPin(null)} />}
-            {showExportModal && <ExportModal pins={filteredPins} onClose={() => setShowExportModal(false)} />}
-          </>
+          {selectedPin && <PinDetailModal pin={selectedPin} onClose={() => setSelectedPin(null)} />}
+          {showExportModal && <ExportModal pins={filteredPins} onClose={() => setShowExportModal(false)} />}
+        </>
 
         {/* ── Type-Selection Modal ── */}
         {showTypeModal && selectedTier && (

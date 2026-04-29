@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock, Tag } from 'lucide-react';
 
 import GeneratePin from '../tabs/GeneratePin';
-import GenerateProductPin from '../tabs/GenerateProductPinAlt';
+import GenerateProductPin from '../tabs/GenerateProductPin';
 import UsersOverview from '../tabs/UsersOverview';
 import PendingPayouts from '../tabs/PendingPayouts';
 import PendingWithdrawGC from '../tabs/PendingWithdrawGC';
