@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Loader2, AlertTriangle, KeyRound, ArrowUp } from 'lucide-react';
 
-const API_BASE = 'http://localhost:3000';
+const API_BASE = 'https://coprofitglobal-production-0787.up.railway.app';
 
 type Tier = 'bronze' | 'silver' | 'gold' | 'platinum';
 
