@@ -14,10 +14,79 @@ import {
   MembershipTier,
   SystemRole,
 } from './schemas/user.schema';
+import {
+  ProductPin,
+  ProductPinDocument,
+  PinStatus,
+} from '../product-pins/schema/product-pins.schema';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(ProductPin.name) private pinModel: Model<ProductPinDocument>,
+  ) {}
+
+  async lookupPin(pin: string): Promise<{ found: boolean; status?: string; tier?: string }> {
+    const doc = await this.pinModel
+      .findOne({ pin: pin.trim().toUpperCase() })
+      .select('status tier')
+      .lean();
+
+    if (!doc) return { found: false };
+    return { found: true, status: (doc as any).status, tier: (doc as any).tier };
+  }
+
+  private static readonly TIER_RANK: Record<string, number> = {
+    free: 0, bronze: 1, silver: 2, gold: 3, platinum: 4,
+  };
+
+  async upgradeSubscription(userId: string, pin: string): Promise<{ newTier: string }> {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
+
+    const clean = pin.trim().toUpperCase();
+    const pinDoc = await this.pinModel.findOne({ pin: clean });
+
+    if (!pinDoc) throw new BadRequestException('PIN not found');
+    if (pinDoc.status !== PinStatus.UNUSED) {
+      throw new BadRequestException(
+        pinDoc.status === PinStatus.USED
+          ? 'This PIN has already been used'
+          : 'This PIN is no longer valid',
+      );
+    }
+
+    const newTier = pinDoc.tier as MembershipTier;
+    const uid = new Types.ObjectId(userId);
+
+    const user = await this.userModel.findById(uid).select('membershipTier').lean();
+    if (!user) throw new NotFoundException('User not found');
+
+    const currentRank = UsersService.TIER_RANK[(user as any).membershipTier?.toLowerCase()] ?? 0;
+    const newRank     = UsersService.TIER_RANK[newTier.toLowerCase()] ?? 0;
+
+    if (newRank <= currentRank) {
+      throw new BadRequestException(
+        newRank === currentRank
+          ? 'You are already on this tier'
+          : 'You cannot downgrade to a lower tier',
+      );
+    }
+
+    await this.userModel.updateOne(
+      { _id: uid },
+      { $set: { membershipTier: newTier, packagePin: clean } },
+    );
+
+    await this.pinModel.updateOne(
+      { _id: pinDoc._id },
+      { $set: { status: PinStatus.USED, usedByUserId: uid, usedAt: new Date() } },
+    );
+
+    return { newTier };
+  }
 
   // ✅ Generate unique package pin
   private async generateUniquePackagePin(prefix = 'CPG'): Promise<string> {

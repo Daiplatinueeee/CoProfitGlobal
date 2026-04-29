@@ -360,6 +360,7 @@ export class AdminService {
 
     // Trigger pairing now that available points have been updated
     await this.pairingService.tryPairIfPossible(userId);
+    await this.pairingService.tryRepeatBinaryIfPossible(userId);
 
     const updated = await this.getAvailablePoints(userId);
 
@@ -386,6 +387,17 @@ export class AdminService {
       pin = `${l1}${l2}${digits}`;
     } while (AdminService.RESERVED_PINS.has(pin));
     return pin;
+  }
+
+  private generateProductPinRaw(): string {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const l1 = letters[Math.floor(Math.random() * 26)];
+    const l2 = letters[Math.floor(Math.random() * 26)];
+    const l3 = letters[Math.floor(Math.random() * 26)];
+    const digits = Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, '0');
+    return `${l1}${l2}${l3}${digits}`;
   }
 
   // ─── Package PINs (membership tier activation) ───────────────────────────────
@@ -537,7 +549,7 @@ export class AdminService {
       let inserted = false;
 
       for (let attempt = 0; attempt < 10; attempt++) {
-        const pin = this.generatePinRaw();
+        const pin = this.generateProductPinRaw();
 
         try {
           const doc = new this.unilevelPinModel({

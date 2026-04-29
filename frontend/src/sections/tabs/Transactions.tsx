@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, TrendingUp, Gift, Users, Award, Zap } from 'lucide-react';
+import { ChevronDown, TrendingUp, Gift, Users, Award, Zap, AlertTriangle } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:3000';
 
 interface PayoutTransaction {
   id: string;
-  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus';
+  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus' | 'pairing_flush';
   amount: number;
   date: string;
   status: 'completed' | 'pending' | 'failed';
@@ -16,6 +16,7 @@ type FilterType = 'all' | PayoutTransaction['type'];
 
 const SOURCE_MAP: Record<string, PayoutTransaction['type']> = {
   pairing:           'pairing_bonus',
+  pairing_flush:     'pairing_flush',
   sign5:             'sign5_bonus',
   leadership:        'leadership_bonus',
   referral_direct:   'direct_referral',
@@ -29,7 +30,8 @@ const payoutTypeConfig: Record<PayoutTransaction['type'], { label: string; icon:
   leadership_bonus:  { label: 'Leadership Bonus',  icon: Award,      badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
   direct_referral:   { label: 'Direct Referral',   icon: Users,      badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
   indirect_referral: { label: 'Indirect Referral', icon: Users,      badge: 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200' },
-  pairing_bonus:     { label: 'Pairing Bonus',     icon: Zap,        badge: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
+  pairing_bonus:     { label: 'Pairing Bonus',     icon: Zap,           badge: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
+  pairing_flush:     { label: 'Points Flushed',    icon: AlertTriangle, badge: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' },
 };
 
 const statusBadge = (status: string) => {
@@ -94,6 +96,7 @@ export default function Transactions() {
     { value: 'direct_referral',   label: 'Direct Ref.' },
     { value: 'indirect_referral', label: 'Indirect Ref.' },
     { value: 'pairing_bonus',     label: 'Pairing' },
+    { value: 'pairing_flush',     label: 'Flushed' },
   ];
 
   return (
@@ -193,8 +196,9 @@ export default function Transactions() {
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-slate-900 truncate">{config.label}</p>
                             <p className="text-xs text-slate-400 mt-0.5">
-                              {new Date(transaction.date).toLocaleDateString('en-US', {
+                              {new Date(transaction.date).toLocaleString('en-US', {
                                 year: 'numeric', month: 'short', day: 'numeric',
+                                hour: '2-digit', minute: '2-digit',
                               })}
                             </p>
                           </div>
@@ -244,6 +248,7 @@ export default function Transactions() {
               { type: 'leadership_bonus',  desc: 'Monthly bonus for maintaining your team structure and tier level' },
               { type: 'sign5_bonus',       desc: 'Special bonus when you complete 5 successful pairings' },
               { type: 'withdraw',          desc: 'Your cash withdrawals from your available balance' },
+              { type: 'pairing_flush',     desc: 'Volume points discarded when the pairing cap was exceeded for this cycle' },
             ] as { type: PayoutTransaction['type']; desc: string }[]).map(({ type, desc }) => {
               const config = payoutTypeConfig[type];
               return (

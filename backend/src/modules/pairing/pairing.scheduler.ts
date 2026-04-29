@@ -74,6 +74,21 @@ export class PairingScheduler implements OnApplicationBootstrap {
         failed++;
         this.logger.error(`[sweep] Failed for ${user._id}: ${err.message}`);
       }
+
+      try {
+        const rbResult = await this.pairingService.tryRepeatBinaryIfPossible(
+          user._id.toString(),
+        );
+        if (!rbResult.skipped) {
+          this.logger.log(
+            `[sweep:rb] ${user._id} — ` +
+            `Scenario ${rbResult.scenario} | ${rbResult.pairsCount} pairs → ₱${rbResult.totalPayoutPhp} | ` +
+            `${rbResult.pvConsumed} PV consumed`,
+          );
+        }
+      } catch (err: any) {
+        this.logger.error(`[sweep:rb] Failed for ${user._id}: ${err.message}`);
+      }
     }
 
     this.logger.debug(

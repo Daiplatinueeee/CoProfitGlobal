@@ -27,4 +27,3 @@ export class RewardRedemption {
 export const RewardRedemptionSchema = SchemaFactory.createForClass(RewardRedemption);
 
 RewardRedemptionSchema.index({ userId: 1 });
-RewardRedemptionSchema.index({ couponCode: 1 }, { unique: true });
