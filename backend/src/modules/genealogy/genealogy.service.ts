@@ -608,6 +608,36 @@ export class GenealogyService {
   ) {
     if (membershipTier === MembershipTier.FREE) return
 
+    // Resolve the sponsor's tree depth so we can exclude ancestors that sit
+    // *between* the new member and the sponsor (spillover intermediaries).
+    // Indirect bonuses only flow to ancestors who are ABOVE the sponsor.
+    const sponsorGenealogyNode = await this.genealogyModel
+      .findOne({ userId: this.toObjectId(sponsorUserId) })
+      .select('depth')
+      .lean()
+    const sponsorTreeDepth: number = (sponsorGenealogyNode as any)?.depth ?? -1
+
+    // If the sponsor is not a tree ancestor of the new member (pure spillover),
+    // award their direct bonus here before the ancestor loop.
+    const sponsorIsAncestor = childNode.ancestors.some(
+      (a) => a.toString() === sponsorUserId,
+    )
+
+    if (!sponsorIsAncestor) {
+      const amount = this.DIRECT_BONUS[membershipTier] ?? 0
+      if (amount > 0) {
+        await this.walletService.credit({
+          userId:   sponsorUserId,
+          currency: WalletCurrency.PHP,
+          amount,
+          source:   WalletTxnSource.REFERRAL_DIRECT,
+          refKey:   `ref_direct:${sponsorUserId}:${childNode.userId}`,
+          note:     `Direct placement bonus — ${membershipTier} member placed`,
+          meta:     { newMemberId: childNode.userId.toString(), membershipTier },
+        })
+      }
+    }
+
     // Each ancestor is independent — process all in parallel
     await Promise.all(
       childNode.ancestors.map(async (ancestorObjId) => {
@@ -647,7 +677,13 @@ export class GenealogyService {
                 })
               : Promise.resolve(),
           ])
-        } else if (depthDiff >= 2) {
+        } else if (
+          depthDiff >= 2 &&
+          (ancestorNode as any).depth < sponsorTreeDepth
+        ) {
+          // Only grant indirect bonus to ancestors that are above the sponsor
+          // in the tree. Ancestors between the new member and the sponsor are
+          // spillover intermediaries and should not receive any bonus.
           const relativeDepth  = depthDiff
           const countedDepths: number[] = (ancestor as any).countedIndirectDepths ?? []
           const alreadyCounted = countedDepths.includes(relativeDepth)

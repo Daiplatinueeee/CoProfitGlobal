@@ -15,14 +15,17 @@ export enum WalletTxnType {
 }
 
 export enum WalletTxnSource {
-  PAIRING           = 'pairing',
-  SIGN5             = 'sign5',
-  LEADERSHIP        = 'leadership',
-  SPILLOVER         = 'spillover',
-  REFERRAL_DIRECT   = 'referral_direct',
-  REFERRAL_INDIRECT = 'referral_indirect',
-  ADMIN_ADJUSTMENT  = 'admin_adjustment',
-  WITHDRAWAL        = 'withdrawal',
+  PAIRING             = 'pairing',
+  PAIRING_FLUSH       = 'pairing_flush',
+  REPEAT_BINARY       = 'repeat_binary',
+  REPEAT_BINARY_DEBIT = 'repeat_binary_debit',
+  SIGN5               = 'sign5',
+  LEADERSHIP          = 'leadership',
+  SPILLOVER           = 'spillover',
+  REFERRAL_DIRECT     = 'referral_direct',
+  REFERRAL_INDIRECT   = 'referral_indirect',
+  ADMIN_ADJUSTMENT    = 'admin_adjustment',
+  WITHDRAWAL          = 'withdrawal',
 }
 
 @Schema({ timestamps: true })

@@ -116,4 +116,23 @@ export class AdminController {
   deleteUnilevelPin(@Param('id') id: string) {
     return this.adminService.deleteUnilevelPin(id);
   }
+
+  // ─── Product PIN aliases (used by frontend) ───────────────────────────────────
+
+  @Post('product-pins/generate')
+  generateProductPins(@Req() req: any, @Body() dto: AdminGenerateUnilevelPinDto) {
+    const adminId = req.user?.sub || req.user?.id;
+    return this.adminService.generateUnilevelPins(adminId, dto);
+  }
+
+  @Get('product-pins')
+  listProductPins(
+    @Query('status') status?: UnilevelPinStatus,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminService.listUnilevelPins(
+      status,
+      limit ? Number(limit) : 200,
+    );
+  }
 }

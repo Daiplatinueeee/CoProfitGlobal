@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Pencil, OctagonMinus, ArrowUpCircle, KeyRound, X } from 'lucide-react';
+import { Search, Pencil, OctagonMinus, ArrowUpCircle, KeyRound, X, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 
 import CreateUserModal from '../modals/CreateUserModal';
 
@@ -28,6 +28,8 @@ interface User {
 }
 
 type Tier = 'bronze' | 'silver' | 'gold' | 'platinum' | null;
+
+const USERS_PER_PAGE = 6;
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 function InfoField({ label, value }: { label: string; value?: string }) {
@@ -191,75 +193,13 @@ function UserDetailModal({
   );
 }
 
-/* ── User Card ────────────────────────────────────────────────── */
-function UserCard({ user, onClick }: { user: User; onClick: () => void }) {
-  return (
-    <div
-      onClick={onClick}
-      className={`bg-white rounded-2xl border cursor-pointer transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 group ${user.isActive ? 'border-slate-100' : 'border-slate-100 opacity-60'
-        }`}
-    >
-      {/* Avatar + Identity */}
-      <div className="px-5 pt-6 pb-4 flex flex-col items-center text-center">
-        <div className="relative mb-3">
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-semibold text-base overflow-hidden ${user.isActive ? 'bg-slate-900' : 'bg-slate-300'
-            }`}>
-            {user.profilePicture
-              ? <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
-              : getInitials(user.name)
-            }
-          </div>
-          <span className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${user.isActive ? 'bg-emerald-400' : 'bg-slate-300'}`} />
-        </div>
-
-        <h3 className="text-sm font-semibold text-slate-900 leading-tight truncate w-full">@{user.username}</h3>
-        <p className="text-xs text-slate-400 mt-0.5 truncate w-full px-1">{user.email}</p>
-
-        <div className="mt-2.5">
-          {user.tier && tierConfig[user.tier] ? (
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 capitalize ${tierConfig[user.tier].bg} ${tierConfig[user.tier].text} ${tierConfig[user.tier].ring}`}>
-              {tierConfig[user.tier].label}
-            </span>
-          ) : (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-400 ring-1 ring-slate-200">
-              No Tier
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Divider */}
-      <div className="border-t border-slate-100 mx-5" />
-
-      {/* Leg Points */}
-      <div className="px-4 py-4 grid grid-cols-2 gap-2">
-        <div className="bg-slate-50 rounded-xl px-3 py-2.5 text-center">
-          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-0.5">L. Leg</p>
-          <p className="text-sm font-semibold text-slate-900">{user.leftAvailablePoints.toLocaleString()}</p>
-        </div>
-        <div className="bg-slate-50 rounded-xl px-3 py-2.5 text-center">
-          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-0.5">R. Leg</p>
-          <p className="text-sm font-semibold text-slate-900">{user.rightAvailablePoints.toLocaleString()}</p>
-        </div>
-      </div>
-
-      {/* Hint */}
-      <div className="pb-3 text-center">
-        <p className="text-[10px] text-slate-200 group-hover:text-slate-400 transition-colors">
-          Click to view details
-        </p>
-      </div>
-    </div>
-  );
-}
-
 /* ── Main Component ───────────────────────────────────────────── */
 function UsersOverview() {
   const [users, setUsers] = useState<User[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTier, setFilterTier] = useState<Tier | 'all'>('all');
-  const [displayCount, setDisplayCount] = useState(12);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const [formData, setFormData] = useState({
@@ -482,7 +422,6 @@ function UsersOverview() {
         );
         return;
       }
-      // API returns an array of generated pin objects
       const pins: any[] = Array.isArray(data) ? data : (data.pins ?? []);
       const generatedPin: string = pins[0]?.pin ?? '';
       if (!generatedPin || generatedPin.startsWith('$2')) {
@@ -517,7 +456,6 @@ function UsersOverview() {
         );
         return;
       }
-      // Update local user tier from response
       const newTier: Tier = data.newTier ?? data.membershipTier ?? upgradeUser.tier;
       setUpgradeUser(null);
       setUpgradePin('');
@@ -583,7 +521,9 @@ function UsersOverview() {
     return matchesSearch && matchesTier;
   });
 
-  const displayedUsers = filteredUsers.slice(0, displayCount);
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / USERS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedUsers = filteredUsers.slice((safePage - 1) * USERS_PER_PAGE, safePage * USERS_PER_PAGE);
 
   const tierFilterActiveClass: Record<string, string> = {
     all: 'bg-slate-900 text-white',
@@ -646,7 +586,7 @@ function UsersOverview() {
                 type="text"
                 placeholder="Search by name, username or email…"
                 value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setDisplayCount(12); }}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                 className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 bg-white"
               />
             </div>
@@ -656,7 +596,7 @@ function UsersOverview() {
                 return (
                   <button
                     key={tier}
-                    onClick={() => { setFilterTier(tier); setDisplayCount(12); }}
+                    onClick={() => { setFilterTier(tier); setCurrentPage(1); }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${filterTier === tier
                       ? tierFilterActiveClass[tier]
                       : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
@@ -670,7 +610,7 @@ function UsersOverview() {
           </div>
         )}
 
-        {/* Cards Grid */}
+        {/* Users Table */}
         {loading ? (
           <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
             <p className="text-slate-400 text-sm">Loading users…</p>
@@ -684,28 +624,159 @@ function UsersOverview() {
             <p className="text-slate-400 text-sm">No users match the selected filter.</p>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {displayedUsers.map((user) => (
-                <UserCard
-                  key={user.id}
-                  user={user}
-                  onClick={() => handleSelectUser(user)}
-                />
-              ))}
+          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+
+            {/* Table Card Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">All Users</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''} found
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-100 text-slate-600 ring-1 ring-slate-200 px-3 py-1 rounded-full">
+                <Users className="w-3 h-3" />
+                User Registry
+              </span>
             </div>
 
-            {displayCount < filteredUsers.length && (
-              <div className="mt-6 text-center">
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                      User
+                    </th>
+                    <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">
+                      Email
+                    </th>
+                    <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                      Tier
+                    </th>
+                    <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden lg:table-cell">
+                      L. Leg
+                    </th>
+                    <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden lg:table-cell">
+                      R. Leg
+                    </th>
+                    <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                      Status
+                    </th>
+                    <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden sm:table-cell">
+                      Joined
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {paginatedUsers.map((user) => (
+                    <tr
+                      key={user.id}
+                      onClick={() => handleSelectUser(user)}
+                      className="hover:bg-slate-50 transition-colors duration-150 cursor-pointer"
+                    >
+                      {/* User */}
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs shrink-0 overflow-hidden ${user.isActive ? 'bg-slate-900' : 'bg-slate-300'}`}>
+                            {user.profilePicture
+                              ? <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
+                              : getInitials(user.name)
+                            }
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-900 text-xs sm:text-sm truncate">@{user.username}</p>
+                            <p className="text-xs text-slate-400 truncate md:hidden">{user.email}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Email */}
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 hidden md:table-cell">
+                        <p className="text-xs sm:text-sm text-slate-600 truncate max-w-50">{user.email}</p>
+                      </td>
+
+                      {/* Tier */}
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        {user.tier && tierConfig[user.tier] ? (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 capitalize ${tierConfig[user.tier].bg} ${tierConfig[user.tier].text} ${tierConfig[user.tier].ring}`}>
+                            {tierConfig[user.tier].label}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-400 ring-1 ring-slate-200">
+                            No Tier
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Left Leg */}
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 hidden lg:table-cell">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 bg-slate-100 ring-1 ring-slate-200 px-2 py-0.5 rounded-full">
+                          {user.leftAvailablePoints.toLocaleString()}
+                        </span>
+                      </td>
+
+                      {/* Right Leg */}
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 hidden lg:table-cell">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 bg-slate-100 ring-1 ring-slate-200 px-2 py-0.5 rounded-full">
+                          {user.rightAvailablePoints.toLocaleString()}
+                        </span>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-center">
+                        {user.isActive ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 ring-1 ring-red-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            Inactive
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Joined */}
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 hidden sm:table-cell">
+                        <p className="text-xs sm:text-sm font-medium text-slate-900">{user.createdAt}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{user.createdTime}</p>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Footer */}
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t border-slate-100">
+              <p className="text-xs text-slate-400">
+                Showing <span className="font-medium text-slate-600">{(safePage - 1) * USERS_PER_PAGE + 1}–{Math.min(safePage * USERS_PER_PAGE, filteredUsers.length)}</span> of <span className="font-medium text-slate-600">{filteredUsers.length}</span> users
+              </p>
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setDisplayCount(displayCount + 12)}
-                  className="text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-6 py-2.5 rounded-xl transition-colors"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
                 >
-                  Show More ({filteredUsers.length - displayCount} remaining)
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Prev
+                </button>
+                <span className="text-xs font-medium text-slate-600 px-1">
+                  Page {safePage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Next
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
-            )}
-          </>
+            </div>
+          </div>
         )}
 
         {/* User Detail Modal */}

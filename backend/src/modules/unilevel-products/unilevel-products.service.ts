@@ -332,11 +332,13 @@ export class UnilevelProductsService implements OnModuleInit {
 
     await this.rewardModel.findByIdAndUpdate(reward._id, { $inc: { stock: -1 } });
 
-    await this.redemptionModel.create({
+    const couponCode = this.generateCouponCode();
+    const redemption = await this.redemptionModel.create({
       userId:     uid,
       rewardId:   reward._id,
       rewardName: reward.name,
       pvCost:     reward.pointsCost,
+      couponCode,
       redeemedAt: new Date(),
     });
 
@@ -344,10 +346,27 @@ export class UnilevelProductsService implements OnModuleInit {
 
     return {
       message:     `Successfully redeemed "${reward.name}" for ${reward.pointsCost} PV.`,
+      couponCode,
       reward:      this.formatReward(reward.toObject()),
       pvSpent:     reward.pointsCost,
       remainingPv,
     };
+  }
+
+  async getMyRewardRedemptionHistory(userId: string) {
+    const uid = this.toObjectId(userId);
+    const rows = await this.redemptionModel
+      .find({ userId: uid })
+      .sort({ redeemedAt: -1 })
+      .lean();
+
+    return rows.map((r: any) => ({
+      _id:        r._id?.toString(),
+      rewardName: r.rewardName,
+      pvCost:     r.pvCost,
+      couponCode: r.couponCode,
+      redeemedAt: r.redeemedAt,
+    }));
   }
 
   // ─── Admin: Lifestyle reward management ─────────────────────────────────────
@@ -497,5 +516,14 @@ export class UnilevelProductsService implements OnModuleInit {
       sortOrder:   doc.sortOrder ?? 0,
       createdAt:   doc.createdAt,
     };
+  }
+
+  private generateCouponCode(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 12; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
   }
 }

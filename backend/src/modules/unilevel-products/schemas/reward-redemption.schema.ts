@@ -17,6 +17,9 @@ export class RewardRedemption {
   @Prop({ required: true, min: 0 })
   pvCost: number;
 
+  @Prop({ required: true, unique: true })
+  couponCode: string;
+
   @Prop({ type: Date, default: () => new Date() })
   redeemedAt: Date;
 }

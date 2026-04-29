@@ -66,12 +66,13 @@ export class WalletService {
       {
         $group: {
           _id: null,
-          totalIncome:          { $sum: '$amount' },
-          pairingBonus:         { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.PAIRING] },           '$amount', 0] } },
-          sign5Bonus:           { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.SIGN5] },             '$amount', 0] } },
-          leadershipBonus:      { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.LEADERSHIP] },        '$amount', 0] } },
-          directReferralBonus:  { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.REFERRAL_DIRECT] },   '$amount', 0] } },
-          indirectReferralBonus:{ $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.REFERRAL_INDIRECT] }, '$amount', 0] } },
+          totalIncome:           { $sum: '$amount' },
+          pairingBonus:          { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.PAIRING] },           '$amount', 0] } },
+          repeatBinaryBonus:     { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.REPEAT_BINARY] },     '$amount', 0] } },
+          sign5Bonus:            { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.SIGN5] },             '$amount', 0] } },
+          leadershipBonus:       { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.LEADERSHIP] },        '$amount', 0] } },
+          directReferralBonus:   { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.REFERRAL_DIRECT] },   '$amount', 0] } },
+          indirectReferralBonus: { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.REFERRAL_INDIRECT] }, '$amount', 0] } },
           today:    { $sum: { $cond: [{ $gte: ['$postedAt', startOfToday] }, '$amount', 0] } },
           thisWeek: { $sum: { $cond: [{ $gte: ['$postedAt', startOfWeek] },  '$amount', 0] } },
           thisMonth:{ $sum: { $cond: [{ $gte: ['$postedAt', startOfMonth] }, '$amount', 0] } },
@@ -84,6 +85,7 @@ export class WalletService {
       userId,
       totalIncome:           s?.totalIncome           ?? 0,
       pairingBonus:          s?.pairingBonus          ?? 0,
+      repeatBinaryBonus:     s?.repeatBinaryBonus     ?? 0,
       sign5Bonus:            s?.sign5Bonus            ?? 0,
       leadershipBonus:       s?.leadershipBonus       ?? 0,
       directReferralBonus:   s?.directReferralBonus   ?? 0,
@@ -225,6 +227,36 @@ export class WalletService {
       currency:   params.currency,
       newBalance: newBal,
     };
+  }
+
+  async recordFlush(params: {
+    userId: string;
+    leftFlushed: number;
+    rightFlushed: number;
+    periodKey: string;
+    note?: string;
+    meta?: Record<string, any>;
+  }) {
+    const totalFlushed = params.leftFlushed + params.rightFlushed;
+    if (totalFlushed <= 0) return;
+
+    const uid    = this.toObjectId(params.userId);
+    const refKey = `pairing:flush:${params.userId}:${params.periodKey}`;
+
+    const exists = await this.txnModel.findOne({ refKey }).lean();
+    if (exists) return;
+
+    await this.txnModel.create({
+      userId:   uid,
+      currency: WalletCurrency.POINTS,
+      type:     WalletTxnType.DEBIT,
+      amount:   totalFlushed,
+      source:   WalletTxnSource.PAIRING_FLUSH,
+      refKey,
+      note:     params.note ?? `Pairing flush — L=${params.leftFlushed} R=${params.rightFlushed}`,
+      meta:     params.meta ?? {},
+      postedAt: new Date(),
+    });
   }
 
   async debit(params: {

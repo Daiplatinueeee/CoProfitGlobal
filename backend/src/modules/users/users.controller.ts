@@ -3,6 +3,8 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
+  Query,
   Req,
   UseGuards,
   NotFoundException,
@@ -57,6 +59,21 @@ export class UsersController {
       profileImage: body.profileImage,
     });
     return { message: 'Profile updated' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('pins/lookup')
+  async lookupPin(@Query('pin') pin: string) {
+    if (!pin) throw new BadRequestException('pin query param is required');
+    return this.usersService.lookupPin(pin);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('upgrade')
+  async upgradeSubscription(@Req() req: any, @Body() body: { pin: string }) {
+    if (!body?.pin) throw new BadRequestException('pin is required');
+    const userId = req.user.sub;
+    return this.usersService.upgradeSubscription(userId, body.pin);
   }
 
   @UseGuards(JwtAuthGuard)

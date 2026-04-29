@@ -40,6 +40,7 @@ interface WalletTransaction {
 interface IncomeBreakdown {
   totalIncome: number;
   pairingBonus: number;
+  repeatBinaryBonus: number;
   sign5Bonus: number;
   leadershipBonus: number;
   directReferralBonus: number;
@@ -429,6 +430,7 @@ export default function UserDashboard() {
         setIncome({
           totalIncome: summary.totalIncome ?? 0,
           pairingBonus: summary.pairingBonus ?? 0,
+          repeatBinaryBonus: summary.repeatBinaryBonus ?? 0,
           sign5Bonus: summary.sign5Bonus ?? 0,
           leadershipBonus: summary.leadershipBonus ?? 0,
           directReferralBonus: summary.directReferralBonus ?? 0,
@@ -675,7 +677,7 @@ export default function UserDashboard() {
     { id: 'pairing-history', label: 'Pairing History', icon: TrendingUp },
     { id: 'payout-system', label: 'Payout System', icon: Wallet  },
     { id: 'subscription', label: 'Subscription', icon: Leaf, underDevelopment: true },
-    { id: 'unilevel-package', label: 'Unilevel Products', icon: Combine, underDevelopment: true },
+    { id: 'unilevel-package', label: 'Unilevel Products', icon: Combine },
     { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown },
     { id: 'transactions', label: 'Transactions', icon: HandCoins},
     { id: 'leaderboards', label: 'Leaderboards', icon: Spotlight },
@@ -936,9 +938,18 @@ export default function UserDashboard() {
           }
         </div>
 
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Repeat Binary Bonus (PHP)</h3>
+          {incomeLoading
+            ? <Skeleton className="h-9 w-32 mb-2" />
+            : <p className="text-3xl text-gray-900 mb-2">
+              ₱{formatPhp(income?.repeatBinaryBonus ?? 0)}
+            </p>
+          }
+        </div>
+
         {[
           'Total Income of Sales Match Bonus (PHP)',
-          'Total Income of Repeat Binary Bonus (PHP)',
           'Total Income of Stairstep Bonus (PHP)',
         ].map((label) => (
           <div key={label} className="relative bg-white rounded-2xl p-6 border border-amber-100 shadow-sm overflow-hidden">
