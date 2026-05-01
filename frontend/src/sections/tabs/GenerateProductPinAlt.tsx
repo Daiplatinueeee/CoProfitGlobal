@@ -127,15 +127,9 @@ export default function GenerateProductPin() {
   };
 
   /* ── derived stats (dynamic from fetched pins) ── */
-<<<<<<< HEAD:frontend/src/sections/tabs/GenerateProductPinAlt.tsx
-  const totalPins = pins.length;
-  const usedPins = pins.filter((p) => p.status === 'used').length;
-  const unusedPins = pins.filter((p) => p.status === 'unused').length;
-=======
   const totalPins  = pins.length;
   const usedPins   = pins.filter((p) => p.status === 'USED').length;
   const unusedPins = pins.filter((p) => p.status === 'UNUSED').length;
->>>>>>> Development:frontend/src/sections/tabs/GenerateProductPin.tsx
 
   /* ════════════════════════ RENDER ════════════════════════ */
   return (
