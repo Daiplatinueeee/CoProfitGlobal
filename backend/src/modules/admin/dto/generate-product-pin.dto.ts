@@ -1,8 +1,9 @@
-import { IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class GenerateProductPinDto {
-  @IsMongoId()
-  productId: string;
+  @IsNumber()
+  @Min(0)
+  pv: number;
 
   @IsInt()
   @Min(1)

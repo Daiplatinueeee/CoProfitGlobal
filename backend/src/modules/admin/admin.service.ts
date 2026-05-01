@@ -43,6 +43,7 @@ import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateTierDto } from './dto/admin-update-tier.dto';
 import { AdminGeneratePinsDto } from './dto/admin-generate-pins.dto';
 import { AdminGenerateUnilevelPinDto } from './dto/admin-generate-unilevel-pin.dto';
+import { GenerateProductPinDto } from './dto/generate-product-pin.dto';
 import { CreateLifestyleRewardDto } from './dto/create-lifestyle-reward.dto';
 import { PairingService } from '../pairing/pairing.service';
 
@@ -585,6 +586,56 @@ export class AdminService {
     }
 
     return { pv: product.pv, productName: product.name, quantity: dto.quantity, pins };
+  }
+
+  async generateProductPins(adminId: string, dto: GenerateProductPinDto) {
+    if (!this.isValidObjectId(adminId)) {
+      throw new BadRequestException('Invalid adminId');
+    }
+
+    const adminObjId = new Types.ObjectId(adminId);
+    const pins: string[] = [];
+
+    for (let i = 0; i < dto.quantity; i++) {
+      let inserted = false;
+
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const pin = this.generateProductPinRaw();
+
+        try {
+          const doc = new this.unilevelPinModel({
+            pin,
+            productId:        null,
+            productName:      '',
+            pv:               dto.pv,
+            note:             dto.note ?? '',
+            status:           UnilevelPinStatus.UNUSED,
+            createdByAdminId: adminObjId,
+          });
+
+          await doc.save();
+          pins.push(pin);
+          inserted = true;
+          break;
+        } catch (e: any) {
+          if (e?.code === 11000 && e?.keyPattern?.pin) {
+            console.warn(`Product PIN "${pin}" already exists, retrying...`);
+            continue;
+          }
+          throw new BadRequestException(
+            e?.message ?? 'Failed to save product PIN',
+          );
+        }
+      }
+
+      if (!inserted) {
+        throw new BadRequestException(
+          'Could not generate a unique product PIN after 10 attempts',
+        );
+      }
+    }
+
+    return { pv: dto.pv, quantity: dto.quantity, pins };
   }
 
   async listUnilevelPins(status?: UnilevelPinStatus, limit = 50) {

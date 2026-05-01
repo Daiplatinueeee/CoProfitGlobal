@@ -323,6 +323,7 @@ function getAuthContext() {
 export default function UserDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [refreshKey, setRefreshKey] = useState(0);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [, setMuteSessions] = useState<number | null>(null);
   const [showMuteTooltip, setShowMuteTooltip] = useState(false);
@@ -350,7 +351,7 @@ export default function UserDashboard() {
   const [userRank, setUserRank] = useState<{ rank: number | null; totalParticipants: number } | null>(null);
   const [rankLoading, setRankLoading] = useState(true);
 
-  // ── Reset loading states whenever the dashboard tab becomes active ───
+  // ── Reset loading states whenever the dashboard tab becomes active or refreshes ──
   useEffect(() => {
     if (activeTab !== 'dashboard') return;
     setIncomeLoading(true);
@@ -358,7 +359,7 @@ export default function UserDashboard() {
     setReferralLoading(true);
     setSign5StatusLoading(true);
     setRankLoading(true);
-  }, [activeTab]);
+  }, [activeTab, refreshKey]);
 
   // ── Fetch current user + genealogy root ──────────────────────────────
   useEffect(() => {
@@ -400,7 +401,7 @@ export default function UserDashboard() {
       }
     };
     fetchCurrentUser();
-  }, [activeTab]);
+  }, [activeTab, refreshKey]);
 
   // ── Fetch wallet transactions (income) ───────────────────────────────
   useEffect(() => {
@@ -448,7 +449,7 @@ export default function UserDashboard() {
     };
 
     fetchIncome();
-  }, [activeTab]);
+  }, [activeTab, refreshKey]);
 
   // ── Fetch wallet balances (PHP, points, gc_points) ───────────────────
   useEffect(() => {
@@ -478,7 +479,7 @@ export default function UserDashboard() {
       }
     };
     fetchBalances();
-  }, [activeTab]);
+  }, [activeTab, refreshKey]);
 
   // ── Fetch referral data ──────────────────────────────────────────────
   useEffect(() => {
@@ -503,7 +504,7 @@ export default function UserDashboard() {
       }
     };
     fetchReferrals();
-  }, [activeTab]);
+  }, [activeTab, refreshKey]);
 
   // ── Fetch leaderboard rank ───────────────────────────────────────────
   useEffect(() => {
@@ -528,7 +529,7 @@ export default function UserDashboard() {
       }
     };
     fetchUserRank();
-  }, [activeTab]);
+  }, [activeTab, refreshKey]);
 
   // ── Evaluate + fetch Sign-5 status on dashboard load ────────────────────
   useEffect(() => {
@@ -598,7 +599,7 @@ export default function UserDashboard() {
       }
     };
     evaluateAndFetchSign5();
-  }, [activeTab]);
+  }, [activeTab, refreshKey]);
 
   // ── Sign-5 progress — uses evaluated sign5 status when available,
   //    falls back to genealogy referral counts before first evaluation ──────
@@ -676,7 +677,7 @@ export default function UserDashboard() {
     { id: 'referral-hierarchy', label: 'Referral Hierarchy', icon: Lock },
     { id: 'pairing-history', label: 'Pairing History', icon: TrendingUp },
     { id: 'payout-system', label: 'Payout System', icon: Wallet  },
-    { id: 'subscription', label: 'Subscription', icon: Leaf, underDevelopment: true },
+    { id: 'subscription', label: 'Subscription', icon: Leaf, underDevelopment: false },
     { id: 'unilevel-package', label: 'Unilevel Products', icon: Combine },
     { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown },
     { id: 'transactions', label: 'Transactions', icon: HandCoins},
@@ -690,8 +691,31 @@ export default function UserDashboard() {
   );
 
   // ── Dashboard content ─────────────────────────────────────────────────
+  const isRefreshing = incomeLoading || balancesLoading || referralLoading || sign5StatusLoading || rankLoading;
+
   const renderDashboardContent = () => (
     <div className="space-y-6 pb-6 bg-white">
+
+      {/* ── Refresh bar ───────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-400">
+          {isRefreshing ? 'Updating...' : `Last updated: ${new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
+        </p>
+        <button
+          onClick={() => setRefreshKey(k => k + 1)}
+          disabled={isRefreshing}
+          className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {isRefreshing ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
 
       {/* ── Total Income Card ─────────────────────────────────────────── */}
       <div className="relative bg-black rounded-3xl shadow-2xl overflow-hidden border border-yellow-500/20">
@@ -1211,26 +1235,32 @@ export default function UserDashboard() {
               ].map(({ name, key, color }) => {
                 const count = sign5Progress[key] ?? 0;
                 const timesTriggered = sign5Status?.timesTriggered?.[key as keyof NonNullable<typeof sign5Status>['timesTriggered']] ?? 0;
-                // Progress within the current cycle: resets to 0 every time 5 is hit
-                const progressInCycle = count % 5;
                 const TARGET = 5;
-                const pct = (progressInCycle / TARGET) * 100;
+                const isExceeding = count >= TARGET;
+                const pct = Math.min((count / TARGET) * 100, 100);
+                const barColor = isExceeding ? 'bg-green-500' : color;
                 return (
-                  <div key={name}>
-                    <div className="flex justify-between items-center mb-1">
+                  <div key={name} className="space-y-1.5">
+                    <div className="flex justify-between items-center">
                       <span className="text-sm font-medium text-gray-700">{name}</span>
-                      <div className="flex items-center gap-2 text-xs">
-                        {timesTriggered > 0 && (
-                          <span className="inline-flex items-center gap-1 font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                            ✓ {timesTriggered}x this month
-                          </span>
-                        )}
-                        <span className="text-gray-500">{progressInCycle} / {TARGET}</span>
-                      </div>
+                      <span className={`text-xs font-semibold tabular-nums ${isExceeding ? 'text-green-600' : 'text-gray-500'}`}>
+                        {count} / {TARGET}
+                      </span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2">
-                      <div className={`${color} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                      <div className={`${barColor} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
                     </div>
+                    {timesTriggered > 0 && (
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <div className="flex items-center gap-1 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" clipRule="evenodd" />
+                          </svg>
+                          {timesTriggered}× Completed
+                        </div>
+                        <span className="text-[10px] text-green-600 font-medium">this month</span>
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -1466,6 +1496,7 @@ export default function UserDashboard() {
                 <button
                   key={item.id}
                   onClick={() => {
+                    if (item.id === 'dashboard') setRefreshKey(k => k + 1);
                     setActiveTab(item.id);
                     if (window.innerWidth < 1024) setSidebarOpen(false);
                   }}

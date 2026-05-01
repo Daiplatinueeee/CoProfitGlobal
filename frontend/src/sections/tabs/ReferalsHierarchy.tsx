@@ -30,6 +30,7 @@ interface DownlineMember {
   depth: number;
   parentUserId?: string | null;
   position?: 'left' | 'right' | null;
+  sponsorId?: string | null;
 }
 
 function groupByLevel(members: DownlineMember[]): Map<number, DownlineMember[]> {
@@ -58,7 +59,12 @@ function ReferalsHierarchy() {
     fetch(`${API_BASE_URL}/genealogy/downlines/${userId}`, { headers })
       .then(r => r.json())
       .then((data: DownlineMember[]) => {
-        setMembers(Array.isArray(data) ? data : []);
+        if (!Array.isArray(data)) { setMembers([]); return; }
+        // Build a set of IDs within this user's own network (root + all downlines).
+        const networkIds = new Set<string>([userId, ...data.map(m => m.id ?? m.userId ?? '')]);
+        // Exclude spillover: members whose sponsor is outside this user's network.
+        const filtered = data.filter(m => m.sponsorId != null && networkIds.has(m.sponsorId));
+        setMembers(filtered);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
