@@ -17,6 +17,7 @@ import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateTierDto } from './dto/admin-update-tier.dto';
 import { AdminGeneratePinsDto } from './dto/admin-generate-pins.dto';
 import { AdminGenerateUnilevelPinDto } from './dto/admin-generate-unilevel-pin.dto';
+import { GenerateProductPinDto } from './dto/generate-product-pin.dto';
 import { AdminUpgradePackageDto } from './dto/admin-upgrade-package.dto';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -120,9 +121,9 @@ export class AdminController {
   // ─── Product PIN aliases (used by frontend) ───────────────────────────────────
 
   @Post('product-pins/generate')
-  generateProductPins(@Req() req: any, @Body() dto: AdminGenerateUnilevelPinDto) {
+  generateProductPins(@Req() req: any, @Body() dto: GenerateProductPinDto) {
     const adminId = req.user?.sub || req.user?.id;
-    return this.adminService.generateUnilevelPins(adminId, dto);
+    return this.adminService.generateProductPins(adminId, dto);
   }
 
   @Get('product-pins')

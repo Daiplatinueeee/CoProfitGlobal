@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, TrendingUp, Gift, Users, Award, Zap, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, TrendingUp, Gift, Users, Award, Zap, AlertTriangle } from 'lucide-react';
 
 const API_BASE_URL = 'https://coprofitglobal-production-0787.up.railway.app';
 
 interface PayoutTransaction {
   id: string;
-  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus' | 'pairing_flush';
+  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus' | 'pairing_flush' | 'gc_reward';
   amount: number;
+  currency: 'php' | 'gc_points' | string;
   date: string;
   status: 'completed' | 'pending' | 'failed';
   details?: string;
@@ -14,25 +15,38 @@ interface PayoutTransaction {
 
 type FilterType = 'all' | PayoutTransaction['type'];
 
-const SOURCE_MAP: Record<string, PayoutTransaction['type']> = {
-  pairing:           'pairing_bonus',
-  pairing_flush:     'pairing_flush',
-  sign5:             'sign5_bonus',
-  leadership:        'leadership_bonus',
-  referral_direct:   'direct_referral',
-  referral_indirect: 'indirect_referral',
-  withdrawal:        'withdraw',
-};
-
 const payoutTypeConfig: Record<PayoutTransaction['type'], { label: string; icon: any; badge: string }> = {
-  withdraw:          { label: 'Withdraw',         icon: TrendingUp, badge: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
-  sign5_bonus:       { label: 'Sign5 Bonus',       icon: Gift,       badge: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200' },
-  leadership_bonus:  { label: 'Leadership Bonus',  icon: Award,      badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
-  direct_referral:   { label: 'Direct Referral',   icon: Users,      badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
-  indirect_referral: { label: 'Indirect Referral', icon: Users,      badge: 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200' },
+  withdraw:          { label: 'Withdraw',         icon: TrendingUp,    badge: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
+  sign5_bonus:       { label: 'Sign5 Bonus',       icon: Gift,          badge: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200' },
+  leadership_bonus:  { label: 'Leadership Bonus',  icon: Award,         badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
+  direct_referral:   { label: 'Direct Referral',   icon: Users,         badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
+  indirect_referral: { label: 'Indirect Referral', icon: Users,         badge: 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200' },
   pairing_bonus:     { label: 'Pairing Bonus',     icon: Zap,           badge: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
   pairing_flush:     { label: 'Points Flushed',    icon: AlertTriangle, badge: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' },
+  gc_reward:         { label: 'GC Reward',          icon: Gift,          badge: 'bg-teal-50 text-teal-700 ring-1 ring-teal-200' },
 };
+
+function mapTransaction(t: any): PayoutTransaction | null {
+  const currency: string = t.currency ?? 'php';
+
+  if (t.source === 'pairing' && currency === 'gc_points') {
+    return { id: t.id, type: 'gc_reward', amount: t.amount, currency, date: t.createdAt ?? t.postedAt, status: 'completed', details: t.note ?? '' };
+  }
+
+  const SOURCE_MAP: Record<string, PayoutTransaction['type']> = {
+    pairing:           'pairing_bonus',
+    pairing_flush:     'pairing_flush',
+    sign5:             'sign5_bonus',
+    leadership:        'leadership_bonus',
+    referral_direct:   'direct_referral',
+    referral_indirect: 'indirect_referral',
+    withdrawal:        'withdraw',
+  };
+
+  const type = SOURCE_MAP[t.source];
+  if (!type) return null;
+  return { id: t.id, type, amount: t.amount, currency, date: t.createdAt ?? t.postedAt, status: 'completed', details: t.note ?? '' };
+}
 
 const statusBadge = (status: string) => {
   switch (status) {
@@ -46,8 +60,11 @@ export default function Transactions() {
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('all');
   const [expandedId, setExpandedId]         = useState<string | null>(null);
   const [searchQuery, setSearchQuery]       = useState('');
+
   const [transactions, setTransactions]     = useState<PayoutTransaction[]>([]);
   const [loading, setLoading]               = useState(true);
+  const [currentPage, setCurrentPage]       = useState(1);
+  const PAGE_SIZE = 6;
 
   useEffect(() => {
     const token  = localStorage.getItem('accessToken');
@@ -62,15 +79,8 @@ export default function Transactions() {
       .then((json: any[]) => {
         if (!Array.isArray(json)) return;
         const mapped: PayoutTransaction[] = json
-          .filter((t) => SOURCE_MAP[t.source])
-          .map((t) => ({
-            id:      t.id,
-            type:    SOURCE_MAP[t.source],
-            amount:  t.amount,
-            date:    t.createdAt ?? t.postedAt,
-            status:  'completed',
-            details: t.note ?? '',
-          }));
+          .map(mapTransaction)
+          .filter((t): t is PayoutTransaction => t !== null);
         setTransactions(mapped);
       })
       .catch(() => {})
@@ -85,8 +95,13 @@ export default function Transactions() {
       (t.details ?? '').toLowerCase().includes(searchQuery.toLowerCase()),
     );
 
-  const totalCompleted = filteredTransactions.reduce((sum, t) => sum + (t.status === 'completed' ? t.amount : 0), 0);
-  const totalPending   = filteredTransactions.reduce((sum, t) => sum + (t.status === 'pending'   ? t.amount : 0), 0);
+  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / PAGE_SIZE));
+  const safePage   = Math.min(currentPage, totalPages);
+  const pagedTransactions = filteredTransactions.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const totalCompleted = filteredTransactions.reduce((sum, t) => sum + (t.status === 'completed' && t.type !== 'gc_reward' ? t.amount : 0), 0);
+  const totalPending   = filteredTransactions.reduce((sum, t) => sum + (t.status === 'pending'   && t.type !== 'gc_reward' ? t.amount : 0), 0);
+  const totalGc        = filteredTransactions.reduce((sum, t) => sum + (t.type === 'gc_reward' ? t.amount : 0), 0);
 
   const filterOptions: { value: FilterType; label: string }[] = [
     { value: 'all',               label: 'All' },
@@ -96,6 +111,7 @@ export default function Transactions() {
     { value: 'direct_referral',   label: 'Direct Ref.' },
     { value: 'indirect_referral', label: 'Indirect Ref.' },
     { value: 'pairing_bonus',     label: 'Pairing' },
+    { value: 'gc_reward',         label: 'GC Reward' },
     { value: 'pairing_flush',     label: 'Flushed' },
   ];
 
@@ -110,7 +126,7 @@ export default function Transactions() {
         </div>
 
         {/* Stat Cards */}
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <div className="bg-white rounded-xl border border-slate-100 px-4 sm:px-5 py-4">
             <p className="text-xs text-slate-400 mb-1">Total Completed</p>
             <p className="text-lg sm:text-2xl font-semibold text-slate-900">₱{totalCompleted.toLocaleString()}</p>
@@ -120,6 +136,11 @@ export default function Transactions() {
             <p className="text-xs text-slate-400 mb-1">Total Pending</p>
             <p className="text-lg sm:text-2xl font-semibold text-slate-900">₱{totalPending.toLocaleString()}</p>
             <p className="text-xs text-slate-400 mt-1">Awaiting processing</p>
+          </div>
+          <div className="bg-white rounded-xl border border-teal-100 px-4 sm:px-5 py-4">
+            <p className="text-xs text-slate-400 mb-1">Total GC Earned</p>
+            <p className="text-lg sm:text-2xl font-semibold text-teal-700">{totalGc.toLocaleString()} GC</p>
+            <p className="text-xs text-slate-400 mt-1">Gift certificates rewarded</p>
           </div>
         </div>
 
@@ -143,7 +164,7 @@ export default function Transactions() {
               type="text"
               placeholder="Search transactions..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
             />
 
@@ -152,7 +173,7 @@ export default function Transactions() {
               {filterOptions.map((option) => (
                 <button
                   key={option.value}
-                  onClick={() => setSelectedFilter(option.value)}
+                  onClick={() => { setSelectedFilter(option.value); setCurrentPage(1); }}
                   className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     selectedFilter === option.value
                       ? 'bg-slate-900 text-white'
@@ -177,7 +198,7 @@ export default function Transactions() {
                 </div>
               </div>
             ) : (
-              filteredTransactions.map((transaction) => {
+              pagedTransactions.map((transaction) => {
                 const config        = payoutTypeConfig[transaction.type];
                 const IconComponent = config.icon;
                 const isExpanded    = expandedId === transaction.id;
@@ -206,7 +227,9 @@ export default function Transactions() {
 
                         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                           <div className="text-right">
-                            <p className="text-sm font-semibold text-slate-900">₱{transaction.amount.toLocaleString()}</p>
+                            <p className={`text-sm font-semibold ${transaction.type === 'gc_reward' ? 'text-teal-700' : 'text-slate-900'}`}>
+                              {transaction.type === 'gc_reward' ? `${transaction.amount.toLocaleString()} GC` : `₱${transaction.amount.toLocaleString()}`}
+                            </p>
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusBadge(transaction.status)}`}>
                               {transaction.status}
                             </span>
@@ -231,6 +254,40 @@ export default function Transactions() {
               })
             )}
           </div>
+
+          {/* Pagination */}
+          {!loading && filteredTransactions.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t border-slate-100">
+              <p className="text-xs text-slate-400">
+                Showing{' '}
+                <span className="font-medium text-slate-600">
+                  {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredTransactions.length)}
+                </span>{' '}
+                of <span className="font-medium text-slate-600">{filteredTransactions.length}</span> records
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Prev
+                </button>
+                <span className="text-xs font-medium text-slate-600 px-1">
+                  Page {safePage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Next
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Legend */}
@@ -249,6 +306,7 @@ export default function Transactions() {
               { type: 'sign5_bonus',       desc: 'Special bonus when you complete 5 successful pairings' },
               { type: 'withdraw',          desc: 'Your cash withdrawals from your available balance' },
               { type: 'pairing_flush',     desc: 'Volume points discarded when the pairing cap was exceeded for this cycle' },
+              { type: 'gc_reward',         desc: 'Gift Certificate earned at every 5th cumulative paired point (1, 2, 3, 4, GC, 6, 7, 8, 9, GC…)' },
             ] as { type: PayoutTransaction['type']; desc: string }[]).map(({ type, desc }) => {
               const config = payoutTypeConfig[type];
               return (

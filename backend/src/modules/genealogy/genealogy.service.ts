@@ -123,6 +123,7 @@ export class GenealogyService {
       email:                (user as any).email ?? '',
       profileImage:         (user as any).profileImage ?? '',
       referralCode:         (user as any).referralCode ?? '',
+      sponsorId:            (user as any).sponsorId?.toString() ?? null,
       membershipTier:       (user as any).membershipTier ?? null,
       // total points (historical, never decremented)
       leftLegPoints:        (user as any).leftLegPoints  ?? 0,
@@ -233,13 +234,36 @@ export class GenealogyService {
       directUsers.map((u: any) => buildItem(u, 'direct')),
     )
 
-    // Indirect: in genealogy downline AND not directly sponsored by root
-    const indirectUserIds = downlineNodes
+    // Build a set of all downline user IDs (including root) to detect spillover.
+    // Spillover = downline member whose sponsorId is NOT within root's network.
+    const downlineUserIdSet = new Set<string>([rootUserId])
+    for (const node of downlineNodes) {
+      downlineUserIdSet.add(node.userId.toString())
+    }
+
+    // Candidates: downline members that are not root and not direct referrals.
+    const candidateIds = downlineNodes
       .filter((node: any) => {
         const nodeUserId = node.userId.toString()
         return nodeUserId !== rootUserId && !directUserIds.has(nodeUserId)
       })
       .map((node: any) => node.userId)
+
+    // Fetch sponsorId for each candidate from the User model.
+    const candidateUsers = candidateIds.length > 0
+      ? await this.userModel
+          .find({ _id: { $in: candidateIds } }, { sponsorId: 1 })
+          .lean()
+      : []
+    const candidateSponsorMap = new Map<string, string>(
+      candidateUsers.map((u: any) => [u._id.toString(), u.sponsorId?.toString() ?? '']),
+    )
+
+    // Indirect: candidate whose sponsor is within root's network (not a spillover).
+    const indirectUserIds = candidateIds.filter((id: any) => {
+      const sponsorId = candidateSponsorMap.get(id.toString()) ?? ''
+      return downlineUserIdSet.has(sponsorId)
+    })
 
     const indirectUsers = indirectUserIds.length > 0
       ? await this.userModel

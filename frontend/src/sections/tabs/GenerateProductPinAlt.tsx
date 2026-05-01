@@ -7,7 +7,7 @@ interface ProductPin {
   _id: string;
   pin: string;
   pv: number;
-  status: 'used' | 'unused';
+  status: 'USED' | 'UNUSED' | 'VOID';
   createdAt: string;
   expiresAt: string | null;
 }
@@ -43,7 +43,7 @@ export default function GenerateProductPin() {
   const fetchPins = async () => {
     setLoadingPins(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/unilevel-pins`, {
+      const res = await fetch(`${API_BASE}/admin/product-pins`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -88,7 +88,7 @@ export default function GenerateProductPin() {
 
   /* ── create PIN ── */
   const handleCreate = async () => {
-    if (!pv || isNaN(Number(pv)) || Number(pv) <= 0) {
+    if (!pv || isNaN(Number(pv)) || Number(pv) < 0) {
       setModalError('Please enter a valid PV value.');
       return;
     }
@@ -100,7 +100,7 @@ export default function GenerateProductPin() {
     setSubmitting(true);
     setModalError(null);
     try {
-      const res = await fetch(`${API_BASE}/admin/unilevel-pins/generate`, {
+      const res = await fetch(`${API_BASE}/admin/product-pins/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -127,9 +127,15 @@ export default function GenerateProductPin() {
   };
 
   /* ── derived stats (dynamic from fetched pins) ── */
+<<<<<<< HEAD:frontend/src/sections/tabs/GenerateProductPinAlt.tsx
   const totalPins = pins.length;
   const usedPins = pins.filter((p) => p.status === 'used').length;
   const unusedPins = pins.filter((p) => p.status === 'unused').length;
+=======
+  const totalPins  = pins.length;
+  const usedPins   = pins.filter((p) => p.status === 'USED').length;
+  const unusedPins = pins.filter((p) => p.status === 'UNUSED').length;
+>>>>>>> Development:frontend/src/sections/tabs/GenerateProductPin.tsx
 
   /* ════════════════════════ RENDER ════════════════════════ */
   return (
@@ -309,7 +315,7 @@ export default function GenerateProductPin() {
 
                         {/* Status */}
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-center">
-                          {pin.status === 'used' ? (
+                          {pin.status === 'USED' ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 ring-1 ring-slate-200">
                               <CheckCircle2 className="w-3 h-3" />
                               Used
@@ -373,26 +379,11 @@ export default function GenerateProductPin() {
                 </div>
               )}
 
-              {/* Quantity + PV row */}
+              {/* PV + Quantity row */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                    Quantity <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={quantity}
-                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    disabled={submitting}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all duration-150 disabled:opacity-50"
-                    placeholder="1"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                    Product PV <span className="text-red-400">*</span>
+                    Points Value (PV) <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="number"
@@ -403,6 +394,22 @@ export default function GenerateProductPin() {
                     disabled={submitting}
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all duration-150 disabled:opacity-50"
                     placeholder="0"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Quantity <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={quantity}
+                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    disabled={submitting}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all duration-150 disabled:opacity-50"
+                    placeholder="1"
                   />
                 </div>
               </div>

@@ -111,6 +111,23 @@ export class PairingService {
   }
 
   /**
+   * Total regular (non-repeat-binary) paired points across all of the user's
+   * historical pairing events. Used to determine which cumulative multiples of 5
+   * are crossed in the current event → how many GC to award.
+   *
+   * Repeat-binary points are excluded because those events always pay full PHP
+   * (gcAwarded=0); counting them would silently consume GC thresholds without
+   * issuing GC rewards.
+   */
+  private async getLifetimePairedPoints(userId: Types.ObjectId): Promise<number> {
+    const result = await this.awardModel.aggregate([
+      { $match: { userId, isRepeatBinary: { $ne: true } } },
+      { $group: { _id: null, total: { $sum: '$pairedPoints' } } },
+    ]);
+    return result[0]?.total ?? 0;
+  }
+
+  /**
    * How many pairing records exist for this user in the current cycle — used to
    * build the sequential periodKey: YYYY-MM-DD-AM-1, YYYY-MM-DD-AM-2, …
    * Sequence restarts at 1 each cycle.
@@ -242,8 +259,12 @@ export class PairingService {
     // ── Calculate pairedPoints (capped by remaining safety net) ─────────
     const pairedPoints = Math.min(pairable, capRemaining);
 
-    // Every 5th paired point → 1 GC (that point does not pay PHP).
-    const gcAwarded = Math.floor(pairedPoints / 5);
+    // GC is earned at every 5th CUMULATIVE paired point across all events.
+    // lifetimeBefore = total regular (non-repeat-binary) paired points before this event.
+    const lifetimeBefore = await this.getLifetimePairedPoints(userId);
+    const gcBefore  = Math.floor(lifetimeBefore / 5);
+    const gcAfter   = Math.floor((lifetimeBefore + pairedPoints) / 5);
+    const gcAwarded = gcAfter - gcBefore;
     const phpPoints = pairedPoints - gcAwarded;
     const payoutPhp = phpPoints * this.RATE_PHP_PER_POINT;
 
@@ -316,7 +337,7 @@ export class PairingService {
         amount:   gcAwarded,
         source:   WalletTxnSource.PAIRING,
         refKey:   `pairing:gc:${userIdStr}:${periodKey}`,
-        note:     `GC reward — ${periodKey} | ${gcAwarded} GC (every 5th point)`,
+        note:     `GC reward — ${periodKey} | ${gcAwarded} GC (cumulative 5th-point milestone)`,
         meta: {
           periodKey,
           seq,
