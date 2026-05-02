@@ -351,6 +351,9 @@ export default function UserDashboard() {
   const [userRank, setUserRank] = useState<{ rank: number | null; totalParticipants: number } | null>(null);
   const [rankLoading, setRankLoading] = useState(true);
 
+  // ── Pairing cap state ────────────────────────────────────────────────
+  const [pairingCap, setPairingCap] = useState<{ capUsed: number; capLimit: number; cycle: string } | null>(null);
+
   // ── Reset loading states whenever the dashboard tab becomes active or refreshes ──
   useEffect(() => {
     if (activeTab !== 'dashboard') return;
@@ -504,6 +507,27 @@ export default function UserDashboard() {
       }
     };
     fetchReferrals();
+  }, [activeTab, refreshKey]);
+
+  // ── Fetch current pairing cap ────────────────────────────────────────
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    const fetchPairingCap = async () => {
+      try {
+        const { token, userId } = getAuthContext();
+        if (!token || !userId) return;
+        const res = await fetch(
+          `${API_BASE_URL}/pairing/current-cap/${userId}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        setPairingCap({ capUsed: data.capUsed, capLimit: data.capLimit, cycle: data.cycle });
+      } catch (err) {
+        console.error('Pairing cap fetch error:', err);
+      }
+    };
+    fetchPairingCap();
   }, [activeTab, refreshKey]);
 
   // ── Fetch leaderboard rank ───────────────────────────────────────────
@@ -802,8 +826,88 @@ export default function UserDashboard() {
           </div>
         </div>
 
-        {/* ── Desktop layout (≥ md): original horizontal ── */}
-        <div className="hidden md:flex items-stretch" style={{ minHeight: '220px' }}>
+        {/* ── Intermediate layout (md–lg): compact horizontal ── */}
+        <div className="hidden md:flex lg:hidden items-stretch" style={{ minHeight: '180px' }}>
+
+          {/* Left: Income Content */}
+          <div className="flex-1 min-w-0 p-5 flex flex-col justify-center relative z-10">
+            {/* Rank badge */}
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 backdrop-blur-sm rounded-full px-3 py-1">
+                <span className="text-yellow-400 text-xs">🏆</span>
+                {rankLoading ? (
+                  <span className="text-xs text-yellow-300/60 animate-pulse">Loading rank...</span>
+                ) : userRank?.rank ? (
+                  <>
+                    <span className="text-xs font-semibold text-yellow-200/80 uppercase tracking-wider">Rank</span>
+                    <span className="text-sm font-bold text-yellow-400">#{userRank.rank}</span>
+                    <span className="text-xs text-yellow-300/50">of {userRank.totalParticipants.toLocaleString()}</span>
+                  </>
+                ) : (
+                  <span className="text-xs text-yellow-300/60">Unranked</span>
+                )}
+              </div>
+            </div>
+
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-500/70 mb-1">Total Income</p>
+            {incomeLoading ? (
+              <div className="h-9 w-40 bg-yellow-500/10 animate-pulse rounded-xl mb-3" />
+            ) : (
+              <p className="text-3xl font-bold text-yellow-400 mb-3 tracking-tight" style={{ textShadow: '0 0 40px rgba(234,179,8,0.4)' }}>
+                ₱{formatPhp(income?.totalIncome ?? 0)}
+              </p>
+            )}
+
+            <div className="flex flex-wrap gap-x-3 gap-y-2">
+              {[
+                { label: 'Today', value: income?.today ?? 0, cls: 'text-white/80' },
+                { label: 'This Week', value: income?.thisWeek ?? 0, cls: 'text-yellow-300' },
+                { label: 'This Month', value: income?.thisMonth ?? 0, cls: 'text-yellow-400' },
+              ].map(({ label, value, cls }, i, arr) => (
+                <React.Fragment key={label}>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">{label}</span>
+                    {incomeLoading
+                      ? <div className="h-5 w-16 bg-yellow-500/10 animate-pulse rounded" />
+                      : <span className={`text-sm font-semibold ${cls}`}>₱{formatPhp(value)}</span>
+                    }
+                  </div>
+                  {i < arr.length - 1 && <div className="w-px h-8 bg-yellow-500/20 self-center" />}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: User Info */}
+          <div className="flex flex-col items-start justify-center gap-1 px-5 border-l border-yellow-500/15 relative z-10 shrink-0">
+            <span className="text-base font-semibold text-white truncate max-w-[140px]">{displayName}</span>
+            <span className="text-xs text-white/50 truncate max-w-[140px]">{displayEmail}</span>
+            <span className="text-xs text-yellow-400 font-medium">www.coprofitglobal.com</span>
+          </div>
+
+          {/* Right: Mascot image — smaller, flush to bottom */}
+          <div className="relative shrink-0 self-end z-10 overflow-hidden" style={{ width: '130px', height: '180px' }}>
+            <img
+              src={baseImg}
+              alt="Profile Right"
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 10,
+                width: '130px',
+                height: '170px',
+                objectFit: 'cover',
+                objectPosition: 'top',
+                filter: 'drop-shadow(0 8px 40px rgba(234,179,8,0.35))',
+                maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* ── Desktop layout (≥ lg): original horizontal ── */}
+        <div className="hidden lg:flex items-stretch" style={{ minHeight: '220px' }}>
 
           {/* Left: Income Content */}
           <div className="flex-1 p-8 flex flex-col justify-center relative z-10">
@@ -861,8 +965,8 @@ export default function UserDashboard() {
             </div>
           </div>
 
-          {/* Center: Logo image — flush to bottom */}
-          <div className="relative shrink-0 self-end z-10 flex items-end justify-center" style={{ width: '200px', height: '220px' }}>
+          {/* Center: Logo image — flush to bottom, only at xl+ */}
+          <div className="hidden xl:flex relative shrink-0 self-end z-10 items-end justify-center" style={{ width: '200px', height: '220px' }}>
             <img
               src={baseImgCenter}
               alt="Profile Center"
@@ -880,23 +984,23 @@ export default function UserDashboard() {
           </div>
 
           {/* Right: User Info */}
-          <div className="flex flex-col items-start justify-center gap-2 px-8 border-l border-yellow-500/15 relative z-10">
-            <span className="text-xl font-semibold text-white">{displayName}</span>
-            <span className="text-sm text-white/50">{displayEmail}</span>
-            <span className="text-sm text-yellow-400 font-medium">www.coprofitglobal.com</span>
+          <div className="flex flex-col items-start justify-center gap-2 px-6 xl:px-8 border-l border-yellow-500/15 relative z-10 min-w-0 shrink-0 max-w-[180px] xl:max-w-none">
+            <span className="text-lg xl:text-xl font-semibold text-white truncate w-full">{displayName}</span>
+            <span className="text-xs xl:text-sm text-white/50 truncate w-full">{displayEmail}</span>
+            <span className="text-xs xl:text-sm text-yellow-400 font-medium">www.coprofitglobal.com</span>
           </div>
 
           {/* Right: Mascot image — large, flush to bottom */}
-          <div className="relative shrink-0 self-end z-10" style={{ width: '220px', height: '220px' }}>
+          <div className="relative shrink-0 self-end z-10" style={{ width: '160px', height: '220px' }}>
             <img
               src={baseImg}
               alt="Profile Right"
               style={{
                 position: 'absolute',
                 bottom: 0,
-                right: 40,
-                width: '220px',
-                height: '260px',
+                right: 0,
+                width: '160px',
+                height: '220px',
                 objectFit: 'cover',
                 objectPosition: 'top',
                 filter: 'drop-shadow(0 8px 40px rgba(234,179,8,0.35))',
@@ -973,7 +1077,6 @@ export default function UserDashboard() {
         </div>
 
         {[
-          'Total Income of Sales Match Bonus (PHP)',
           'Total Income of Stairstep Bonus (PHP)',
         ].map((label) => (
           <div key={label} className="relative bg-white rounded-2xl p-6 border border-amber-100 shadow-sm overflow-hidden">
@@ -989,7 +1092,7 @@ export default function UserDashboard() {
 
         {[
           { label: 'Total Income of Royalty Bonus (PHP)', value: '₱0.00' },
-          { label: 'Total Income of Unilevel Bonus (Points Value = 1 PHP)', value: '0 PV - ₱0.00' },
+          { label: 'Total Income of Unilevel Bonus (Points Value = 1 PHP)', value: '0 PV' },
         ].map(({ label, value }) => (
           <div key={label} className="relative bg-white rounded-2xl p-6 border border-amber-100 shadow-sm overflow-hidden">
             <div className="flex items-start justify-between mb-3">
@@ -1202,6 +1305,30 @@ export default function UserDashboard() {
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
               <p className="text-sm font-medium text-amber-900 mb-1">Real-time Pairing</p>
               <p className="text-xs text-amber-700">Pairs automatically when both legs have points</p>
+            </div>
+            {/* Pairing cap progress */}
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    {pairingCap ? `${pairingCap.cycle} Cycle Cap` : 'Cycle Cap'}
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900 mt-0.5">
+                    {pairingCap ? `${pairingCap.capUsed} / ${pairingCap.capLimit}` : '0 / —'}
+                  </p>
+                </div>
+                {pairingCap && (
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${pairingCap.capUsed >= pairingCap.capLimit ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
+                    {pairingCap.capUsed >= pairingCap.capLimit ? 'Exhausted' : `${pairingCap.capLimit - pairingCap.capUsed} left`}
+                  </span>
+                )}
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div
+                  className={`h-3 rounded-full transition-all duration-500 ${pairingCap && pairingCap.capUsed >= pairingCap.capLimit ? 'bg-red-400' : 'bg-amber-400'}`}
+                  style={{ width: pairingCap ? `${Math.min((pairingCap.capUsed / pairingCap.capLimit) * 100, 100)}%` : '0%' }}
+                />
+              </div>
             </div>
             <div className="flex items-center justify-between pt-4 border-t border-gray-100">
               <p className="text-sm font-medium text-gray-700">Total Earned</p>

@@ -28,6 +28,7 @@ import {
 } from '../unilevel-products/schemas/unilevel-product.schema';
 import { RolesGuard } from '../auth/roles.guard';
 import { PairingModule } from '../pairing/pairing.module';
+import { WalletTransaction, WalletTransactionSchema } from '../wallet/schemas/wallet-transaction.schema';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { PairingModule } from '../pairing/pairing.module';
       { name: UnilevelPin.name,   schema: UnilevelPinSchema },
       { name: LifestyleReward.name, schema: LifestyleRewardSchema },
       { name: UnilevelProduct.name, schema: UnilevelProductSchema },
+      { name: WalletTransaction.name, schema: WalletTransactionSchema },
     ]),
   ],
   controllers: [AdminController],

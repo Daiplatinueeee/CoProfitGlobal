@@ -97,14 +97,22 @@ export class PairingService {
    * Sum of all pairedPoints for this user in the current cycle (AM or PM).
    * Used to enforce the per-cycle cap so each 12-hour window gets a fresh limit.
    */
-  private async getDailyCapUsed(userId: Types.ObjectId, cyclePeriodPrefix: string): Promise<number> {
+  private async getDailyCapUsed(
+    userId: Types.ObjectId,
+    cyclePeriodPrefix: string,
+    tierUpgradedAt: Date | null = null,
+  ): Promise<number> {
+    const match: Record<string, any> = {
+      userId,
+      periodKey: { $regex: `^${cyclePeriodPrefix}` },
+    };
+    // Only count awards earned after the last tier upgrade so a mid-cycle
+    // upgrade resets the cap used to 0 for the new tier.
+    if (tierUpgradedAt) {
+      match.createdAt = { $gt: tierUpgradedAt };
+    }
     const result = await this.awardModel.aggregate([
-      {
-        $match: {
-          userId,
-          periodKey: { $regex: `^${cyclePeriodPrefix}` },
-        },
-      },
+      { $match: match },
       { $group: { _id: null, total: { $sum: '$pairedPoints' } } },
     ]);
     return result[0]?.total ?? 0;
@@ -179,15 +187,16 @@ export class PairingService {
     // ── Resolve user ────────────────────────────────────────────────────
     const user = await this.userModel
       .findById(userId)
-      .select('membershipTier')
+      .select('membershipTier tierUpgradedAt')
       .lean();
 
     if (!user) {
       return { skipped: true, reason: 'User not found' };
     }
 
-    const tier     = (user as any).membershipTier as MembershipTier ?? MembershipTier.BRONZE;
-    const dailyCap = this.getCapForTier(tier);
+    const tier            = (user as any).membershipTier as MembershipTier ?? MembershipTier.BRONZE;
+    const tierUpgradedAt  = (user as any).tierUpgradedAt as Date | null ?? null;
+    const dailyCap        = this.getCapForTier(tier);
 
     // ── Fetch live bucket values ─────────────────────────────────────────
     // Must happen BEFORE the cap check so we can flush even when cap=0.
@@ -215,7 +224,7 @@ export class PairingService {
     // Both sides have points so a pairing event is occurring.
     // If the cap is exhausted, we still flush both buckets to 0 —
     // excess points above the safety net are discarded, no payout issued.
-    const capUsed      = await this.getDailyCapUsed(userId, cyclePeriodPrefix);
+    const capUsed      = await this.getDailyCapUsed(userId, cyclePeriodPrefix, tierUpgradedAt);
     const capRemaining = dailyCap - capUsed;
 
     if (capRemaining <= 0) {
@@ -363,9 +372,10 @@ export class PairingService {
         refKey:   `pairing:${userIdStr}:${periodKey}`,
         note:
           `Pairing bonus — ${periodKey} | ` +
-          `${phpPoints} pts × ₱${this.RATE_PHP_PER_POINT}` +
+          `${phpPoints} pts × ₱${this.RATE_PHP_PER_POINT} | ` +
+          `cap ${newCapUsed}/${dailyCap}` +
           (capNowExhausted && (leftFlushed + rightFlushed) > 0
-            ? ` | cap hit — flushed L=${leftFlushed} R=${rightFlushed}`
+            ? ` [EXHAUSTED] — flushed L=${leftFlushed} R=${rightFlushed}`
             : leftRemaining + rightRemaining > 0
               ? ` | carry L=${leftRemaining} R=${rightRemaining}`
               : ''),
@@ -622,12 +632,13 @@ export class PairingService {
     const currentCycle      = this.getCurrentCycle();
     const cyclePeriodPrefix = `${dateKey}-${currentCycle}`;
 
-    const user = await this.userModel.findById(userId).select('membershipTier').lean();
+    const user = await this.userModel.findById(userId).select('membershipTier tierUpgradedAt').lean();
     if (!user) return { skipped: true, reason: 'User not found' };
 
-    const tier         = (user as any).membershipTier as MembershipTier ?? MembershipTier.BRONZE;
-    const dailyCap     = this.getCapForTier(tier);
-    const capUsed      = await this.getDailyCapUsed(userId, cyclePeriodPrefix);
+    const tier            = (user as any).membershipTier as MembershipTier ?? MembershipTier.BRONZE;
+    const tierUpgradedAt  = (user as any).tierUpgradedAt as Date | null ?? null;
+    const dailyCap        = this.getCapForTier(tier);
+    const capUsed         = await this.getDailyCapUsed(userId, cyclePeriodPrefix, tierUpgradedAt);
     const capRemaining = dailyCap - capUsed;
 
     if (capRemaining <= 0) return { skipped: true, reason: 'Cap exhausted' };
@@ -792,5 +803,29 @@ export class PairingService {
       gcAwarded:       a.gcAwarded ?? 0,
       createdAt:       a.createdAt,
     };
+  }
+
+  // ── Current-cycle cap ─────────────────────────────────────────────────────
+
+  async getCurrentCap(userIdStr: string) {
+    const userId = this.toObjectId(userIdStr);
+    const user = await this.userModel
+      .findById(userId)
+      .select('membershipTier tierUpgradedAt')
+      .lean();
+    if (!user) throw new BadRequestException('User not found');
+
+    const now     = new Date();
+    const dateKey = now.toISOString().slice(0, 10);
+    const cycle   = this.getCurrentCycle();
+    const cyclePeriodPrefix = `${dateKey}-${cycle}`;
+
+    const tier     = (user as any).membershipTier as MembershipTier;
+    const capLimit = this.TIER_CAP_MAP[tier] ?? this.TIER_CAP_MAP[MembershipTier.BRONZE];
+    const tierUpgradedAt: Date | null = (user as any).tierUpgradedAt ?? null;
+
+    const capUsed = await this.getDailyCapUsed(userId, cyclePeriodPrefix, tierUpgradedAt);
+
+    return { cycle, capUsed, capLimit };
   }
 }

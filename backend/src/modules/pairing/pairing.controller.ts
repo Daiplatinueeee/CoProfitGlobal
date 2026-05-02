@@ -28,6 +28,15 @@ export class PairingController {
   }
 
   /**
+   * Get the live cap usage for the user's current AM/PM cycle.
+   * Example: GET /pairing/current-cap/:userId
+   */
+  @Get('current-cap/:userId')
+  currentCap(@Param('userId') userId: string) {
+    return this.pairingService.getCurrentCap(userId);
+  }
+
+  /**
    * Get pairing state + award for a specific cycle.
    * periodKey format: YYYY-MM-DD-AM or YYYY-MM-DD-PM
    * Example: GET /pairing/state/:userId?periodKey=2026-03-29-AM
