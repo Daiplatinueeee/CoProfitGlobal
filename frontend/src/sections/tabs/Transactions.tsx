@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, TrendingUp, Gift, Users, Award, Zap, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, TrendingUp, Gift, Users, Award, Zap, AlertTriangle, ArrowUpCircle } from 'lucide-react';
 
 const API_BASE_URL = 'https://coprofitglobal-production-0787.up.railway.app';
 
 interface PayoutTransaction {
   id: string;
-  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus' | 'pairing_flush' | 'gc_reward';
+  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus' | 'pairing_flush' | 'gc_reward' | 'tier_upgrade';
   amount: number;
   currency: 'php' | 'gc_points' | string;
   date: string;
@@ -22,8 +22,9 @@ const payoutTypeConfig: Record<PayoutTransaction['type'], { label: string; icon:
   direct_referral:   { label: 'Direct Referral',   icon: Users,         badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
   indirect_referral: { label: 'Indirect Referral', icon: Users,         badge: 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200' },
   pairing_bonus:     { label: 'Pairing Bonus',     icon: Zap,           badge: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
-  pairing_flush:     { label: 'Points Flushed',    icon: AlertTriangle, badge: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' },
-  gc_reward:         { label: 'GC Reward',          icon: Gift,          badge: 'bg-teal-50 text-teal-700 ring-1 ring-teal-200' },
+  pairing_flush:     { label: 'Points Flushed',    icon: AlertTriangle,   badge: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' },
+  gc_reward:         { label: 'GC Reward',          icon: Gift,            badge: 'bg-teal-50 text-teal-700 ring-1 ring-teal-200' },
+  tier_upgrade:      { label: 'Package Upgrade',    icon: ArrowUpCircle,   badge: 'bg-violet-50 text-violet-700 ring-1 ring-violet-200' },
 };
 
 function mapTransaction(t: any): PayoutTransaction | null {
@@ -41,11 +42,21 @@ function mapTransaction(t: any): PayoutTransaction | null {
     referral_direct:   'direct_referral',
     referral_indirect: 'indirect_referral',
     withdrawal:        'withdraw',
+    tier_upgrade:      'tier_upgrade',
   };
 
   const type = SOURCE_MAP[t.source];
   if (!type) return null;
-  return { id: t.id, type, amount: t.amount, currency, date: t.createdAt ?? t.postedAt, status: 'completed', details: t.note ?? '' };
+
+  // For pairing bonuses, append cap info from meta if the note doesn't already include it
+  let details = t.note ?? '';
+  if (type === 'pairing_bonus' && t.meta?.capLimit != null && t.meta?.capUsed != null) {
+    if (!details.includes('cap ')) {
+      details += ` | cap ${t.meta.capUsed}/${t.meta.capLimit}`;
+    }
+  }
+
+  return { id: t.id, type, amount: t.amount, currency, date: t.createdAt ?? t.postedAt, status: 'completed', details };
 }
 
 const statusBadge = (status: string) => {
@@ -113,6 +124,7 @@ export default function Transactions() {
     { value: 'pairing_bonus',     label: 'Pairing' },
     { value: 'gc_reward',         label: 'GC Reward' },
     { value: 'pairing_flush',     label: 'Flushed' },
+    { value: 'tier_upgrade',      label: 'Upgrade' },
   ];
 
   return (
@@ -307,6 +319,7 @@ export default function Transactions() {
               { type: 'withdraw',          desc: 'Your cash withdrawals from your available balance' },
               { type: 'pairing_flush',     desc: 'Volume points discarded when the pairing cap was exceeded for this cycle' },
               { type: 'gc_reward',         desc: 'Gift Certificate earned at every 5th cumulative paired point (1, 2, 3, 4, GC, 6, 7, 8, 9, GC…)' },
+              { type: 'tier_upgrade',      desc: 'Recorded when you upgrade your membership package to a higher tier' },
             ] as { type: PayoutTransaction['type']; desc: string }[]).map(({ type, desc }) => {
               const config = payoutTypeConfig[type];
               return (

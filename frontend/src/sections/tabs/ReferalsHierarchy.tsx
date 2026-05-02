@@ -33,12 +33,37 @@ interface DownlineMember {
   sponsorId?: string | null;
 }
 
-function groupByLevel(members: DownlineMember[]): Map<number, DownlineMember[]> {
+function groupByLevel(members: DownlineMember[], rootUserId: string): Map<number, DownlineMember[]> {
   if (members.length === 0) return new Map();
-  const minDepth = Math.min(...members.map(m => m.depth));
   const map = new Map<number, DownlineMember[]>();
+  const levelOf = new Map<string, number>();
+
+  // BFS: assign level 1 to direct referrals (sponsorId === rootUserId), then traverse
+  const queue: Array<{ id: string; level: number }> = [];
   for (const m of members) {
-    const level = m.depth - minDepth + 1;
+    const id = m.id ?? m.userId ?? '';
+    if (m.sponsorId === rootUserId) {
+      levelOf.set(id, 1);
+      queue.push({ id, level: 1 });
+    }
+  }
+
+  let qi = 0;
+  while (qi < queue.length) {
+    const { id: parentId, level } = queue[qi++];
+    for (const m of members) {
+      const mid = m.id ?? m.userId ?? '';
+      if (m.sponsorId === parentId && !levelOf.has(mid)) {
+        const childLevel = level + 1;
+        levelOf.set(mid, childLevel);
+        queue.push({ id: mid, level: childLevel });
+      }
+    }
+  }
+
+  for (const m of members) {
+    const id = m.id ?? m.userId ?? '';
+    const level = levelOf.get(id) ?? 1;
     if (!map.has(level)) map.set(level, []);
     map.get(level)!.push(m);
   }
@@ -100,7 +125,8 @@ function ReferalsHierarchy() {
     );
   }
 
-  const levelMap = groupByLevel(members);
+  const { userId: rootUserId } = getAuthContext();
+  const levelMap = groupByLevel(members, rootUserId ?? '');
   const levelNumbers = Array.from(levelMap.keys()).sort((a, b) => a - b);
 
   const directCount   = levelMap.get(1)?.length ?? 0;

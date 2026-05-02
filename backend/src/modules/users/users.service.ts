@@ -19,12 +19,20 @@ import {
   ProductPinDocument,
   PinStatus,
 } from '../product-pins/schema/product-pins.schema';
+import {
+  WalletTransaction,
+  WalletTransactionDocument,
+  WalletCurrency,
+  WalletTxnType,
+  WalletTxnSource,
+} from '../wallet/schemas/wallet-transaction.schema';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(ProductPin.name) private pinModel: Model<ProductPinDocument>,
+    @InjectModel(WalletTransaction.name) private txnModel: Model<WalletTransactionDocument>,
   ) {}
 
   async lookupPin(pin: string): Promise<{ found: boolean; status?: string; tier?: string }> {
@@ -77,13 +85,26 @@ export class UsersService {
 
     await this.userModel.updateOne(
       { _id: uid },
-      { $set: { membershipTier: newTier, packagePin: clean } },
+      { $set: { membershipTier: newTier, packagePin: clean, tierUpgradedAt: new Date() } },
     );
 
     await this.pinModel.updateOne(
       { _id: pinDoc._id },
       { $set: { status: PinStatus.USED, usedByUserId: uid, usedAt: new Date() } },
     );
+
+    const previousTier = (user as any).membershipTier as string;
+    await this.txnModel.create({
+      userId:   uid,
+      currency: WalletCurrency.PHP,
+      type:     WalletTxnType.CREDIT,
+      amount:   0.01,
+      source:   WalletTxnSource.TIER_UPGRADE,
+      refKey:   `tier_upgrade:${uid.toString()}:${clean}`,
+      note:     `Package upgraded from ${previousTier} → ${newTier} using PIN ${clean}`,
+      meta:     { previousTier, newTier, pin: clean },
+      postedAt: new Date(),
+    }).catch(() => {});
 
     return { newTier };
   }

@@ -46,6 +46,13 @@ import { AdminGenerateUnilevelPinDto } from './dto/admin-generate-unilevel-pin.d
 import { GenerateProductPinDto } from './dto/generate-product-pin.dto';
 import { CreateLifestyleRewardDto } from './dto/create-lifestyle-reward.dto';
 import { PairingService } from '../pairing/pairing.service';
+import {
+  WalletTransaction,
+  WalletTransactionDocument,
+  WalletCurrency,
+  WalletTxnType,
+  WalletTxnSource,
+} from '../wallet/schemas/wallet-transaction.schema';
 
 @Injectable()
 export class AdminService {
@@ -62,6 +69,8 @@ export class AdminService {
     private readonly rewardModel: Model<LifestyleRewardDocument>,
     @InjectModel(UnilevelProduct.name)
     private readonly unilevelProductModel: Model<UnilevelProductDocument>,
+    @InjectModel(WalletTransaction.name)
+    private readonly txnModel: Model<WalletTransactionDocument>,
     private readonly usersService: UsersService,
     private readonly pairingService: PairingService,
   ) {}
@@ -259,7 +268,7 @@ export class AdminService {
     // ── 3. Update the user's membership tier ─────────────────────────────────
     await this.userModel.updateOne(
       { _id: uid },
-      { $set: { membershipTier: newTier, packagePin } },
+      { $set: { membershipTier: newTier, packagePin, tierUpgradedAt: new Date() } },
     );
 
     // ── 4. Mark the PIN as USED ───────────────────────────────────────────────
@@ -274,12 +283,25 @@ export class AdminService {
       },
     );
 
+    const previousTier = (user as any).membershipTier as string;
+    await this.txnModel.create({
+      userId:   uid,
+      currency: WalletCurrency.PHP,
+      type:     WalletTxnType.CREDIT,
+      amount:   0.01,
+      source:   WalletTxnSource.TIER_UPGRADE,
+      refKey:   `tier_upgrade:${uid.toString()}:${packagePin}`,
+      note:     `Package upgraded from ${previousTier} → ${newTier} using PIN ${packagePin}`,
+      meta:     { previousTier, newTier, pin: packagePin },
+      postedAt: new Date(),
+    }).catch(() => {});
+
     return {
       id: (user as any)._id.toString(),
       name: (user as any).name,
       username: (user as any).username,
       email: (user as any).email,
-      previousTier: (user as any).membershipTier,
+      previousTier,
       newTier,
       packagePin,
     };

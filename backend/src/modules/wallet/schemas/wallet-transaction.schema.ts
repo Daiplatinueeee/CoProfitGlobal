@@ -26,6 +26,7 @@ export enum WalletTxnSource {
   REFERRAL_INDIRECT   = 'referral_indirect',
   ADMIN_ADJUSTMENT    = 'admin_adjustment',
   WITHDRAWAL          = 'withdrawal',
+  TIER_UPGRADE        = 'tier_upgrade',
 }
 
 @Schema({ timestamps: true })

@@ -118,6 +118,9 @@ export class User {
   @Prop({ default: '' })
   birthday?: string;
 
+  @Prop({ type: Date, default: null })
+  tierUpgradedAt?: Date | null;
+
   @Prop({ type: [RefreshSessionSchema], default: [], select: false })
   refreshSessions: RefreshSession[];
 }
