@@ -41,14 +41,6 @@ export default function AuthPage() {
         }));
     };
 
-    const fillAdminCredentials = () => {
-        setFormData((prev) => ({
-            ...prev,
-            email: 'admin@coprofitglobal.com',
-            password: 'coprofitglobal123',
-        }));
-    };
-
     const navigate = useNavigate()
 
     const handleLogin = async (e: React.FormEvent) => {
@@ -282,22 +274,6 @@ export default function AuthPage() {
                                 >
                                     Forgot Password?
                                 </a>
-                            </div>
-                        )}
-
-                        {/* Auto Fill Admin Button */}
-                        {isSignIn && (
-                            <div className="text-center">
-                                <button
-                                    type="button"
-                                    onClick={fillAdminCredentials}
-                                    className="text-xs text-gray-400 hover:text-yellow-500 transition-colors duration-300 mt-10"
-                                >
-                                    Click here to use Admin Credentials (Testing Only)
-                                </button>
-                                <p className="text-[13px] text-gray-500 mt-1">
-                                    Click to fill in admin credentials for testing purposes. The admin account is very long omaygad
-                                </p>
                             </div>
                         )}
 

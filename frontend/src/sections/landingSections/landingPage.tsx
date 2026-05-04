@@ -16,14 +16,21 @@ import prod1 from "../../assets/prod2.jpeg"
 
 import training1 from "../../assets/video refs/0c81c791-4c78-4c3e-a3ed-26d13b0244e9.mp4"
 
-import pk1 from "../../assets/pk1.jpeg"
-import pk2 from "../../assets/pk2.jpeg"
-import pk3 from "../../assets/pk3.jpeg"
-import pk4 from "../../assets/pk4.jpeg"
+// Platinum
+import pk1 from "../../assets/pk1.jpg"
+import pk2 from "../../assets/pk2.jpg"
+
+// Bronze
+import pk3 from "../../assets/pk3.jpg"
+import pk4 from "../../assets/pk1.jpeg"
+
+// Gold
 import pk5 from "../../assets/pk5.jpg"
 import pk6 from "../../assets/pk6.jpg"
-import pk7 from "../../assets/pk7.jpg"
-import pk8 from "../../assets/pk8.jpg"
+
+// Silver
+import pk8 from "../../assets/pk7.jpg"
+import pk7 from "../../assets/pk8.jpg"
 
 import logo from '../../assets/logoWithName(small).png'
 import genealogy from '../../assets/genealogy.png'
@@ -220,15 +227,6 @@ export default function LandingPage() {
         },
         {
             id: 3,
-            title: 'RelieFlex: Science Behind the Scent',
-            description: 'Our flagship product RelieFlex Liniment Oil is more than just a perfume — it\'s a fusion of aromatherapy and wellness science. Explore the ingredients and their benefits.',
-            date: 'Nov 21, 2025',
-            category: 'Product',
-            thumbnail: prod1 as string | null,
-            thumbnailLabel: '',
-        },
-        {
-            id: 4,
             title: 'Introducing CoProfit Global',
             description: 'We are proud to officially launch CoProfit Global Corporation — a bold new chapter in Philippine network marketing. Find out what sets us apart from the rest.',
             date: 'Nov 19, 2025',
@@ -264,29 +262,23 @@ export default function LandingPage() {
 
     const offices = {
         headOffice: {
-            name: 'C7 Modena Town Square, Tunghaan, Minglanilla Cebu',
+            name: 'Main Office',
             owner: 'TBA',
-            address: 'TBA',
+            address: 'C7 Modena Town Square, Tunghaan, Minglanilla Cebu',
             phone: 'TBA',
         },
         hubs: [
             {
-                name: 'Mahayag San Miguel, Bohol',
+                name: 'Hub Office',
                 owner: 'Estela Colarte',
-                address: 'TBA',
+                address: 'Mahayag San Miguel, Bohol',
                 phone: '# 0997 417 4308',
             },
             {
-                name: 'Tagbiliran Bohol',
+                name: 'Satellite Office',
                 owner: 'Atty. Jessie Ancog',
-                address: 'TBA',
-                phone: 'TBA',
-            },
-            {
-                name: 'Tagbilaran Bohol',
-                owner: 'Atty. Jessie Ancog',
-                address: 'TBA',
-                phone: 'TBA',
+                address: 'Cogon, Tagbilaran City, Bohol',
+                phone: '# 0917 701 2547',
             },
             {
                 name: 'Daro Dumaguete City, Negros Oriental',

@@ -42,17 +42,6 @@ const SAMPLE_POSTS: BlogPost[] = [
     },
     {
         id: 3,
-        title: 'RelieFlex: Science Behind the Scent',
-        description:
-            "Our flagship product RelieFlex Liniment Oil is more than just a perfume — it's a fusion of aromatherapy and wellness science. Explore the ingredients and their benefits.",
-        date: 'Nov 21, 2025',
-        category: 'Product',
-        thumbnail: null,
-        thumbnailLabel: 'RelieFlex',
-        bannerGradient: 'from-yellow-800/50 to-slate-900',
-    },
-    {
-        id: 4,
         title: 'Introducing CoProfit Global',
         description:
             'We are proud to officially launch CoProfit Global Corporation — a bold new chapter in Philippine network marketing. Find out what sets us apart from the rest.',
@@ -61,50 +50,6 @@ const SAMPLE_POSTS: BlogPost[] = [
         thumbnail: null,
         thumbnailLabel: 'Experience Liftoff',
         bannerGradient: 'from-orange-900/50 to-slate-900',
-    },
-    {
-        id: 5,
-        title: 'Sales Mastery Bootcamp — Cebu City',
-        description:
-            'A full-day intensive training designed to sharpen your sales skills, objection-handling techniques, and closing strategies. Open to all active distributors.',
-        date: 'Mar 5, 2026',
-        category: 'Training',
-        thumbnail: 'https://picsum.photos/seed/training1/400/300',
-        thumbnailLabel: '',
-        bannerGradient: 'from-teal-900/70 to-slate-900',
-    },
-    {
-        id: 6,
-        title: 'Leadership Development Program — Batch 3',
-        description:
-            'Our flagship leadership program returns for its third batch. Build the mindset, habits, and communication skills needed to lead a high-performing team.',
-        date: 'Mar 12, 2026',
-        category: 'Training',
-        thumbnail: 'https://picsum.photos/seed/training2/400/300',
-        thumbnailLabel: '',
-        bannerGradient: 'from-cyan-900/70 to-slate-900',
-    },
-    {
-        id: 7,
-        title: 'CoProfit Grand Recognition Night 2026',
-        description:
-            'Join us as we celebrate our top performers and milestone achievers at our annual Grand Recognition Night. A night of inspiration, awards, and community.',
-        date: 'Apr 4, 2026',
-        category: 'Event',
-        thumbnail: 'https://picsum.photos/seed/event1/400/300',
-        thumbnailLabel: '',
-        bannerGradient: 'from-rose-900/60 to-slate-900',
-    },
-    {
-        id: 8,
-        title: 'National Convention — Bohol',
-        description:
-            'Our biggest gathering of the year! Network with distributors from all over the Philippines, attend keynote talks, and be the first to see our new product launches.',
-        date: 'May 10, 2026',
-        category: 'Event',
-        thumbnail: 'https://picsum.photos/seed/event2/400/300',
-        thumbnailLabel: '',
-        bannerGradient: 'from-purple-900/60 to-slate-900',
     },
 ];
 
