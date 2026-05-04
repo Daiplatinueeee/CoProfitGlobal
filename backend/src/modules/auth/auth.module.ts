@@ -2,16 +2,25 @@ import { Module } from '@nestjs/common';
 import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import {
+  ForgotPasswordRequest,
+  ForgotPasswordRequestSchema,
+} from './schemas/forgot-password-request.schema';
 
 @Module({
+  exports: [MongooseModule],
   imports: [
     UsersModule,
     ConfigModule,
+    MongooseModule.forFeature([
+      { name: ForgotPasswordRequest.name, schema: ForgotPasswordRequestSchema },
+    ]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
 
     JwtModule.registerAsync({

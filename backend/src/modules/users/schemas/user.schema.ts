@@ -121,6 +121,9 @@ export class User {
   @Prop({ type: Date, default: null })
   tierUpgradedAt?: Date | null;
 
+  @Prop({ type: Boolean, default: false })
+  isFree: boolean;
+
   @Prop({ type: [RefreshSessionSchema], default: [], select: false })
   refreshSessions: RefreshSession[];
 }

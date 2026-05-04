@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Req, Res, UseGuards, HttpCode } from '@nestjs/common';
 import type { Response, Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 
@@ -64,5 +64,13 @@ export class AuthController {
     await this.auth['usersService'].removeAllRefreshSessions(req.user.sub);
     this.clearRefreshCookie(res);
     return { message: 'Logged out' };
+  }
+
+  @Post('forgot-password-request')
+  @HttpCode(201)
+  submitForgotPasswordRequest(
+    @Body() body: { reason: string; description: string },
+  ) {
+    return this.auth.submitForgotPasswordRequest(body.reason, body.description);
   }
 }

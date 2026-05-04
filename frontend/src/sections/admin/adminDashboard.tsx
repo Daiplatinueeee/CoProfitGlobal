@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock, Tag } from 'lucide-react';
+import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock, Tag, Trophy } from 'lucide-react';
 
 import GeneratePin from '../tabs/GeneratePin';
 import GenerateProductPin from '../tabs/GenerateProductPin';
 import UsersOverview from '../tabs/UsersOverview';
 import PendingPayouts from '../tabs/PendingPayouts';
 import PendingWithdrawGC from '../tabs/PendingWithdrawGC';
+import Leaderboards from '../tabs/Leaderboards';
 
 const KEYFRAMES = `
   @keyframes crane-swing {
@@ -404,6 +405,7 @@ export default function AdminDashboard() {
     { id: 'users', label: 'Users Overview', icon: Users },
     { id: 'pendingPayouts', label: 'Pending Payouts', icon: ClipboardClock },
     { id: 'pendingWithdrawGC', label: 'Pending Withdrawals (GC)', icon: ClipboardClock },
+    { id: 'leaderboards', label: 'Leaderboards', icon: Trophy },
   ], []);
 
   const renderTabContent = () => {
@@ -413,6 +415,7 @@ export default function AdminDashboard() {
       'users': <UsersOverview />,
       'pendingPayouts': <PendingPayouts />,
       'pendingWithdrawGC': <PendingWithdrawGC />,
+      'leaderboards': <Leaderboards />,
     };
     return map[activeTab] ?? <div />;
   };

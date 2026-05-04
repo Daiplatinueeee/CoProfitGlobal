@@ -187,7 +187,7 @@ export class PairingService {
     // ── Resolve user ────────────────────────────────────────────────────
     const user = await this.userModel
       .findById(userId)
-      .select('membershipTier tierUpgradedAt')
+      .select('membershipTier tierUpgradedAt isFree')
       .lean();
 
     if (!user) {
@@ -196,7 +196,7 @@ export class PairingService {
 
     const tier            = (user as any).membershipTier as MembershipTier ?? MembershipTier.BRONZE;
     const tierUpgradedAt  = (user as any).tierUpgradedAt as Date | null ?? null;
-    const dailyCap        = this.getCapForTier(tier);
+    const dailyCap        = (user as any).isFree ? 0 : this.getCapForTier(tier);
 
     // ── Fetch live bucket values ─────────────────────────────────────────
     // Must happen BEFORE the cap check so we can flush even when cap=0.
@@ -632,12 +632,12 @@ export class PairingService {
     const currentCycle      = this.getCurrentCycle();
     const cyclePeriodPrefix = `${dateKey}-${currentCycle}`;
 
-    const user = await this.userModel.findById(userId).select('membershipTier tierUpgradedAt').lean();
+    const user = await this.userModel.findById(userId).select('membershipTier tierUpgradedAt isFree').lean();
     if (!user) return { skipped: true, reason: 'User not found' };
 
     const tier            = (user as any).membershipTier as MembershipTier ?? MembershipTier.BRONZE;
     const tierUpgradedAt  = (user as any).tierUpgradedAt as Date | null ?? null;
-    const dailyCap        = this.getCapForTier(tier);
+    const dailyCap        = (user as any).isFree ? 0 : this.getCapForTier(tier);
     const capUsed         = await this.getDailyCapUsed(userId, cyclePeriodPrefix, tierUpgradedAt);
     const capRemaining = dailyCap - capUsed;
 
@@ -811,7 +811,7 @@ export class PairingService {
     const userId = this.toObjectId(userIdStr);
     const user = await this.userModel
       .findById(userId)
-      .select('membershipTier tierUpgradedAt')
+      .select('membershipTier tierUpgradedAt isFree')
       .lean();
     if (!user) throw new BadRequestException('User not found');
 
@@ -821,7 +821,7 @@ export class PairingService {
     const cyclePeriodPrefix = `${dateKey}-${cycle}`;
 
     const tier     = (user as any).membershipTier as MembershipTier;
-    const capLimit = this.TIER_CAP_MAP[tier] ?? this.TIER_CAP_MAP[MembershipTier.BRONZE];
+    const capLimit = (user as any).isFree ? 0 : (this.TIER_CAP_MAP[tier] ?? this.TIER_CAP_MAP[MembershipTier.BRONZE]);
     const tierUpgradedAt: Date | null = (user as any).tierUpgradedAt ?? null;
 
     const capUsed = await this.getDailyCapUsed(userId, cyclePeriodPrefix, tierUpgradedAt);

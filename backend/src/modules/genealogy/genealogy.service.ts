@@ -441,12 +441,14 @@ export class GenealogyService {
 
     // ── Validate PIN ──────────────────────────────────────────────────────
     const FREE_STATIC_PIN = 'AB1234'
-    const isFreePin = dto.packagePin.trim() === FREE_STATIC_PIN
+    const isLegacyFreePin = dto.packagePin.trim() === FREE_STATIC_PIN
     let pinDoc: any = null
     let membershipTier: MembershipTier
+    let isFreeAccount = false
 
-    if (isFreePin) {
+    if (isLegacyFreePin) {
       membershipTier = MembershipTier.FREE
+      isFreeAccount = true
     } else {
       pinDoc = await this.productPinModel.findOne({ pin: dto.packagePin.trim() })
       if (!pinDoc) throw new BadRequestException('Invalid package PIN — PIN does not exist')
@@ -456,6 +458,7 @@ export class GenealogyService {
         )
       }
       membershipTier = pinDoc.tier
+      isFreeAccount = pinDoc.isFree ?? false
     }
 
     const placerUser = await this.userModel.findById(dto.placerUserId)
@@ -480,11 +483,13 @@ export class GenealogyService {
 
     const newUserId = (newUser as any)._id as Types.ObjectId
 
-    // Set sponsorId to the placer
-    await this.userModel.findByIdAndUpdate(newUserId, { $set: { sponsorId: placerUser._id } })
+    // Set sponsorId and isFree flag on the user
+    const userUpdateFields: any = { sponsorId: placerUser._id }
+    if (isFreeAccount) userUpdateFields.isFree = true
+    await this.userModel.findByIdAndUpdate(newUserId, { $set: userUpdateFields })
 
     // ── Mark PIN as USED — rollback user if this fails ────────────────────
-    if (!isFreePin && pinDoc) {
+    if (!isLegacyFreePin && pinDoc) {
       try {
         const updateResult = await this.productPinModel.updateOne(
           { _id: pinDoc._id },
@@ -519,7 +524,7 @@ export class GenealogyService {
 
     // ── Award placement bonuses — run both in parallel ────────────────────
     await Promise.all([
-      this.awardPlacementBonuses(childNode, membershipTier, placerUser._id.toString()),
+      this.awardPlacementBonuses(childNode, membershipTier, isFreeAccount, placerUser._id.toString()),
       this.volumeService.awardActivationVolume(newUserId.toString()),
     ])
 
@@ -628,9 +633,10 @@ export class GenealogyService {
   private async awardPlacementBonuses(
     childNode: { depth: number; ancestors: Types.ObjectId[]; userId: Types.ObjectId },
     membershipTier: MembershipTier,
+    isFreeAccount: boolean,
     sponsorUserId: string,
   ) {
-    if (membershipTier === MembershipTier.FREE) return
+    if (membershipTier === MembershipTier.FREE || isFreeAccount) return
 
     // Resolve the sponsor's tree depth so we can exclude ancestors that sit
     // *between* the new member and the sponsor (spillover intermediaries).
@@ -648,17 +654,27 @@ export class GenealogyService {
     )
 
     if (!sponsorIsAncestor) {
-      const amount = this.DIRECT_BONUS[membershipTier] ?? 0
-      if (amount > 0) {
-        await this.walletService.credit({
-          userId:   sponsorUserId,
-          currency: WalletCurrency.PHP,
-          amount,
-          source:   WalletTxnSource.REFERRAL_DIRECT,
-          refKey:   `ref_direct:${sponsorUserId}:${childNode.userId}`,
-          note:     `Direct placement bonus — ${membershipTier} member placed`,
-          meta:     { newMemberId: childNode.userId.toString(), membershipTier },
-        })
+      const sponsorUser = await this.userModel
+        .findById(this.toObjectId(sponsorUserId))
+        .select('isFree membershipTier')
+        .lean()
+      const sponsorIsFree =
+        (sponsorUser as any)?.isFree ||
+        (sponsorUser as any)?.membershipTier === MembershipTier.FREE
+
+      if (!sponsorIsFree) {
+        const amount = this.DIRECT_BONUS[membershipTier] ?? 0
+        if (amount > 0) {
+          await this.walletService.credit({
+            userId:   sponsorUserId,
+            currency: WalletCurrency.PHP,
+            amount,
+            source:   WalletTxnSource.REFERRAL_DIRECT,
+            refKey:   `ref_direct:${sponsorUserId}:${childNode.userId}`,
+            note:     `Direct placement bonus — ${membershipTier} member placed`,
+            meta:     { newMemberId: childNode.userId.toString(), membershipTier },
+          })
+        }
       }
     }
 
@@ -670,7 +686,7 @@ export class GenealogyService {
         const [ancestor, ancestorNode] = await Promise.all([
           this.userModel
             .findById(ancestorObjId)
-            .select('countedIndirectDepths')
+            .select('countedIndirectDepths isFree membershipTier')
             .lean(),
           this.genealogyModel
             .findOne({ userId: ancestorObjId })
@@ -679,6 +695,12 @@ export class GenealogyService {
         ])
 
         if (!ancestor || !ancestorNode) return
+
+        // Free ancestors never receive direct or indirect bonuses
+        if (
+          (ancestor as any).isFree ||
+          (ancestor as any).membershipTier === MembershipTier.FREE
+        ) return
 
         const depthDiff       = childNode.depth - (ancestorNode as any).depth
         const isDirectRecruit = sponsorUserId === ancestorId
@@ -857,7 +879,8 @@ export class GenealogyService {
     await parentNode.save()
 
     const membershipTier = (existingUser as any).membershipTier as MembershipTier
-    await this.awardPlacementBonuses(childNode, membershipTier, placerUser._id.toString())
+    const isFreeExisting = (existingUser as any).isFree ?? false
+    await this.awardPlacementBonuses(childNode, membershipTier, isFreeExisting, placerUser._id.toString())
 
     const { leftAvailablePoints, rightAvailablePoints } =
       await this.getAvailablePoints(existingUserId)

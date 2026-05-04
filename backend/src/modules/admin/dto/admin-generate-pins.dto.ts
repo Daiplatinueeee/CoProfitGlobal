@@ -1,5 +1,5 @@
-import { IsEnum, IsInt, Min, Max } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsEnum, IsInt, Min, Max, IsBoolean, IsOptional } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 import { MembershipTier } from '../../users/schemas/user.schema';
 
 export class AdminGeneratePinsDto {
@@ -9,6 +9,11 @@ export class AdminGeneratePinsDto {
   @IsInt()
   @Min(1)
   @Max(500)
-  @Type(() => Number)  
+  @Type(() => Number)
   quantity: number;
+
+  @IsBoolean()
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : value)
+  isFree?: boolean;
 }

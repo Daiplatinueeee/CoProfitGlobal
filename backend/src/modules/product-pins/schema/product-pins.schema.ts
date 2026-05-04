@@ -32,6 +32,9 @@ export class ProductPin {
 
   @Prop({ type: String, default: '' })
   note?: string;
+
+  @Prop({ type: Boolean, default: false })
+  isFree: boolean;
 }
 
 export const ProductPinSchema = SchemaFactory.createForClass(ProductPin);

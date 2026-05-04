@@ -159,6 +159,16 @@ export class VolumeService {
       ancestorNodes.map((node: any) => [node.userId.toString(), node]),
     )
 
+    // Bulk-fetch ancestor user records to check isFree / legacy FREE tier
+    const ancestorUserDocs = await this.userModel
+      .find({ _id: { $in: ancestorIds.map((id) => this.toObjectId(id)) } })
+      .select('isFree membershipTier')
+      .lean()
+
+    const ancestorUserMap = new Map(
+      ancestorUserDocs.map((u: any) => [u._id.toString(), u]),
+    )
+
     // fullPath = [root → ... → parent → sourceUser]
     const fullPath = [...ancestorIds, sourceUserId]
 
@@ -189,6 +199,18 @@ export class VolumeService {
       if (alreadyDone) {
         this.logger.warn(
           `[volume] Ancestor=${ancestorUserId} already credited for eventKey=${eventKey}, skipping`,
+        )
+        continue
+      }
+
+      // Skip free ancestors — they never receive volume points
+      const ancestorUser: any = ancestorUserMap.get(ancestorUserId)
+      if (
+        ancestorUser?.isFree ||
+        ancestorUser?.membershipTier === MembershipTier.FREE
+      ) {
+        this.logger.log(
+          `[volume] Skipping free ancestor=${ancestorUserId}`,
         )
         continue
       }
@@ -313,6 +335,11 @@ export class VolumeService {
 
     const user = await this.userModel.findById(memberUserId).lean()
     if (!user) throw new NotFoundException('User not found')
+
+    if ((user as any).isFree) {
+      this.logger.log(`[volume] awardActivationVolume — skipped for free account userId=${memberUserId}`)
+      return { skipped: true, sourceUserId: memberUserId, points: 0, awardedTo: [] }
+    }
 
     const points   = this.getTierPoints(user.membershipTier)
     const eventKey = `activation:${memberUserId}`

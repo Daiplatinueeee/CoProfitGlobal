@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Search, Pencil, OctagonMinus, ArrowUpCircle, KeyRound, X, ChevronLeft, ChevronRight, Users } from 'lucide-react';
+import { Search, Pencil, OctagonMinus, ArrowUpCircle, KeyRound, X, ChevronLeft, ChevronRight, Users, Lock, Trash2 } from 'lucide-react';
 
 import CreateUserModal from '../modals/CreateUserModal';
 
 const API_BASE = 'http://localhost:3000';
+
+const PROTECTED_ADMIN_EMAIL = 'admin@coprofitglobal.com';
+const isProtectedAdmin = (user: User) => user.email === PROTECTED_ADMIN_EMAIL;
 
 interface User {
   id: string;
@@ -17,10 +20,13 @@ interface User {
   bday: string;
   password: string;
   tier: 'bronze' | 'silver' | 'gold' | 'platinum' | null;
+  isFree: boolean;
   profilePicture?: string;
   createdAt: string;
   createdTime: string;
   isActive: boolean;
+  isRestricted: boolean;
+  restrictedReason?: string;
   leftLegPoints: number;
   rightLegPoints: number;
   leftAvailablePoints: number;
@@ -62,6 +68,7 @@ function UserDetailModal({
   onDelete,
   onEditPoints,
   onUpgrade,
+  onChangePassword,
 }: {
   user: User;
   onClose: () => void;
@@ -69,7 +76,11 @@ function UserDetailModal({
   onDelete: (id: string) => void;
   onEditPoints: (user: User) => void;
   onUpgrade: (user: User) => void;
+  onChangePassword: (user: User) => void;
+  onRestrict: (user: User) => void;
 }) {
+  const isAdmin = isProtectedAdmin(user);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
@@ -89,17 +100,27 @@ function UserDetailModal({
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-base font-semibold text-slate-900">{user.username}</h3>
 
-              <button
-                onClick={() => onToggleStatus(user.id)}
-                title="Click to toggle status"
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 transition-colors ${user.isActive
-                  ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
-                  : 'bg-red-50 text-red-600 ring-red-200 hover:bg-red-100'
-                  }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                {user.isActive ? 'Active' : 'Inactive'}
-              </button>
+              {/* Protected admin badge */}
+              {isAdmin && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200">
+                  <Lock className="w-3 h-3" />
+                  Admin Account
+                </span>
+              )}
+
+              {!isAdmin && (
+                <button
+                  onClick={() => onToggleStatus(user.id)}
+                  title="Click to toggle status"
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 transition-colors ${user.isActive
+                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
+                    : 'bg-red-50 text-red-600 ring-red-200 hover:bg-red-100'
+                    }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                  {user.isActive ? 'Active' : 'Inactive'}
+                </button>
+              )}
 
               {user.tier ? (
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ring-1 capitalize ${tierConfig[user.tier].bg} ${tierConfig[user.tier].text} ${tierConfig[user.tier].ring}`}>
@@ -108,6 +129,11 @@ function UserDetailModal({
               ) : (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-400 ring-1 ring-slate-200">
                   No Tier
+                </span>
+              )}
+              {user.isFree && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 ring-1 ring-slate-300">
+                  Free
                 </span>
               )}
             </div>
@@ -120,6 +146,16 @@ function UserDetailModal({
             <p className="text-xs text-slate-400">{user.createdTime}</p>
           </div>
         </div>
+
+        {/* Protected admin notice banner */}
+        {isAdmin && (
+          <div className="mx-4 sm:mx-6 mt-4 px-4 py-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-start gap-2.5 shrink-0">
+            <Lock className="w-3.5 h-3.5 text-indigo-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-indigo-700">
+              This is a protected system admin account. Deletion, password changes, package upgrades, and point edits are disabled.
+            </p>
+          </div>
+        )}
 
         {/* Scrollable Body */}
         <div className="overflow-y-auto flex-1">
@@ -141,13 +177,15 @@ function UserDetailModal({
           <div className="px-6 py-5">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Available Points</h4>
-              <button
-                onClick={() => onEditPoints(user)}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                <Pencil className="w-3 h-3" />
-                Edit Points
-              </button>
+              {!isAdmin && (
+                <button
+                  onClick={() => onEditPoints(user)}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Pencil className="w-3 h-3" />
+                  Edit Points
+                </button>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-slate-50 rounded-xl border border-slate-100 px-5 py-4">
@@ -164,22 +202,37 @@ function UserDetailModal({
 
         {/* Modal Footer */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
-          <button
-            onClick={() => { onDelete(user.id); onClose(); }}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors"
-          >
-            <OctagonMinus className="w-3.5 h-3.5" />
-            Restrict User
-          </button>
+          {!isAdmin ? (
+            <button
+              onClick={() => { onDelete(user.id); onClose(); }}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors"
+            >
+              <OctagonMinus className="w-3.5 h-3.5" />
+              Restrict User
+            </button>
+          ) : (
+            <div /> /* spacer to keep Close button right-aligned */
+          )}
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => onUpgrade(user)}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-violet-700 border border-violet-200 bg-violet-50 hover:bg-violet-100 px-3 py-2 rounded-lg transition-colors"
-            >
-              <ArrowUpCircle className="w-3.5 h-3.5" />
-              Upgrade Package
-            </button>
+            {!isAdmin && (
+              <>
+                <button
+                  onClick={() => onChangePassword(user)}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  Change Password
+                </button>
+                <button
+                  onClick={() => onUpgrade(user)}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-violet-700 border border-violet-200 bg-violet-50 hover:bg-violet-100 px-3 py-2 rounded-lg transition-colors"
+                >
+                  <ArrowUpCircle className="w-3.5 h-3.5" />
+                  Upgrade Package
+                </button>
+              </>
+            )}
             <button
               onClick={onClose}
               className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
@@ -198,7 +251,7 @@ function UsersOverview() {
   const [users, setUsers] = useState<User[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterTier, setFilterTier] = useState<Tier | 'all'>('all');
+  const [filterTier, setFilterTier] = useState<Tier | 'all' | 'free'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
@@ -215,6 +268,23 @@ function UsersOverview() {
   const [editPointsLoading, setEditPointsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // ── Change Password state ─────────────────────────────────────────────────
+  const [changePasswordUser, setChangePasswordUser] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+
+  // ── Restrict User state
+  const [restrictUser, setRestrictUser] = useState<User | null>(null);
+  const [restrictReason, setRestrictReason] = useState('');
+  const [restrictLoading, setRestrictLoading] = useState(false);
+  const [restrictError, setRestrictError] = useState<string | null>(null);
+
+  // ── Delete All Users state (testing only) ────────────────────────────────
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+  const [deleteAllLoading, setDeleteAllLoading] = useState(false);
+  const [deleteAllError, setDeleteAllError] = useState<string | null>(null);
 
   // ── Upgrade Package state ─────────────────────────────────────────────────
   const [upgradeUser, setUpgradeUser] = useState<User | null>(null);
@@ -253,6 +323,7 @@ function UsersOverview() {
       bday: apiUser.birthday,
       password: '',
       tier: apiUser.membershipTier || null,
+      isFree: apiUser.isFree ?? false,
       profilePicture: apiUser.profileImage,
       leftLegPoints: apiUser.leftLegPoints ?? 0,
       rightLegPoints: apiUser.rightLegPoints ?? 0,
@@ -261,6 +332,8 @@ function UsersOverview() {
       createdAt: createdDate.toISOString().split('T')[0],
       createdTime: createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
       isActive: apiUser.isActive !== undefined ? apiUser.isActive : true,
+      isRestricted: apiUser.isRestricted ?? false,
+      restrictedReason: apiUser.restrictedReason ?? '',
     };
   };
 
@@ -382,9 +455,11 @@ function UsersOverview() {
   };
 
   const handleDeleteUser = async (userId: string) => {
+    const target = users.find((u) => u.id === userId);
+    if (target && isProtectedAdmin(target)) return; // should never be reachable via UI
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     try {
-      const response = await fetch(`${API_BASE}/users/${userId}`, { method: 'DELETE', headers: getAuthHeaders() });
+      const response = await fetch(`${API_BASE}/admin/users/${userId}`, { method: 'DELETE', headers: getAuthHeaders() });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to delete user');
@@ -394,6 +469,117 @@ function UsersOverview() {
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete user');
+    }
+  };
+
+  const handleDeleteAllUsers = async () => {
+    setDeleteAllLoading(true);
+    setDeleteAllError(null);
+    try {
+      const deletableUsers = users.filter((u) => !isProtectedAdmin(u));
+      const ids = deletableUsers.map((u) => u.id);
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`${API_BASE}/admin/users/${id}`, { method: 'DELETE', headers: getAuthHeaders() })
+        )
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      setUsers((prev) => prev.filter((u) => isProtectedAdmin(u)));
+      setShowDeleteAllConfirm(false);
+      if (failed > 0) {
+        setSuccessMessage(`Deleted ${ids.length - failed} users. ${failed} failed.`);
+      } else {
+        setSuccessMessage(`All ${ids.length} users deleted successfully. Admin account preserved.`);
+      }
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch {
+      setDeleteAllError('An unexpected error occurred.');
+    } finally {
+      setDeleteAllLoading(false);
+    }
+  };
+
+  const openChangePassword = (user: User) => {
+    setSelectedUser(null);
+    setNewPassword('');
+    setChangePasswordError(null);
+    setChangePasswordUser(user);
+  };
+
+  const handleChangePassword = async () => {
+    if (!changePasswordUser) return;
+    if (!newPassword.trim() || newPassword.length < 6) {
+      setChangePasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    setChangePasswordLoading(true);
+    setChangePasswordError(null);
+    try {
+      const response = await fetch(`${API_BASE}/admin/users/${changePasswordUser.id}/password`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ newPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setChangePasswordError(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Failed to update password.');
+        return;
+      }
+      setChangePasswordUser(null);
+      setNewPassword('');
+      setSuccessMessage(`Password updated for @${changePasswordUser.username}`);
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch {
+      setChangePasswordError('An unexpected error occurred.');
+    } finally {
+      setChangePasswordLoading(false);
+    }
+  };
+
+  const openRestrict = (user: User) => {
+    setSelectedUser(null);
+    setRestrictReason('');
+    setRestrictError(null);
+    setRestrictUser(user);
+  };
+
+  const handleRestrictUser = async () => {
+    if (!restrictUser) return;
+    const willRestrict = !restrictUser.isRestricted;
+    if (willRestrict && !restrictReason.trim()) {
+      setRestrictError('Please provide a reason for restricting this account.');
+      return;
+    }
+    setRestrictLoading(true);
+    setRestrictError(null);
+    try {
+      const response = await fetch(`${API_BASE}/admin/users/${restrictUser.id}/restrict`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ isRestricted: willRestrict, reason: willRestrict ? restrictReason.trim() : '' }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setRestrictError(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Failed to update restriction.');
+        return;
+      }
+      setUsers((prev) => prev.map((u) =>
+        u.id === restrictUser.id
+          ? { ...u, isRestricted: willRestrict, restrictedReason: willRestrict ? restrictReason.trim() : '' }
+          : u
+      ));
+      setRestrictUser(null);
+      setRestrictReason('');
+      setSuccessMessage(
+        willRestrict
+          ? `@${restrictUser.username} has been restricted.`
+          : `Restriction lifted for @${restrictUser.username}.`
+      );
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch {
+      setRestrictError('An unexpected error occurred.');
+    } finally {
+      setRestrictLoading(false);
     }
   };
 
@@ -517,7 +703,10 @@ function UsersOverview() {
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTier = filterTier === 'all' || user.tier === filterTier;
+    let matchesTier: boolean;
+    if (filterTier === 'all') matchesTier = true;
+    else if ((filterTier as string) === 'free') matchesTier = user.isFree;
+    else matchesTier = user.tier === filterTier;
     return matchesSearch && matchesTier;
   });
 
@@ -527,6 +716,7 @@ function UsersOverview() {
 
   const tierFilterActiveClass: Record<string, string> = {
     all: 'bg-slate-900 text-white',
+    free: 'bg-slate-400 text-white',
     bronze: 'bg-amber-500 text-white',
     silver: 'bg-slate-500 text-white',
     gold: 'bg-yellow-500 text-white',
@@ -549,12 +739,22 @@ function UsersOverview() {
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {!loading && users.length > 0 && (
-              <button
-                onClick={fetchUsers}
-                className="text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-lg transition-colors"
-              >
-                Refresh
-              </button>
+              <>
+                <button
+                  onClick={fetchUsers}
+                  className="text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-lg transition-colors"
+                >
+                  Refresh
+                </button>
+                <button
+                  onClick={() => { setDeleteAllError(null); setShowDeleteAllConfirm(true); }}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors"
+                  title="[TEST ONLY] Delete all users"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete All
+                </button>
+              </>
             )}
             <button
               onClick={() => setShowCreateForm(true)}
@@ -591,8 +791,8 @@ function UsersOverview() {
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              {(['all', 'bronze', 'silver', 'gold', 'platinum'] as const).map((tier) => {
-                const count = tier === 'all' ? users.length : users.filter((u) => u.tier === tier).length;
+              {(['all', 'free', 'bronze', 'silver', 'gold', 'platinum'] as const).map((tier) => {
+                const count = tier === 'all' ? users.length : tier === 'free' ? users.filter((u) => u.isFree).length : users.filter((u) => u.tier === tier).length;
                 return (
                   <button
                     key={tier}
@@ -698,15 +898,22 @@ function UsersOverview() {
 
                       {/* Tier */}
                       <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        {user.tier && tierConfig[user.tier] ? (
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 capitalize ${tierConfig[user.tier].bg} ${tierConfig[user.tier].text} ${tierConfig[user.tier].ring}`}>
-                            {tierConfig[user.tier].label}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-400 ring-1 ring-slate-200">
-                            No Tier
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {user.tier && tierConfig[user.tier] ? (
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 capitalize ${tierConfig[user.tier].bg} ${tierConfig[user.tier].text} ${tierConfig[user.tier].ring}`}>
+                              {tierConfig[user.tier].label}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-400 ring-1 ring-slate-200">
+                              No Tier
+                            </span>
+                          )}
+                          {user.isFree && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 ring-1 ring-slate-300">
+                              Free
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Left Leg */}
@@ -788,6 +995,8 @@ function UsersOverview() {
             onDelete={handleDeleteUser}
             onEditPoints={openEditPoints}
             onUpgrade={openUpgrade}
+            onChangePassword={openChangePassword}
+          onRestrict={openRestrict}
           />
         )}
 
@@ -987,6 +1196,277 @@ function UsersOverview() {
                     <>
                       <ArrowUpCircle className="w-3.5 h-3.5" />
                       Confirm Upgrade
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Restrict User Modal */}
+        {restrictUser && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
+            <div
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => { setRestrictUser(null); setRestrictReason(''); setRestrictError(null); }}
+            />
+            <div className="relative z-10 w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${restrictUser.isRestricted ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                    <OctagonMinus className={`w-4 h-4 ${restrictUser.isRestricted ? 'text-emerald-600' : 'text-red-600'}`} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      {restrictUser.isRestricted ? 'Lift Restriction' : 'Restrict Account'}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5 truncate max-w-45">@{restrictUser.username}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setRestrictUser(null); setRestrictReason(''); setRestrictError(null); }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-5 space-y-4">
+                {restrictUser.isRestricted ? (
+                  <p className="text-sm text-slate-600">
+                    This account is currently restricted
+                    {restrictUser.restrictedReason ? ` for: <span className="font-medium">${restrictUser.restrictedReason}</span>` : ''}.
+                    Lifting the restriction will allow the user to log in again.
+                  </p>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+                      Reason <span className="text-red-400">*</span>
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Explain why this account is being restricted…"
+                      value={restrictReason}
+                      onChange={(e) => { setRestrictReason(e.target.value); setRestrictError(null); }}
+                      className={`w-full px-3 py-2.5 border rounded-lg text-sm text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 resize-none transition-colors ${
+                        restrictError ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-slate-200'
+                      }`}
+                    />
+                    {restrictError && (
+                      <p className="mt-2 text-xs text-red-600 flex items-start gap-1">
+                        <span className="mt-0.5 shrink-0">⚠</span>
+                        {restrictError}
+                      </p>
+                    )}
+                  </div>
+                )}
+                <p className="text-xs text-slate-400">
+                  {restrictUser.isRestricted
+                    ? 'The user will be able to log in immediately after lifting the restriction.'
+                    : 'The user will be logged out of all active sessions and blocked from logging in.'}
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
+                <button
+                  onClick={() => { setRestrictUser(null); setRestrictReason(''); setRestrictError(null); }}
+                  className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRestrictUser}
+                  disabled={restrictLoading || (!restrictUser.isRestricted && !restrictReason.trim())}
+                  className={`inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors ${
+                    restrictUser.isRestricted
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  {restrictLoading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {restrictUser.isRestricted ? 'Lifting…' : 'Restricting…'}
+                    </>
+                  ) : (
+                    <>
+                      <OctagonMinus className="w-3.5 h-3.5" />
+                      {restrictUser.isRestricted ? 'Lift Restriction' : 'Confirm Restrict'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Change Password Modal */}
+        {changePasswordUser && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
+            <div
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => { setChangePasswordUser(null); setNewPassword(''); setChangePasswordError(null); }}
+            />
+            <div className="relative z-10 w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+                    <Lock className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Change Password</h3>
+                    <p className="text-xs text-slate-400 mt-0.5 truncate max-w-45">@{changePasswordUser.username}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setChangePasswordUser(null); setNewPassword(''); setChangePasswordError(null); }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Enter new password (min 6 chars)"
+                      value={newPassword}
+                      onChange={(e) => { setNewPassword(e.target.value); setChangePasswordError(null); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleChangePassword(); }}
+                      autoFocus
+                      className={`w-full pl-9 pr-4 py-2.5 border rounded-lg text-sm text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 transition-colors ${changePasswordError
+                        ? 'border-red-300 focus:ring-red-100'
+                        : newPassword.length >= 6
+                          ? 'border-emerald-300 focus:ring-emerald-100'
+                          : 'border-slate-200 focus:ring-slate-200'
+                        }`}
+                    />
+                  </div>
+                  {changePasswordError && (
+                    <p className="mt-2 text-xs text-red-600 flex items-start gap-1">
+                      <span className="mt-0.5 shrink-0">⚠</span>
+                      {changePasswordError}
+                    </p>
+                  )}
+                  {newPassword.length >= 6 && !changePasswordError && (
+                    <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
+                      <span>✓</span> Password looks good — click Save to confirm.
+                    </p>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400">
+                  This will immediately update the password for this user. They will need to use the new password on their next login.
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
+                <button
+                  onClick={() => { setChangePasswordUser(null); setNewPassword(''); setChangePasswordError(null); }}
+                  className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleChangePassword}
+                  disabled={changePasswordLoading || newPassword.length < 6}
+                  className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
+                >
+                  {changePasswordLoading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-3.5 h-3.5" />
+                      Save Password
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete All Users Modal (Testing Only) */}
+        {showDeleteAllConfirm && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
+            <div
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => !deleteAllLoading && setShowDeleteAllConfirm(false)}
+            />
+            <div className="relative z-10 w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center">
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Delete All Users</h3>
+                    <p className="text-xs text-red-500 font-medium mt-0.5">⚠ Testing purposes only</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDeleteAllConfirm(false)}
+                  disabled={deleteAllLoading}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors disabled:opacity-40"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {/* Body */}
+              <div className="px-6 py-5 space-y-3">
+                <p className="text-sm text-slate-700">
+                  This will permanently delete <span className="font-semibold text-red-600">{users.filter((u) => !isProtectedAdmin(u)).length} user{users.filter((u) => !isProtectedAdmin(u)).length !== 1 ? 's' : ''}</span>. This action cannot be undone.
+                </p>
+                <p className="text-xs text-indigo-600 flex items-center gap-1.5">
+                  <Lock className="w-3 h-3 shrink-0" />
+                  The protected admin account (<span className="font-medium">{PROTECTED_ADMIN_EMAIL}</span>) will be preserved.
+                </p>
+                {deleteAllError && (
+                  <p className="text-xs text-red-600 flex items-start gap-1">
+                    <span className="mt-0.5 shrink-0">⚠</span>
+                    {deleteAllError}
+                  </p>
+                )}
+              </div>
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowDeleteAllConfirm(false)}
+                  disabled={deleteAllLoading}
+                  className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAllUsers}
+                  disabled={deleteAllLoading}
+                  className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
+                >
+                  {deleteAllLoading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Deleting…
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete All
                     </>
                   )}
                 </button>

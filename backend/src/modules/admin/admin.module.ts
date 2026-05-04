@@ -29,6 +29,10 @@ import {
 import { RolesGuard } from '../auth/roles.guard';
 import { PairingModule } from '../pairing/pairing.module';
 import { WalletTransaction, WalletTransactionSchema } from '../wallet/schemas/wallet-transaction.schema';
+import {
+  ForgotPasswordRequest,
+  ForgotPasswordRequestSchema,
+} from '../auth/schemas/forgot-password-request.schema';
 
 @Module({
   imports: [
@@ -42,6 +46,7 @@ import { WalletTransaction, WalletTransactionSchema } from '../wallet/schemas/wa
       { name: LifestyleReward.name, schema: LifestyleRewardSchema },
       { name: UnilevelProduct.name, schema: UnilevelProductSchema },
       { name: WalletTransaction.name, schema: WalletTransactionSchema },
+      { name: ForgotPasswordRequest.name, schema: ForgotPasswordRequestSchema },
     ]),
   ],
   controllers: [AdminController],

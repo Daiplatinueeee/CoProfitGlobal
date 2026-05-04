@@ -1,14 +1,22 @@
 import {
   Injectable,
   UnauthorizedException,
+  BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
 import { UsersService } from '../users/users.service';
 import { MembershipTier } from '../users/schemas/user.schema';
+import {
+  ForgotPasswordRequest,
+  ForgotPasswordRequestDocument,
+} from './schemas/forgot-password-request.schema';
 
 type AccessPayload = { sub: string; email: string; role: MembershipTier };
 type RefreshPayload = { sub: string; sid: string };
@@ -19,6 +27,8 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    @InjectModel(ForgotPasswordRequest.name)
+    private readonly forgotPasswordRequestModel: Model<ForgotPasswordRequestDocument>,
   ) {}
 
   private getExpires(raw: string, fallback: string): JwtSignOptions['expiresIn'] {
@@ -153,6 +163,15 @@ export class AuthService {
     const ok = await bcrypt.compare(input.password, (user as any).passwordHash);
     if (!ok) throw new UnauthorizedException('Invalid credentials');
 
+    if ((user as any).isRestricted) {
+      const reason = (user as any).restrictedReason?.trim();
+      throw new ForbiddenException(
+        reason
+          ? `Your account has been restricted: ${reason}`
+          : 'Your account has been restricted. Please contact support.',
+      );
+    }
+
     const { refresh_token } = await this.issueRefreshSession(user as any, meta);
     const body = await this.buildAuthResponse(user as any);
 
@@ -222,4 +241,13 @@ export class AuthService {
   async logout(userId: string, sid: string) {
     await this.usersService.removeRefreshSession(userId, sid);
   }
+
+  async submitForgotPasswordRequest(reason: string, description: string) {
+    if (!reason?.trim() || !description?.trim()) {
+      throw new BadRequestException('reason and description are required');
+    }
+    const doc = await this.forgotPasswordRequestModel.create({ reason, description });
+    return { message: 'Request submitted', id: doc._id };
+  }
+  
 }

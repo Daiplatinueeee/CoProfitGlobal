@@ -47,12 +47,19 @@ import { GenerateProductPinDto } from './dto/generate-product-pin.dto';
 import { CreateLifestyleRewardDto } from './dto/create-lifestyle-reward.dto';
 import { PairingService } from '../pairing/pairing.service';
 import {
+  ForgotPasswordRequest,
+  ForgotPasswordRequestDocument,
+  ForgotPasswordRequestStatus,
+} from '../auth/schemas/forgot-password-request.schema';
+import {
   WalletTransaction,
   WalletTransactionDocument,
   WalletCurrency,
   WalletTxnType,
   WalletTxnSource,
 } from '../wallet/schemas/wallet-transaction.schema';
+
+import { AdminRestrictUserDto } from './dto/admin-restrict-user.dto';
 
 @Injectable()
 export class AdminService {
@@ -71,6 +78,8 @@ export class AdminService {
     private readonly unilevelProductModel: Model<UnilevelProductDocument>,
     @InjectModel(WalletTransaction.name)
     private readonly txnModel: Model<WalletTransactionDocument>,
+    @InjectModel(ForgotPasswordRequest.name)
+    private readonly forgotPasswordRequestModel: Model<ForgotPasswordRequestDocument>,
     private readonly usersService: UsersService,
     private readonly pairingService: PairingService,
   ) {}
@@ -86,13 +95,15 @@ export class AdminService {
   async createUser(dto: AdminCreateUserDto) {
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    const isFreePin = dto.packagePin === AdminService.FREE_STATIC_PIN;
+    const isLegacyFreePin = dto.packagePin === AdminService.FREE_STATIC_PIN;
     let membershipTier: MembershipTier;
     let pinDoc: ProductPinDocument | null = null;
+    let isFreeAccount = false;
 
-    if (isFreePin) {
-      // ── Free-account path: static PIN, no DB lookup, no consumption ───────
+    if (isLegacyFreePin) {
+      // ── Legacy free-account path: static PIN, no DB lookup, no consumption ─
       membershipTier = MembershipTier.FREE;
+      isFreeAccount = true;
     } else {
       // ── Step 1: Validate the PIN exists and is UNUSED ──────────────────────
       pinDoc = await this.pinModel.findOne({ pin: dto.packagePin });
@@ -108,8 +119,9 @@ export class AdminService {
         );
       }
 
-      // ── Step 2: Derive membershipTier from the PIN ─────────────────────────
+      // ── Step 2: Derive membershipTier and free flag from the PIN ───────────
       membershipTier = pinDoc.tier;
+      isFreeAccount = pinDoc.isFree ?? false;
     }
 
     // ── Step 3: Create the user ────────────────────────────────────────────
@@ -131,7 +143,15 @@ export class AdminService {
 
     console.log('User created successfully:', (created as any)._id.toString());
 
-    if (!isFreePin && pinDoc) {
+    // Set isFree flag on the user when the PIN is a free PIN
+    if (isFreeAccount) {
+      await this.userModel.updateOne(
+        { _id: (created as any)._id },
+        { $set: { isFree: true } },
+      );
+    }
+
+    if (!isLegacyFreePin && pinDoc) {
       console.log('Now marking PIN as USED...');
 
       // ── Step 4: Mark PIN as USED — rollback user if this fails ─────────────
@@ -184,7 +204,7 @@ export class AdminService {
     const users = await this.userModel
       .find()
       .select(
-        '_id name username email role membershipTier referralCode sponsorId packagePin leftLegPoints rightLegPoints age contact address beneficiary birthday profileImage isActive createdAt updatedAt',
+        '_id name username email role membershipTier isFree referralCode sponsorId packagePin leftLegPoints rightLegPoints age contact address beneficiary birthday profileImage isActive createdAt updatedAt',
       )
       .sort({ createdAt: -1 })
       .lean();
@@ -215,6 +235,7 @@ export class AdminService {
         email: user.email,
         role: user.role,
         membershipTier: user.membershipTier,
+        isFree: (user as any).isFree ?? false,
         referralCode: user.referralCode ?? null,
         sponsorId: user.sponsorId ? user.sponsorId.toString() : null,
         packagePin: user.packagePin ?? null,
@@ -264,11 +285,19 @@ export class AdminService {
     }
 
     const newTier: MembershipTier = pinDoc.tier;
+    const newIsFree: boolean = pinDoc.isFree ?? false;
 
     // ── 3. Update the user's membership tier ─────────────────────────────────
     await this.userModel.updateOne(
       { _id: uid },
-      { $set: { membershipTier: newTier, packagePin, tierUpgradedAt: new Date() } },
+      {
+        $set: {
+          membershipTier: newTier,
+          packagePin,
+          tierUpgradedAt: new Date(),
+          isFree: newIsFree,
+        },
+      },
     );
 
     // ── 4. Mark the PIN as USED ───────────────────────────────────────────────
@@ -284,17 +313,19 @@ export class AdminService {
     );
 
     const previousTier = (user as any).membershipTier as string;
-    await this.txnModel.create({
-      userId:   uid,
-      currency: WalletCurrency.PHP,
-      type:     WalletTxnType.CREDIT,
-      amount:   0.01,
-      source:   WalletTxnSource.TIER_UPGRADE,
-      refKey:   `tier_upgrade:${uid.toString()}:${packagePin}`,
-      note:     `Package upgraded from ${previousTier} → ${newTier} using PIN ${packagePin}`,
-      meta:     { previousTier, newTier, pin: packagePin },
-      postedAt: new Date(),
-    }).catch(() => {});
+    await this.txnModel
+      .create({
+        userId: uid,
+        currency: WalletCurrency.PHP,
+        type: WalletTxnType.CREDIT,
+        amount: 0.01,
+        source: WalletTxnSource.TIER_UPGRADE,
+        refKey: `tier_upgrade:${uid.toString()}:${packagePin}`,
+        note: `Package upgraded from ${previousTier} → ${newTier} using PIN ${packagePin}`,
+        meta: { previousTier, newTier, pin: packagePin },
+        postedAt: new Date(),
+      })
+      .catch(() => {});
 
     return {
       id: (user as any)._id.toString(),
@@ -398,11 +429,13 @@ export class AdminService {
   // Reserved static PINs that must never be randomly generated
   private static readonly RESERVED_PINS = new Set(['AB1234']);
 
+  // Normal PINs: first letter is never 'F' so admin can identify free PINs by their prefix
   private generatePinRaw(): string {
+    const firstLetters = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'; // 'F' excluded
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     let pin: string;
     do {
-      const l1 = letters[Math.floor(Math.random() * 26)];
+      const l1 = firstLetters[Math.floor(Math.random() * firstLetters.length)];
       const l2 = letters[Math.floor(Math.random() * 26)];
       const digits = Math.floor(Math.random() * 10000)
         .toString()
@@ -410,6 +443,16 @@ export class AdminService {
       pin = `${l1}${l2}${digits}`;
     } while (AdminService.RESERVED_PINS.has(pin));
     return pin;
+  }
+
+  // Free PINs always start with 'F' so admin can visually identify them
+  private generateFreePinRaw(): string {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const l2 = letters[Math.floor(Math.random() * 26)];
+    const digits = Math.floor(Math.random() * 10000)
+      .toString()
+      .padStart(4, '0');
+    return `F${l2}${digits}`;
   }
 
   private generateProductPinRaw(): string {
@@ -433,11 +476,15 @@ export class AdminService {
     const adminObjId = new Types.ObjectId(adminId);
     const pins: string[] = [];
 
+    const isFreePin = dto.isFree === true;
+
     for (let i = 0; i < dto.quantity; i++) {
       let inserted = false;
 
       for (let attempt = 0; attempt < 10; attempt++) {
-        const pin = this.generatePinRaw();
+        const pin = isFreePin
+          ? this.generateFreePinRaw()
+          : this.generatePinRaw();
 
         try {
           const doc = new this.pinModel({
@@ -447,6 +494,7 @@ export class AdminService {
             createdByAdminId: adminObjId,
             usedByUserId: null,
             usedAt: null,
+            isFree: isFreePin,
           });
 
           await doc.save();
@@ -489,6 +537,7 @@ export class AdminService {
     return {
       tier: dto.tier,
       quantity: dto.quantity,
+      isFree: isFreePin,
       pins,
     };
   }
@@ -502,7 +551,9 @@ export class AdminService {
       .find(q)
       .sort({ createdAt: -1 })
       .limit(Math.min(limit, 200))
-      .select('pin tier status usedByUserId usedAt createdByAdminId createdAt')
+      .select(
+        'pin tier status isFree usedByUserId usedAt createdByAdminId createdAt',
+      )
       .lean();
 
     return rows.map((r: any) => ({
@@ -510,6 +561,7 @@ export class AdminService {
       pin: r.pin ?? null,
       tier: r.tier,
       status: r.status,
+      isFree: r.isFree ?? false,
       usedByUserId: r.usedByUserId ? r.usedByUserId.toString() : null,
       usedAt: r.usedAt ?? null,
       createdByAdminId: r.createdByAdminId
@@ -564,7 +616,7 @@ export class AdminService {
       throw new NotFoundException('Product not found');
     }
 
-    const adminObjId   = new Types.ObjectId(adminId);
+    const adminObjId = new Types.ObjectId(adminId);
     const productObjId = new Types.ObjectId(dto.productId);
     const pins: string[] = [];
 
@@ -577,11 +629,11 @@ export class AdminService {
         try {
           const doc = new this.unilevelPinModel({
             pin,
-            productId:        productObjId,
-            productName:      product.name,
-            pv:               product.pv,
-            note:             dto.note ?? '',
-            status:           UnilevelPinStatus.UNUSED,
+            productId: productObjId,
+            productName: product.name,
+            pv: product.pv,
+            note: dto.note ?? '',
+            status: UnilevelPinStatus.UNUSED,
             createdByAdminId: adminObjId,
           });
 
@@ -607,7 +659,12 @@ export class AdminService {
       }
     }
 
-    return { pv: product.pv, productName: product.name, quantity: dto.quantity, pins };
+    return {
+      pv: product.pv,
+      productName: product.name,
+      quantity: dto.quantity,
+      pins,
+    };
   }
 
   async generateProductPins(adminId: string, dto: GenerateProductPinDto) {
@@ -627,11 +684,11 @@ export class AdminService {
         try {
           const doc = new this.unilevelPinModel({
             pin,
-            productId:        null,
-            productName:      '',
-            pv:               dto.pv,
-            note:             dto.note ?? '',
-            status:           UnilevelPinStatus.UNUSED,
+            productId: null,
+            productName: '',
+            pv: dto.pv,
+            note: dto.note ?? '',
+            status: UnilevelPinStatus.UNUSED,
             createdByAdminId: adminObjId,
           });
 
@@ -671,15 +728,15 @@ export class AdminService {
       .lean();
 
     return rows.map((r: any) => ({
-      id:            r._id.toString(),
-      pin:           r.pin,
-      productId:     r.productId ? r.productId.toString() : null,
-      productName:   r.productName ?? null,
-      pv:            r.pv,
-      status:        r.status,
-      createdAt:     r.createdAt,
-      usedAt:        r.usedAt ?? null,
-      usedByUserId:  r.usedByUserId ? r.usedByUserId.toString() : null,
+      id: r._id.toString(),
+      pin: r.pin,
+      productId: r.productId ? r.productId.toString() : null,
+      productName: r.productName ?? null,
+      pv: r.pv,
+      status: r.status,
+      createdAt: r.createdAt,
+      usedAt: r.usedAt ?? null,
+      usedByUserId: r.usedByUserId ? r.usedByUserId.toString() : null,
     }));
   }
 
@@ -699,18 +756,32 @@ export class AdminService {
     return { id: pin._id.toString(), deleted: true };
   }
 
+  // ─── Bulk delete package PINs by status ──────────────────────────────────────
+
+  async bulkDeletePackagePins(status: 'UNUSED' | 'USED') {
+    const result = await this.pinModel.deleteMany({ status });
+    return { deleted: result.deletedCount, status };
+  }
+
+  // ─── Bulk delete product (unilevel) PINs by status ───────────────────────────
+
+  async bulkDeleteProductPins(status: 'UNUSED' | 'USED') {
+    const result = await this.unilevelPinModel.deleteMany({ status });
+    return { deleted: result.deletedCount, status };
+  }
+
   // ─── Lifestyle reward management ─────────────────────────────────────────────
 
   async createLifestyleReward(dto: CreateLifestyleRewardDto) {
     const reward = await this.rewardModel.create({
-      name:        dto.name,
+      name: dto.name,
       description: dto.description ?? '',
-      pointsCost:  dto.pointsCost,
-      imageUrl:    dto.imageUrl ?? '',
-      category:    dto.category ?? '',
-      stock:       dto.stock,
-      sortOrder:   dto.sortOrder ?? 0,
-      status:      RewardStatus.ACTIVE,
+      pointsCost: dto.pointsCost,
+      imageUrl: dto.imageUrl ?? '',
+      category: dto.category ?? '',
+      stock: dto.stock,
+      sortOrder: dto.sortOrder ?? 0,
+      status: RewardStatus.ACTIVE,
     });
     return this.formatReward(reward.toObject());
   }
@@ -738,16 +809,129 @@ export class AdminService {
 
   private formatReward(doc: any) {
     return {
-      _id:         doc._id?.toString(),
-      name:        doc.name,
+      _id: doc._id?.toString(),
+      name: doc.name,
       description: doc.description ?? '',
-      pointsCost:  doc.pointsCost,
-      imageUrl:    doc.imageUrl ?? '',
-      category:    doc.category ?? '',
-      stock:       doc.stock,
-      status:      doc.status,
-      sortOrder:   doc.sortOrder ?? 0,
-      createdAt:   doc.createdAt,
+      pointsCost: doc.pointsCost,
+      imageUrl: doc.imageUrl ?? '',
+      category: doc.category ?? '',
+      stock: doc.stock,
+      status: doc.status,
+      sortOrder: doc.sortOrder ?? 0,
+      createdAt: doc.createdAt,
+    };
+  }
+
+  // ── Forgot-password requests ────────────────────────────────────────────────
+
+  async listForgotPasswordRequests(status?: string) {
+    const filter: Record<string, any> = {};
+    if (status === 'pending' || status === 'resolved') filter.status = status;
+    const rows = await this.forgotPasswordRequestModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .lean();
+    return rows.map((r: any) => ({
+      id: r._id?.toString(),
+      reason: r.reason,
+      description: r.description,
+      status: r.status,
+      resolvedAt: r.resolvedAt ?? null,
+      resolvedNote: r.resolvedNote ?? null,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async resolveForgotPasswordRequest(id: string, note?: string) {
+    if (!Types.ObjectId.isValid(id))
+      throw new BadRequestException('Invalid id');
+    const doc = await this.forgotPasswordRequestModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            status: ForgotPasswordRequestStatus.RESOLVED,
+            resolvedAt: new Date(),
+            ...(note ? { resolvedNote: note } : {}),
+          },
+        },
+        { new: true },
+      )
+      .lean();
+    if (!doc) throw new NotFoundException('Request not found');
+    return { message: 'Marked as resolved', id };
+  }
+
+  // ── Admin password override ─────────────────────────────────────────────────
+
+  async changeUserPassword(userId: string, newPassword: string) {
+    if (!this.isValidObjectId(userId))
+      throw new BadRequestException('Invalid userId');
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException('Password must be at least 6 characters');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const result = await this.userModel.updateOne(
+      { _id: new Types.ObjectId(userId) },
+      { $set: { passwordHash } },
+    );
+    if (result.matchedCount === 0)
+      throw new NotFoundException('User not found');
+    return { message: 'Password updated successfully' };
+  }
+
+  // ── Delete user ─────────────────────────────────────────────────────────────
+
+  async deleteUser(userId: string) {
+    if (!this.isValidObjectId(userId))
+      throw new BadRequestException('Invalid userId');
+
+    const result = await this.userModel.deleteOne({
+      _id: new Types.ObjectId(userId),
+    });
+
+    if (result.deletedCount === 0)
+      throw new NotFoundException('User not found');
+
+    return { id: userId, deleted: true };
+  }
+
+  // ── Restrict Account ─────────────────────────────────────────────────────────
+
+  async restrictUser(
+    userId: string,
+    dto: AdminRestrictUserDto,
+  ): Promise<{ userId: string; isRestricted: boolean; reason: string }> {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
+
+    const update: Record<string, unknown> = {
+      isRestricted: dto.isRestricted,
+      restrictedReason: dto.isRestricted ? (dto.reason?.trim() ?? '') : '',
+      restrictedAt: dto.isRestricted ? new Date() : null,
+    };
+
+    const updated = await this.userModel.findByIdAndUpdate(
+      userId,
+      { $set: update },
+      { returnDocument: 'after' },
+    );
+
+    if (!updated) throw new NotFoundException('User not found');
+
+    // Revoke all active refresh sessions so they're logged out immediately
+    if (dto.isRestricted) {
+      await this.userModel.updateOne(
+        { _id: userId },
+        { $set: { refreshSessions: [] } },
+      );
+    }
+
+    return {
+      userId,
+      isRestricted: (updated as any).isRestricted,
+      reason: (updated as any).restrictedReason ?? '',
     };
   }
 }
