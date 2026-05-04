@@ -27,6 +27,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { MembershipTier, SystemRole } from '../users/schemas/user.schema';
 import { PinStatus } from '../product-pins/schema/product-pins.schema';
 import { UnilevelPinStatus } from '../unilevel-products/schemas/unilevel-pin.schema';
+import { AdminRestrictUserDto } from './dto/admin-restrict-user.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -54,7 +55,8 @@ export class AdminController {
   @Patch('users/:id/leg-points')
   updateLegPoints(
     @Param('id') id: string,
-    @Body() dto: { leftAvailablePoints?: number; rightAvailablePoints?: number },
+    @Body()
+    dto: { leftAvailablePoints?: number; rightAvailablePoints?: number },
   ) {
     return this.adminService.updateLegPoints(id, dto);
   }
@@ -94,10 +96,18 @@ export class AdminController {
     return this.adminService.voidPin(id);
   }
 
+  @Delete('pins/bulk-delete')
+  bulkDeletePackagePins(@Query('status') status: 'UNUSED' | 'USED') {
+    return this.adminService.bulkDeletePackagePins(status);
+  }
+
   // ─── Unilevel PINs (product redemption) ──────────────────────────────────────
 
   @Post('unilevel-pins/generate')
-  generateUnilevelPins(@Req() req: any, @Body() dto: AdminGenerateUnilevelPinDto) {
+  generateUnilevelPins(
+    @Req() req: any,
+    @Body() dto: AdminGenerateUnilevelPinDto,
+  ) {
     const adminId = req.user?.sub || req.user?.id;
     return this.adminService.generateUnilevelPins(adminId, dto);
   }
@@ -135,5 +145,47 @@ export class AdminController {
       status,
       limit ? Number(limit) : 200,
     );
+  }
+
+  @Delete('product-pins/bulk-delete')
+  bulkDeleteProductPins(@Query('status') status: 'UNUSED' | 'USED') {
+    return this.adminService.bulkDeleteProductPins(status);
+  }
+
+  // ─── Forgot-password requests ────────────────────────────────────────────────
+
+  @Get('forgot-password-requests')
+  listForgotPasswordRequests(@Query('status') status?: string) {
+    return this.adminService.listForgotPasswordRequests(status);
+  }
+
+  @Patch('forgot-password-requests/:id/resolve')
+  resolveForgotPasswordRequest(
+    @Param('id') id: string,
+    @Body() body: { note?: string },
+  ) {
+    return this.adminService.resolveForgotPasswordRequest(id, body.note);
+  }
+
+  // ─── User password (admin override) ─────────────────────────────────────────
+
+  @Patch('users/:id/password')
+  changeUserPassword(
+    @Param('id') id: string,
+    @Body() body: { newPassword: string },
+  ) {
+    return this.adminService.changeUserPassword(id, body.newPassword);
+  }
+
+  // ─── ADD THIS ENDPOINT to AdminController in admin.controller.ts ─────────────
+
+  @Delete('users/:id')
+  deleteUser(@Param('id') id: string) {
+    return this.adminService.deleteUser(id);
+  }
+
+  @Patch('users/:id/restrict')
+  restrictUser(@Param('id') id: string, @Body() dto: AdminRestrictUserDto) {
+    return this.adminService.restrictUser(id, dto);
   }
 }

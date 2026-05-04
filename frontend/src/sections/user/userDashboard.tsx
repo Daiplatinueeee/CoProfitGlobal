@@ -6,7 +6,6 @@ import {
   Combine,
   BanknoteArrowDown,
   HandCoins,
-  Spotlight,
   User,
 } from 'lucide-react';
 
@@ -18,7 +17,6 @@ import ReferalsHierarchy from '../tabs/ReferalsHierarchy';
 import WithdrawGC from '../tabs/WithdrawGC';
 import UnilevelProducts from '../tabs/UnilevelProducts';
 import Transactions from '../tabs/Transactions'
-import Leaderboards from '../tabs/Leaderboards';
 import ViewMyAccount from '../tabs/ViewMyAccount';
 
 import baseImg from '../../assets/elmer-whitebg-removebg-preview.png'
@@ -705,7 +703,6 @@ export default function UserDashboard() {
     { id: 'unilevel-package', label: 'Unilevel Products', icon: Combine },
     { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown },
     { id: 'transactions', label: 'Transactions', icon: HandCoins},
-    { id: 'leaderboards', label: 'Leaderboards', icon: Spotlight },
     { id: 'viewaccount', label: 'View Account', icon: User, },
   ], []);
 
@@ -880,8 +877,8 @@ export default function UserDashboard() {
 
           {/* Right: User Info */}
           <div className="flex flex-col items-start justify-center gap-1 px-5 border-l border-yellow-500/15 relative z-10 shrink-0">
-            <span className="text-base font-semibold text-white truncate max-w-[140px]">{displayName}</span>
-            <span className="text-xs text-white/50 truncate max-w-[140px]">{displayEmail}</span>
+            <span className="text-base font-semibold text-white truncate max-w-35">{displayName}</span>
+            <span className="text-xs text-white/50 truncate max-w-35">{displayEmail}</span>
             <span className="text-xs text-yellow-400 font-medium">www.coprofitglobal.com</span>
           </div>
 
@@ -984,7 +981,7 @@ export default function UserDashboard() {
           </div>
 
           {/* Right: User Info */}
-          <div className="flex flex-col items-start justify-center gap-2 px-6 xl:px-8 border-l border-yellow-500/15 relative z-10 min-w-0 shrink-0 max-w-[180px] xl:max-w-none">
+          <div className="flex flex-col items-start justify-center gap-2 px-6 xl:px-8 border-l border-yellow-500/15 relative z-10 min-w-0 shrink-0 max-w-45 xl:max-w-none">
             <span className="text-lg xl:text-xl font-semibold text-white truncate w-full">{displayName}</span>
             <span className="text-xs xl:text-sm text-white/50 truncate w-full">{displayEmail}</span>
             <span className="text-xs xl:text-sm text-yellow-400 font-medium">www.coprofitglobal.com</span>
@@ -1462,7 +1459,6 @@ export default function UserDashboard() {
       'subscription': <Subscription />,
       'unilevel-package': <UnilevelProducts />,
       'transactions': <Transactions />,
-      'leaderboards': <Leaderboards />,
       'viewaccount': <ViewMyAccount />,
     };
     return contents[activeTab] || <div />;
@@ -1522,7 +1518,6 @@ export default function UserDashboard() {
                   { label: '⚙ User Dashboard — Testing Phase',     cls: 'bg-amber-100 text-amber-800' },
                   { label: '⚙ Genealogy Bonuses — Testing Phase',  cls: 'bg-amber-100 text-amber-800' },
                   { label: '⚙ Referral Hierarchy — Testing Phase', cls: 'bg-amber-100 text-amber-800' },
-                  { label: '⚙ Leaderboards — Testing Phase',       cls: 'bg-amber-100 text-amber-800' },
                   { label: '⚙ Users Account Management',           cls: 'bg-amber-100 text-amber-800' },
                   { label: '○ Subscription Management',            cls: 'bg-slate-100 text-slate-600' },
                   { label: '○ Unilevel Products',                  cls: 'bg-slate-100 text-slate-600' },

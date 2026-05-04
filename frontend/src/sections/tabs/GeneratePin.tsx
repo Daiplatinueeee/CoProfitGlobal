@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Copy, RefreshCw, Eye, EyeOff, Download,
   FileSpreadsheet, FileText, File,
-  ChevronDown, Package, KeyRound, ChevronLeft, ChevronRight,
+  ChevronDown, Package, KeyRound, ChevronLeft, ChevronRight, Trash2,
 } from 'lucide-react';
 import { ExportModal } from '../modals/ExportModal';
 
@@ -14,6 +14,7 @@ export interface PIN {
   id: string;
   pin: string;
   tier: Tier;
+  isFree: boolean;
   createdAt: string;
   createdTime: string;
   status: 'UNUSED' | 'USED' | 'VOID';
@@ -21,10 +22,8 @@ export interface PIN {
   usedBy?: string;
 }
 
-export type Tier = 'free' | 'bronze' | 'silver' | 'gold' | 'platinum';
+export type Tier = 'bronze' | 'silver' | 'gold' | 'platinum';
 type ExportFormat = 'excel' | 'word' | 'pdf';
-
-export const FREE_STATIC_PIN = 'AB1234';
 
 const PINS_PER_PAGE = 6;
 
@@ -38,6 +37,7 @@ export function mapApiPin(r: any): PIN {
     id: r.id,
     pin: resolvedPin,
     tier: r.tier as Tier,
+    isFree: r.isFree ?? false,
     createdAt: createdDate.toISOString().split('T')[0],
     createdTime: createdDate.toLocaleTimeString('en-US', {
       hour: '2-digit', minute: '2-digit', hour12: true,
@@ -208,7 +208,6 @@ async function runExport(pins: PIN[], format: ExportFormat) {
 // ─── Shared config (exported so ProductPinTab can import them) ──────────────────
 
 export const tierConfig: Record<Tier, { bg: string; text: string; ring: string; label: string }> = {
-  free:     { bg: 'bg-slate-50',  text: 'text-slate-600',  ring: 'ring-slate-200',  label: 'Free'     },
   bronze:   { bg: 'bg-amber-50',  text: 'text-amber-700',  ring: 'ring-amber-200',  label: 'Bronze'   },
   silver:   { bg: 'bg-slate-50',  text: 'text-slate-500',  ring: 'ring-slate-300',  label: 'Silver'   },
   gold:     { bg: 'bg-yellow-50', text: 'text-yellow-700', ring: 'ring-yellow-200', label: 'Gold'     },
@@ -223,7 +222,6 @@ export const statusConfig: Record<'UNUSED' | 'USED' | 'VOID', { bg: string; text
 
 export const tierFilterActiveClass: Record<string, string> = {
   all:      'bg-slate-900 text-white',
-  free:     'bg-slate-500 text-white',
   bronze:   'bg-amber-500 text-white',
   silver:   'bg-slate-400 text-white',
   gold:     'bg-yellow-500 text-white',
@@ -310,10 +308,15 @@ export function PinCard({ pin, onClick }: { pin: PIN; onClick: () => void }) {
         </div>
         <h3 className="text-sm font-semibold text-slate-900 font-mono tracking-widest leading-tight">••••••</h3>
         <p className="text-[10px] text-slate-400 mt-0.5">Click to reveal</p>
-        <div className="mt-2.5">
+        <div className="mt-2.5 flex flex-wrap gap-1 justify-center">
           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 capitalize ${tc.bg} ${tc.text} ${tc.ring}`}>
             {tc.label}
           </span>
+          {pin.isFree && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 bg-slate-100 text-slate-500 ring-slate-300">
+              Free
+            </span>
+          )}
         </div>
       </div>
       <div className="border-t border-slate-100 mx-5" />
@@ -361,6 +364,11 @@ export function PinDetailModal({ pin, onClose }: { pin: PIN; onClose: () => void
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ring-1 capitalize ${tc.bg} ${tc.text} ${tc.ring}`}>
                 {tc.label}
               </span>
+              {pin.isFree && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 ring-1 ring-slate-300">
+                  Free Account PIN
+                </span>
+              )}
               {isHashedPin(pin.pin) && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 ring-1 ring-red-200">
                   ⚠ Legacy hashed
@@ -448,6 +456,7 @@ function GeneratePin() {
   const [selectedPin, setSelectedPin] = useState<PIN | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedTier, setSelectedTier] = useState<Tier | null>(null);
+  const [isFreeGenerate, setIsFreeGenerate] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<'all' | 'USED' | 'UNUSED' | 'VOID'>('all');
   const [filterTier, setFilterTier] = useState<Tier | 'all'>('all');
@@ -457,6 +466,10 @@ function GeneratePin() {
 
   // Quantity modal
   const [showTypeModal, setShowTypeModal] = useState(false);
+
+  // ── Bulk-delete confirm modal state ───────────────────────────────────────
+  const [deleteTarget, setDeleteTarget] = useState<'UNUSED' | 'USED' | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // ── Package PIN fetch ──────────────────────────────────────────────────────
 
@@ -479,7 +492,7 @@ function GeneratePin() {
   // ── Package PIN generate ───────────────────────────────────────────────────
 
   const handleConfirmPackage = async () => {
-    if (!selectedTier || selectedTier === 'free') return;
+    if (!selectedTier) return;
     setLoading(true);
     setError(null);
     setShowTypeModal(false);
@@ -488,7 +501,7 @@ function GeneratePin() {
       const res = await fetch(`${API_BASE}/admin/pins/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tier: selectedTier, quantity }),
+        body: JSON.stringify({ tier: selectedTier, quantity, isFree: isFreeGenerate }),
       });
 
       if (!res.ok) {
@@ -504,6 +517,7 @@ function GeneratePin() {
         id: `temp-${Date.now()}-${i}`,
         pin: rawPin ?? 'N/A',
         tier: selectedTier,
+        isFree: isFreeGenerate,
         createdAt: now.toISOString().split('T')[0],
         createdTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
         status: 'UNUSED',
@@ -511,6 +525,7 @@ function GeneratePin() {
 
       setPins((prev) => [...newPins, ...prev]);
       setSelectedTier(null);
+      setIsFreeGenerate(false);
       setQuantity(1);
       setCurrentPage(1);
 
@@ -527,6 +542,30 @@ function GeneratePin() {
       setError(err.message ?? 'Failed to generate PIN');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── Bulk delete ───────────────────────────────────────────────────────────
+
+  const handleDeleteAll = async (status: 'UNUSED' | 'USED') => {
+    setDeleting(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${API_BASE}/admin/pins/bulk-delete?status=${status}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message ?? `Server error (${res.status})`);
+      }
+      await fetchPins();
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to delete PINs');
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -565,23 +604,11 @@ function GeneratePin() {
         {/* ── Tier Selection ── */}
         <div className="mb-6 sm:mb-8">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Select Tier</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-            <button
-              onClick={() => setSelectedTier('free')}
-              className={`rounded-2xl border p-4 text-left transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 ${
-                selectedTier === 'free'
-                  ? `${tierConfig.free.bg} ${tierConfig.free.ring} ring-1 border-transparent`
-                  : 'bg-white border-slate-100 hover:border-slate-200'
-              }`}
-            >
-              <p className={`text-sm font-semibold ${selectedTier === 'free' ? tierConfig.free.text : 'text-slate-700'}`}>Free</p>
-              <p className="text-xs text-slate-400 mt-0.5">Static PIN</p>
-              {selectedTier === 'free' && <span className="mt-2 inline-flex text-xs font-medium text-slate-500">✓ Selected</span>}
-            </button>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             {(['bronze', 'silver', 'gold', 'platinum'] as Tier[]).map((tier) => (
               <button
                 key={tier}
-                onClick={() => setSelectedTier(tier)}
+                onClick={() => { setSelectedTier(tier); setIsFreeGenerate(false); }}
                 className={`rounded-2xl border p-4 text-left transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 ${
                   selectedTier === tier
                     ? `${tierConfig[tier].bg} ${tierConfig[tier].ring} ring-1 border-transparent`
@@ -594,45 +621,46 @@ function GeneratePin() {
             ))}
           </div>
 
-          {selectedTier === 'free' && (
-            <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600">
-              <p className="font-semibold text-slate-700 mb-0.5">Free Account — Static PIN</p>
-              <p>
-                The PIN for free accounts is fixed:{' '}
-                <span className="font-mono font-bold tracking-widest text-slate-900">{FREE_STATIC_PIN}</span>
-              </p>
-              <p className="mt-1 text-slate-400 text-xs">Free accounts do not receive any bonus.</p>
-            </div>
+          {selectedTier && (
+            <label className="inline-flex items-center gap-3 cursor-pointer select-none mt-1">
+              <input
+                type="checkbox"
+                checked={isFreeGenerate}
+                onChange={(e) => setIsFreeGenerate(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-slate-800 cursor-pointer"
+              />
+              <span className="text-sm text-slate-700 font-medium">Free Account?</span>
+              {isFreeGenerate && (
+                <span className="text-xs text-slate-400">PIN will start with "F" — no bonuses or points apply</span>
+              )}
+            </label>
           )}
         </div>
 
         {/* ── Generate Button ── */}
-        {selectedTier !== 'free' && (
-          <div className="mb-8">
-            <button
-              onClick={() => setShowTypeModal(true)}
-              disabled={!selectedTier || loading}
-              className={`inline-flex items-center gap-2 text-sm font-medium py-2.5 px-5 rounded-lg transition-colors ${
-                selectedTier && !loading
-                  ? 'bg-slate-900 hover:bg-slate-700 text-white cursor-pointer'
-                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-              }`}
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? 'Generating…' : 'Generate PIN'}
-            </button>
-            {!selectedTier && <p className="text-xs text-red-500 mt-2">Please select a tier to generate a PIN</p>}
-          </div>
-        )}
+        <div className="mb-8">
+          <button
+            onClick={() => setShowTypeModal(true)}
+            disabled={!selectedTier || loading}
+            className={`inline-flex items-center gap-2 text-sm font-medium py-2.5 px-5 rounded-lg transition-colors ${
+              selectedTier && !loading
+                ? 'bg-slate-900 hover:bg-slate-700 text-white cursor-pointer'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Generating…' : 'Generate PIN'}
+          </button>
+          {!selectedTier && <p className="text-xs text-red-500 mt-2">Please select a tier to generate a PIN</p>}
+        </div>
 
         {/* ── Package PIN Table ── */}
         <>
-          {/* Table header row */}
           <div className="mb-4 flex items-center justify-between">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
               Generated Package PINs
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               <button
                 onClick={fetchPins}
                 className="text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors"
@@ -647,6 +675,26 @@ function GeneratePin() {
                   Bulk Export
                 </button>
               )}
+              {pins.some((p) => p.status === 'UNUSED') && (
+                <button
+                  onClick={() => setDeleteTarget('UNUSED')}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium bg-white hover:bg-red-50 border border-red-200 text-red-600 hover:text-red-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Unused
+                </button>
+              )}
+              {pins.some((p) => p.status === 'USED') && (
+                <button
+                  onClick={() => setDeleteTarget('USED')}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium bg-white hover:bg-red-50 border border-red-200 text-red-600 hover:text-red-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Used
+                </button>
+              )}
             </div>
           </div>
 
@@ -654,7 +702,7 @@ function GeneratePin() {
           {pins.length > 0 && (
             <div className="mb-6 space-y-3">
               <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
-                {(['all', 'free', 'bronze', 'silver', 'gold', 'platinum'] as const).map((t) => (
+                {(['all', 'bronze', 'silver', 'gold', 'platinum'] as const).map((t) => (
                   <button
                     key={t}
                     onClick={() => { setFilterTier(t); setCurrentPage(1); }}
@@ -839,6 +887,51 @@ function GeneratePin() {
           {selectedPin && <PinDetailModal pin={selectedPin} onClose={() => setSelectedPin(null)} />}
           {showExportModal && <ExportModal pins={filteredPins} onClose={() => setShowExportModal(false)} />}
         </>
+
+        {/* ── Bulk Delete Confirm Modal ── */}
+        {deleteTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !deleting && setDeleteTarget(null)} />
+            <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Delete All {deleteTarget === 'UNUSED' ? 'Unused' : 'Used'} Package PINs
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">This action cannot be undone</p>
+                </div>
+              </div>
+              <div className="px-6 py-4">
+                <p className="text-sm text-slate-600">
+                  You are about to permanently delete{' '}
+                  <strong>{pins.filter((p) => p.status === deleteTarget).length}</strong>{' '}
+                  {deleteTarget.toLowerCase()} package PIN{pins.filter((p) => p.status === deleteTarget).length !== 1 ? 's' : ''}.
+                  Are you sure?
+                </p>
+              </div>
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={deleting}
+                  className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteAll(deleteTarget)}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-2 text-sm font-medium px-5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
+                >
+                  {deleting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  {deleting ? 'Deleting…' : 'Yes, Delete All'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Type-Selection Modal ── */}
         {showTypeModal && selectedTier && (

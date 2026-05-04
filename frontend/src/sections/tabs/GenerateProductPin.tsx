@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CheckCircle2, Clock, Hash, Plus, X, RefreshCw, AlertTriangle, KeyRound } from 'lucide-react';
+import { CheckCircle2, Clock, Hash, Plus, X, RefreshCw, AlertTriangle, KeyRound, Trash2 } from 'lucide-react';
 
 const API_BASE = 'https://coprofitglobal-production-0787.up.railway.app';
 
@@ -27,6 +27,10 @@ export default function GenerateProductPin() {
 
   const [pins, setPins] = useState<ProductPin[]>([]);
   const [loadingPins, setLoadingPins] = useState(true);
+
+  /* delete confirm state */
+  const [deleteTarget, setDeleteTarget] = useState<'UNUSED' | 'USED' | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   /* modal state */
   const [showModal, setShowModal] = useState(false);
@@ -126,6 +130,28 @@ export default function GenerateProductPin() {
     }
   };
 
+  /* ── bulk delete ── */
+  const handleDeleteAll = async (status: 'UNUSED' | 'USED') => {
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/admin/product-pins/bulk-delete?status=${status}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const msg = await res.json().catch(() => ({}));
+        throw new Error(msg?.message ?? `Server error (${res.status})`);
+      }
+      await fetchPins();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete PINs');
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
   /* ── derived stats (dynamic from fetched pins) ── */
   const totalPins  = pins.length;
   const usedPins   = pins.filter((p) => p.status === 'USED').length;
@@ -210,10 +236,32 @@ export default function GenerateProductPin() {
                 {loadingPins ? 'Loading…' : `${totalPins} PIN${totalPins !== 1 ? 's' : ''} generated`}
               </p>
             </div>
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-100 text-slate-600 ring-1 ring-slate-200 px-3 py-1 rounded-full">
-              <Hash className="w-3 h-3" />
-              PIN Registry
-            </span>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-100 text-slate-600 ring-1 ring-slate-200 px-3 py-1 rounded-full">
+                <Hash className="w-3 h-3" />
+                PIN Registry
+              </span>
+              {pins.some((p) => p.status === 'UNUSED') && (
+                <button
+                  onClick={() => setDeleteTarget('UNUSED')}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium bg-white hover:bg-red-50 border border-red-200 text-red-600 hover:text-red-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Unused
+                </button>
+              )}
+              {pins.some((p) => p.status === 'USED') && (
+                <button
+                  onClick={() => setDeleteTarget('USED')}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium bg-white hover:bg-red-50 border border-red-200 text-red-600 hover:text-red-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Used
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Table */}
@@ -331,6 +379,53 @@ export default function GenerateProductPin() {
           </div>
         </div>
       </div>
+
+      {/* ══════════════ BULK DELETE CONFIRM MODAL ══════════════ */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100">
+              <div className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                <Trash2 className="w-4 h-4 text-red-500" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  Delete All {deleteTarget === 'UNUSED' ? 'Unused' : 'Used'} Product PINs
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">This action cannot be undone</p>
+              </div>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-sm text-slate-600">
+                You are about to permanently delete{' '}
+                <strong>{pins.filter((p) => p.status === deleteTarget).length}</strong>{' '}
+                {deleteTarget.toLowerCase()} product PIN{pins.filter((p) => p.status === deleteTarget).length !== 1 ? 's' : ''}.
+                Are you sure?
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50/60">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="px-4 py-2 text-sm text-slate-600 rounded-xl hover:bg-slate-100 transition-all duration-150 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteAll(deleteTarget)}
+                disabled={deleting}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-all duration-150 disabled:opacity-50 shadow-sm"
+              >
+                {deleting ? (
+                  <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting…</>
+                ) : (
+                  <><Trash2 className="w-3.5 h-3.5" /> Yes, Delete All</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════════════ CREATE PIN MODAL ══════════════ */}
       {showModal && (

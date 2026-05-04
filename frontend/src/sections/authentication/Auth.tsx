@@ -71,7 +71,11 @@ export default function AuthPage() {
             const data = await response.json();
 
             if (!response.ok) {
-                setError(data.message || 'Login failed');
+                if (response.status === 403) {
+                    setError(data.message || 'Your account has been restricted. Please contact support.');
+                } else {
+                    setError(data.message || 'Login failed');
+                }
                 setIsLoading(false);
                 return;
             }

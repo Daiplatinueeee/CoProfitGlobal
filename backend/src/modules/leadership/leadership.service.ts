@@ -193,8 +193,8 @@ export class LeadershipService {
   async evaluate(userIdStr: string, monthKey?: string, asOfDateIso?: string) {
     const userId = this.toObjectId(userIdStr);
 
-    const user = await this.userModel.findById(userId).select('membershipTier').lean();
-    if (!user || (user as any).membershipTier === MembershipTier.FREE) {
+    const user = await this.userModel.findById(userId).select('membershipTier isFree').lean();
+    if (!user || (user as any).membershipTier === MembershipTier.FREE || (user as any).isFree) {
       return { skipped: true, reason: 'Free accounts are not eligible for leadership bonus' };
     }
 
