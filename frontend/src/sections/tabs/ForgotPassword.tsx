@@ -57,7 +57,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
         setIsLoading(true);
 
         try {
-            const response = await fetch('http://localhost:3000/auth/forgot-password-request', {
+            const response = await fetch('https://coprofitglobal-production-0787.up.railway.app/auth/forgot-password-request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),

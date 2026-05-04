@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock, Tag, Trophy } from 'lucide-react';
 
 import GeneratePin from '../tabs/GeneratePin';
-import GenerateProductPin from '../tabs/GenerateProductPinAlt';
+import GenerateProductPin from '../tabs/GenerateProductPin';
 import UsersOverview from '../tabs/UsersOverview';
 import PendingPayouts from '../tabs/PendingPayouts';
 import PendingWithdrawGC from '../tabs/PendingWithdrawGC';
@@ -382,7 +382,7 @@ export default function AdminDashboard() {
     const token = localStorage.getItem('accessToken');
     const check = async () => {
       try {
-        const res = await fetch('http://localhost:3000/pairing/current-period', {
+        const res = await fetch('https://coprofitglobal-production-0787.up.railway.app/pairing/current-period', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (!res.ok) return;
