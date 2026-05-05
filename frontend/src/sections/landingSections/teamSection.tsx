@@ -126,7 +126,7 @@ export default function TeamSection() {
                         <span className="h-px w-8 bg-yellow-600/50" />
                     </div>
                     <h1 className="text-5xl sm:text-6xl text-white font-light tracking-tight mb-4">
-                        Our <span className="text-yellow-500 font-semibold">Leadership</span>
+                        Our <span className="text-yellow-500 font-semibold">Management</span>
                     </h1>
                     <p className="text-gray-500 text-sm max-w-sm mx-auto">
                         Meet the people driving CoProfit forward
@@ -134,7 +134,7 @@ export default function TeamSection() {
                 </div>
 
                 {/* Card grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4 sm:gap-3">
                     {teamMembers.map((m) => (
                         <MemberCard key={m.id} member={m} onClick={() => setSelected(m)} />
                     ))}

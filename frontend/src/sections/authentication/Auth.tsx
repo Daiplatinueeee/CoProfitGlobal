@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom"
 
 import bg from "../../assets/video refs/5c6e4f6f-0d2a-45fc-84a0-ad879be5d6b3.mp4";
 import ForgotPasswordModal from '../tabs/ForgotPassword';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function AuthPage() {
     const [isSignIn,] = useState(true);
@@ -42,6 +43,7 @@ export default function AuthPage() {
     };
 
     const navigate = useNavigate()
+    const { setAccessToken } = useAuth()
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -49,7 +51,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch(`https://coprofitglobal-production-0787.up.railway.app/auth/login`, {
+            const response = await fetch(`http://localhost:3000/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -73,7 +75,7 @@ export default function AuthPage() {
             }
 
             // Save auth data
-            localStorage.setItem('accessToken', data.access_token);
+            setAccessToken(data.access_token);
             localStorage.setItem('user', JSON.stringify(data.user));
 
             // Remember Me — save or clear credentials
@@ -104,7 +106,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch(`https://coprofitglobal-production-0787.up.railway.app/auth/signup`, {
+            const response = await fetch(`http://localhost:3000/auth/signup`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

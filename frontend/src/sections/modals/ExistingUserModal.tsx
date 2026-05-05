@@ -66,7 +66,7 @@ export default function ExistingMemberModal({
   modal,
   onPlace,
   onClose,
-  apiBaseUrl = 'https://coprofitglobal-production-0787.up.railway.app',
+  apiBaseUrl = 'http://localhost:3000',
 }: ExistingMemberModalProps) {
   const [query,       setQuery]       = useState('')
   const [results,     setResults]     = useState<ExistingMemberResult[]>([])

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { KeyRound, CheckCircle, Clock, X, RefreshCw, Inbox, Lock, AlertCircle } from 'lucide-react';
 
-const API_BASE = 'https://coprofitglobal-production-0787.up.railway.app';
+const API_BASE = 'http://localhost:3000';
 
 interface ForgotPasswordRequest {
   id: string;

@@ -3,7 +3,7 @@ import { Search, Pencil, OctagonMinus, ArrowUpCircle, KeyRound, X, ChevronLeft, 
 
 import CreateUserModal from '../modals/CreateUserModal';
 
-const API_BASE = 'https://coprofitglobal-production-0787.up.railway.app';
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000';
 
 const PROTECTED_ADMIN_EMAIL = 'admin@coprofitglobal.com';
 const isProtectedAdmin = (user: User) => user.email === PROTECTED_ADMIN_EMAIL;
@@ -31,6 +31,15 @@ interface User {
   rightLegPoints: number;
   leftAvailablePoints: number;
   rightAvailablePoints: number;
+  totalPairingBonus: number;
+  totalSign5Bonus: number;
+  totalLeadershipBonus: number;
+  totalDirectReferralIncome: number;
+  totalIndirectReferralIncome: number;
+  totalRepeatBinaryBonusIncome: number;
+  totalStairstepBonusIncome: number;
+  totalRoyaltyBonusIncome: number;
+  unilevelPoints: number;
 }
 
 type Tier = 'bronze' | 'silver' | 'gold' | 'platinum' | null;
@@ -67,6 +76,7 @@ function UserDetailModal({
   onToggleStatus,
   onDelete,
   onEditPoints,
+  onEditBonuses,
   onUpgrade,
   onChangePassword,
 }: {
@@ -75,6 +85,7 @@ function UserDetailModal({
   onToggleStatus: (id: string) => void;
   onDelete: (id: string) => void;
   onEditPoints: (user: User) => void;
+  onEditBonuses: (user: User) => void;
   onUpgrade: (user: User) => void;
   onChangePassword: (user: User) => void;
   onRestrict: (user: User) => void;
@@ -174,7 +185,7 @@ function UserDetailModal({
           </div>
 
           {/* Leg Points */}
-          <div className="px-6 py-5">
+          <div className="px-6 py-5 border-b border-slate-100">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Available Points</h4>
               {!isAdmin && (
@@ -196,6 +207,40 @@ function UserDetailModal({
                 <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">Right Leg</p>
                 <p className="text-2xl font-semibold text-slate-900">{user.rightAvailablePoints.toLocaleString()}</p>
               </div>
+            </div>
+          </div>
+
+          {/* Bonuses & Income */}
+          <div className="px-6 py-5">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Bonuses & Income</h4>
+              {!isAdmin && (
+                <button
+                  onClick={() => onEditBonuses(user)}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Pencil className="w-3 h-3" />
+                  Edit Bonuses
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {([
+                { label: 'Total Pairing Bonus (PHP)', value: user.totalPairingBonus },
+                { label: 'Total Sign-5 Bonus (PHP)', value: user.totalSign5Bonus },
+                { label: 'Total Leadership Bonus (PHP)', value: user.totalLeadershipBonus },
+                { label: 'Total Income of Direct Referrals (PHP)', value: user.totalDirectReferralIncome },
+                { label: 'Total Income of Indirect Referrals (PHP)', value: user.totalIndirectReferralIncome },
+                { label: 'Total Income of Repeat Binary Bonus (PHP)', value: user.totalRepeatBinaryBonusIncome },
+                { label: 'Total Income of Stairstep Bonus (PHP)', value: user.totalStairstepBonusIncome },
+                { label: 'Total Income of Royalty Bonus (PHP)', value: user.totalRoyaltyBonusIncome },
+                { label: 'Unilevel Points / PV', value: user.unilevelPoints },
+              ] as { label: string; value: number }[]).map(({ label, value }) => (
+                <div key={label} className="bg-slate-50 rounded-xl border border-slate-100 px-4 py-3">
+                  <p className="text-xs font-medium text-slate-400 mb-1 leading-tight">{label}</p>
+                  <p className="text-lg font-semibold text-slate-900">{value.toLocaleString()}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -286,6 +331,22 @@ function UsersOverview() {
   const [deleteAllLoading, setDeleteAllLoading] = useState(false);
   const [deleteAllError, setDeleteAllError] = useState<string | null>(null);
 
+  // ── Edit Bonuses state ────────────────────────────────────────────────────
+  const [editBonusUser, setEditBonusUser] = useState<User | null>(null);
+  const [editBonusForm, setEditBonusForm] = useState({
+    totalPairingBonus: '',
+    totalSign5Bonus: '',
+    totalLeadershipBonus: '',
+    totalDirectReferralIncome: '',
+    totalIndirectReferralIncome: '',
+    totalRepeatBinaryBonusIncome: '',
+    totalStairstepBonusIncome: '',
+    totalRoyaltyBonusIncome: '',
+    unilevelPoints: '',
+  });
+  const [editBonusLoading, setEditBonusLoading] = useState(false);
+  const [editBonusError, setEditBonusError] = useState<string | null>(null);
+
   // ── Upgrade Package state ─────────────────────────────────────────────────
   const [upgradeUser, setUpgradeUser] = useState<User | null>(null);
   const [upgradePin, setUpgradePin] = useState('');
@@ -329,6 +390,15 @@ function UsersOverview() {
       rightLegPoints: apiUser.rightLegPoints ?? 0,
       leftAvailablePoints: apiUser.leftAvailablePoints ?? 0,
       rightAvailablePoints: apiUser.rightAvailablePoints ?? 0,
+      totalPairingBonus: apiUser.totalPairingBonus ?? 0,
+      totalSign5Bonus: apiUser.totalSign5Bonus ?? 0,
+      totalLeadershipBonus: apiUser.totalLeadershipBonus ?? 0,
+      totalDirectReferralIncome: apiUser.totalDirectReferralIncome ?? 0,
+      totalIndirectReferralIncome: apiUser.totalIndirectReferralIncome ?? 0,
+      totalRepeatBinaryBonusIncome: apiUser.totalRepeatBinaryBonusIncome ?? 0,
+      totalStairstepBonusIncome: apiUser.totalStairstepBonusIncome ?? 0,
+      totalRoyaltyBonusIncome: apiUser.totalRoyaltyBonusIncome ?? 0,
+      unilevelPoints: apiUser.unilevelPoints ?? 0,
       createdAt: createdDate.toISOString().split('T')[0],
       createdTime: createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
       isActive: apiUser.isActive !== undefined ? apiUser.isActive : true,
@@ -580,6 +650,60 @@ function UsersOverview() {
       setRestrictError('An unexpected error occurred.');
     } finally {
       setRestrictLoading(false);
+    }
+  };
+
+  const openEditBonuses = (user: User) => {
+    setEditBonusError(null);
+    setEditBonusForm({
+      totalPairingBonus: String(user.totalPairingBonus ?? 0),
+      totalSign5Bonus: String(user.totalSign5Bonus ?? 0),
+      totalLeadershipBonus: String(user.totalLeadershipBonus ?? 0),
+      totalDirectReferralIncome: String(user.totalDirectReferralIncome ?? 0),
+      totalIndirectReferralIncome: String(user.totalIndirectReferralIncome ?? 0),
+      totalRepeatBinaryBonusIncome: String(user.totalRepeatBinaryBonusIncome ?? 0),
+      totalStairstepBonusIncome: String(user.totalStairstepBonusIncome ?? 0),
+      totalRoyaltyBonusIncome: String(user.totalRoyaltyBonusIncome ?? 0),
+      unilevelPoints: String(user.unilevelPoints ?? 0),
+    });
+    setEditBonusUser(user);
+  };
+
+  const handleUpdateBonuses = async () => {
+    if (!editBonusUser) return;
+    setEditBonusLoading(true);
+    setEditBonusError(null);
+    const payload = {
+      totalPairingBonus: Number(editBonusForm.totalPairingBonus) || 0,
+      totalSign5Bonus: Number(editBonusForm.totalSign5Bonus) || 0,
+      totalLeadershipBonus: Number(editBonusForm.totalLeadershipBonus) || 0,
+      totalDirectReferralIncome: Number(editBonusForm.totalDirectReferralIncome) || 0,
+      totalIndirectReferralIncome: Number(editBonusForm.totalIndirectReferralIncome) || 0,
+      totalRepeatBinaryBonusIncome: Number(editBonusForm.totalRepeatBinaryBonusIncome) || 0,
+      totalStairstepBonusIncome: Number(editBonusForm.totalStairstepBonusIncome) || 0,
+      totalRoyaltyBonusIncome: Number(editBonusForm.totalRoyaltyBonusIncome) || 0,
+      unilevelPoints: Number(editBonusForm.unilevelPoints) || 0,
+    };
+    try {
+      const response = await fetch(`${API_BASE}/admin/users/${editBonusUser.id}/bonuses`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Failed to update bonuses');
+      }
+      const updatedUser = { ...editBonusUser, ...payload };
+      setUsers((prev) => prev.map((u) => u.id === editBonusUser.id ? updatedUser : u));
+      setSelectedUser(updatedUser);
+      setEditBonusUser(null);
+      setSuccessMessage('Bonuses & income updated successfully!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setEditBonusError(err instanceof Error ? err.message : 'Failed to update bonuses');
+    } finally {
+      setEditBonusLoading(false);
     }
   };
 
@@ -994,6 +1118,7 @@ function UsersOverview() {
             onToggleStatus={handleToggleStatus}
             onDelete={handleDeleteUser}
             onEditPoints={openEditPoints}
+            onEditBonuses={openEditBonuses}
             onUpgrade={openUpgrade}
             onChangePassword={openChangePassword}
           onRestrict={openRestrict}
@@ -1050,6 +1175,78 @@ function UsersOverview() {
                   className="text-sm px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50 transition-colors"
                 >
                   {editPointsLoading ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Bonuses Modal */}
+        {editBonusUser && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => { setEditBonusUser(null); setEditBonusError(null); }} />
+            <div className="relative z-10 w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">Edit Bonuses & Income</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">@{editBonusUser.username}</p>
+                </div>
+                <button
+                  onClick={() => { setEditBonusUser(null); setEditBonusError(null); }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1 px-6 py-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {([
+                    { key: 'totalPairingBonus', label: 'Total Pairing Bonus (PHP)' },
+                    { key: 'totalSign5Bonus', label: 'Total Sign-5 Bonus (PHP)' },
+                    { key: 'totalLeadershipBonus', label: 'Total Leadership Bonus (PHP)' },
+                    { key: 'totalDirectReferralIncome', label: 'Total Income of Direct Referrals (PHP)' },
+                    { key: 'totalIndirectReferralIncome', label: 'Total Income of Indirect Referrals (PHP)' },
+                    { key: 'totalRepeatBinaryBonusIncome', label: 'Total Income of Repeat Binary Bonus (PHP)' },
+                    { key: 'totalStairstepBonusIncome', label: 'Total Income of Stairstep Bonus (PHP)' },
+                    { key: 'totalRoyaltyBonusIncome', label: 'Total Income of Royalty Bonus (PHP)' },
+                    { key: 'unilevelPoints', label: 'Unilevel Points / PV' },
+                  ] as { key: keyof typeof editBonusForm; label: string }[]).map(({ key, label }) => (
+                    <div key={key}>
+                      <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">{label}</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={editBonusForm[key]}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d*\.?\d*$/.test(val))
+                            setEditBonusForm((prev) => ({ ...prev, [key]: val }));
+                        }}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                      />
+                    </div>
+                  ))}
+                </div>
+                {editBonusError && (
+                  <p className="mt-4 text-xs text-red-600 flex items-start gap-1">
+                    <span className="mt-0.5 shrink-0">⚠</span>
+                    {editBonusError}
+                  </p>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end shrink-0">
+                <button
+                  onClick={() => { setEditBonusUser(null); setEditBonusError(null); }}
+                  className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateBonuses}
+                  disabled={editBonusLoading}
+                  className="text-sm px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                >
+                  {editBonusLoading ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>
             </div>

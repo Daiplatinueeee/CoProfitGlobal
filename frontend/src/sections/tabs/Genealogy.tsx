@@ -40,7 +40,7 @@ interface NodePosition {
   y: number
 }
 
-const API_BASE_URL = 'https://coprofitglobal-production-0787.up.railway.app'
+const API_BASE_URL = 'http://localhost:3000'
 
 // Layout constants — kept outside so position helpers can reference them
 const NODE_WIDTH          = 190

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-const API_BASE = 'https://coprofitglobal-production-0787.up.railway.app';
+const API_BASE = 'http://localhost:3000';
 
 /* ── Types ───────────────────────────────────────────────────── */
 interface Profile {

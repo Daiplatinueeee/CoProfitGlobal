@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Home, TrendingUp, Gift, Lock, Wallet, Leaf,
   Network, AlertCircle, LogOut, ChevronLeft, Construction,
@@ -293,7 +294,7 @@ function WelcomeConstructionScene() {
   );
 }
 
-const API_BASE_URL = 'https://coprofitglobal-production-0787.up.railway.app';
+const API_BASE_URL = 'http://localhost:3000';
 
 const formatPhp = (amount: number) =>
   amount.toLocaleString('en-PH', { minimumFractionDigits: 2 });
@@ -326,6 +327,7 @@ export default function UserDashboard() {
   const [, setMuteSessions] = useState<number | null>(null);
   const [showMuteTooltip, setShowMuteTooltip] = useState(false);
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   // ── Wallet / income state ────────────────────────────────────────────
   const [income, setIncome] = useState<IncomeBreakdown | null>(null);
@@ -1464,13 +1466,7 @@ export default function UserDashboard() {
     return contents[activeTab] || <div />;
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('user');
-    navigate('/auth');
-  };
+  const handleLogout = logout;
 
   return (
     <div className="flex h-screen bg-white">

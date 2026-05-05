@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock, Tag, Trophy } from 'lucide-react';
 
 import GeneratePin from '../tabs/GeneratePin';
@@ -374,7 +375,7 @@ function UnderDevelopmentContent() {
 
 /* ── Main dashboard component ── */
 export default function AdminDashboard() {
-  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -383,7 +384,7 @@ export default function AdminDashboard() {
     const token = localStorage.getItem('accessToken');
     const check = async () => {
       try {
-        const res = await fetch('https://coprofitglobal-production-0787.up.railway.app/pairing/current-period', {
+        const res = await fetch('http://localhost:3000/pairing/current-period', {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (!res.ok) return;
@@ -423,11 +424,7 @@ export default function AdminDashboard() {
     return map[activeTab] ?? <div />;
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('token');
-    navigate('/auth');
-  };
+  const handleLogout = logout;
 
   return (
     <div className="flex h-screen bg-white">

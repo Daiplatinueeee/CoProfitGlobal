@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, TrendingUp, Gift, Users, Award, Zap, AlertTriangle, ArrowUpCircle } from 'lucide-react';
 
-const API_BASE_URL = 'https://coprofitglobal-production-0787.up.railway.app';
+const API_BASE_URL = 'http://localhost:3000';
 
 interface PayoutTransaction {
   id: string;

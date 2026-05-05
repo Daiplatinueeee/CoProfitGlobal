@@ -204,7 +204,13 @@ export class AdminService {
     const users = await this.userModel
       .find()
       .select(
-        '_id name username email role membershipTier isFree referralCode sponsorId packagePin leftLegPoints rightLegPoints age contact address beneficiary birthday profileImage isActive createdAt updatedAt',
+        '_id name username email role membershipTier isFree referralCode sponsorId packagePin ' +
+        'leftLegPoints rightLegPoints age contact address beneficiary birthday profileImage ' +
+        'isActive isRestricted restrictedReason createdAt updatedAt ' +
+        'totalPairingBonus totalSign5Bonus totalLeadershipBonus ' +
+        'totalDirectReferralIncome totalIndirectReferralIncome ' +
+        'totalRepeatBinaryBonusIncome totalStairstepBonusIncome ' +
+        'totalRoyaltyBonusIncome unilevelPoints',
       )
       .sort({ createdAt: -1 })
       .lean();
@@ -250,6 +256,18 @@ export class AdminService {
         birthday: user.birthday ?? '',
         profileImage: user.profileImage ?? '',
         isActive: user.isActive !== undefined ? user.isActive : true,
+        isRestricted: user.isRestricted ?? false,
+        restrictedReason: user.restrictedReason ?? '',
+        // ── Bonus & income fields ─────────────────────────────────────────
+        totalPairingBonus: user.totalPairingBonus ?? 0,
+        totalSign5Bonus: user.totalSign5Bonus ?? 0,
+        totalLeadershipBonus: user.totalLeadershipBonus ?? 0,
+        totalDirectReferralIncome: user.totalDirectReferralIncome ?? 0,
+        totalIndirectReferralIncome: user.totalIndirectReferralIncome ?? 0,
+        totalRepeatBinaryBonusIncome: user.totalRepeatBinaryBonusIncome ?? 0,
+        totalStairstepBonusIncome: user.totalStairstepBonusIncome ?? 0,
+        totalRoyaltyBonusIncome: user.totalRoyaltyBonusIncome ?? 0,
+        unilevelPoints: user.unilevelPoints ?? 0,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       };
@@ -423,6 +441,65 @@ export class AdminService {
       name: (user as any).name,
       username: (user as any).username,
       ...updated,
+    };
+  }
+
+  // ── Update bonuses & income fields ────────────────────────────────────────
+
+  async updateBonuses(
+    userId: string,
+    dto: {
+      totalPairingBonus?: number;
+      totalSign5Bonus?: number;
+      totalLeadershipBonus?: number;
+      totalDirectReferralIncome?: number;
+      totalIndirectReferralIncome?: number;
+      totalRepeatBinaryBonusIncome?: number;
+      totalStairstepBonusIncome?: number;
+      totalRoyaltyBonusIncome?: number;
+      unilevelPoints?: number;
+    },
+  ) {
+    if (!this.isValidObjectId(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
+
+    const allowedFields: Record<string, number> = {};
+
+    if (dto.totalPairingBonus !== undefined)
+      allowedFields.totalPairingBonus = dto.totalPairingBonus;
+    if (dto.totalSign5Bonus !== undefined)
+      allowedFields.totalSign5Bonus = dto.totalSign5Bonus;
+    if (dto.totalLeadershipBonus !== undefined)
+      allowedFields.totalLeadershipBonus = dto.totalLeadershipBonus;
+    if (dto.totalDirectReferralIncome !== undefined)
+      allowedFields.totalDirectReferralIncome = dto.totalDirectReferralIncome;
+    if (dto.totalIndirectReferralIncome !== undefined)
+      allowedFields.totalIndirectReferralIncome = dto.totalIndirectReferralIncome;
+    if (dto.totalRepeatBinaryBonusIncome !== undefined)
+      allowedFields.totalRepeatBinaryBonusIncome = dto.totalRepeatBinaryBonusIncome;
+    if (dto.totalStairstepBonusIncome !== undefined)
+      allowedFields.totalStairstepBonusIncome = dto.totalStairstepBonusIncome;
+    if (dto.totalRoyaltyBonusIncome !== undefined)
+      allowedFields.totalRoyaltyBonusIncome = dto.totalRoyaltyBonusIncome;
+    if (dto.unilevelPoints !== undefined)
+      allowedFields.unilevelPoints = dto.unilevelPoints;
+
+    if (Object.keys(allowedFields).length === 0) {
+      throw new BadRequestException('No bonus fields provided to update');
+    }
+
+    const updated = await this.userModel.findByIdAndUpdate(
+      new Types.ObjectId(userId),
+      { $set: allowedFields },
+      { returnDocument: 'after' },
+    );
+
+    if (!updated) throw new NotFoundException('User not found');
+
+    return {
+      id: (updated as any)._id.toString(),
+      ...allowedFields,
     };
   }
 
