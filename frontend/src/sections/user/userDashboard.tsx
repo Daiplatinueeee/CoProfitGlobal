@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../lib/apiFetch';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Home, TrendingUp, Gift, Lock, Wallet, Leaf,
   Network, AlertCircle, LogOut, ChevronLeft, Construction,
