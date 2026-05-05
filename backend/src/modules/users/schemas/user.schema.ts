@@ -124,6 +124,33 @@ export class User {
   @Prop({ type: Boolean, default: false })
   isFree: boolean;
 
+  @Prop({ type: Number, default: 0 })
+  totalPairingBonus: number;
+
+  @Prop({ type: Number, default: 0 })
+  totalSign5Bonus: number;
+
+  @Prop({ type: Number, default: 0 })
+  totalLeadershipBonus: number;
+
+  @Prop({ type: Number, default: 0 })
+  totalDirectReferralIncome: number;
+
+  @Prop({ type: Number, default: 0 })
+  totalIndirectReferralIncome: number;
+
+  @Prop({ type: Number, default: 0 })
+  totalRepeatBinaryBonusIncome: number;
+
+  @Prop({ type: Number, default: 0 })
+  totalStairstepBonusIncome: number;
+
+  @Prop({ type: Number, default: 0 })
+  totalRoyaltyBonusIncome: number;
+
+  @Prop({ type: Number, default: 0 })
+  unilevelPoints: number;
+
   @Prop({ type: [RefreshSessionSchema], default: [], select: false })
   refreshSessions: RefreshSession[];
 }

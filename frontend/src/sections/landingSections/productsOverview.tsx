@@ -13,9 +13,7 @@ import {
     Check,
     Clock,
     Lock,
-    Heart,
 } from 'lucide-react';
-import { useCart } from './cartContents/cartContext';
 
 interface Product {
     id: number;
@@ -30,6 +28,16 @@ interface Package {
     name: string;
     image: string;
     description: string;
+}
+
+interface PreviewItem {
+    id: string;
+    name: string;
+    image: string;
+    price?: string;
+    category?: string;
+    description?: string;
+    isPackage: boolean;
 }
 
 interface CollectionsSectionProps {
@@ -72,8 +80,8 @@ export default function CollectionsSection({ individualProducts, productPackages
     const [search, setSearch]                 = useState('');
     const [sortValue, setSortValue]           = useState('new');
     const [sortOpen, setSortOpen]             = useState(false);
+    const [selectedItem, setSelectedItem]     = useState<PreviewItem | null>(null);
     const sortRef = useRef<HTMLDivElement>(null);
-    const { addToCart, toggleWishlist, isWishlisted } = useCart();
 
     // Close sort dropdown on outside click
     useEffect(() => {
@@ -216,15 +224,14 @@ export default function CollectionsSection({ individualProducts, productPackages
                     {filteredProducts.map((product) => (
                         <div
                             key={`prod-${product.id}`}
-                            className="group flex gap-5 bg-slate-900 rounded-xl border border-yellow-600/20 hover:border-yellow-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-yellow-500/10 overflow-hidden"
+                            className="group flex flex-col gap-5 bg-slate-900 rounded-xl border border-yellow-600/20 hover:border-yellow-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-yellow-500/10 overflow-hidden md:flex-row"
                         >
-                            <div className="relative w-44 sm:w-52 shrink-0 bg-slate-800">
+                            <div className="relative w-full md:w-44 lg:w-52 shrink-0 bg-slate-800 overflow-hidden aspect-4/3">
                                 <span className="absolute top-2 left-2 z-10 bg-yellow-500 text-slate-950 text-xs font-bold px-2 py-0.5 rounded">New</span>
                                 <img
                                     src={product.image || "/placeholder.svg"}
                                     alt={product.name}
                                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                                    style={{ minHeight: '140px', maxHeight: '180px' }}
                                 />
                             </div>
                             <div className="flex flex-1 items-center justify-between py-5 pr-5 flex-wrap gap-4">
@@ -243,33 +250,25 @@ export default function CollectionsSection({ individualProducts, productPackages
                                 </div>
                                 <div className="flex flex-col gap-2 min-w-35">
                                     <button
-                                        onClick={(e) => addToCart({
-                                            id: product.id,
-                                            name: product.name,
-                                            price: product.price,
-                                            image: product.image,
-                                            category: product.category,
-                                        }, e)}
-                                        className="flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-400 active:scale-95 text-slate-950 font-bold text-sm px-4 py-2.5 rounded-lg transition-all duration-150">
+                                        disabled
+                                        className="flex items-center justify-center gap-2 bg-yellow-500/30 text-slate-300 cursor-not-allowed font-bold text-sm px-4 py-2.5 rounded-lg transition-all duration-150"
+                                    >
                                         <ShoppingCart size={15} /> Add to cart
                                     </button>
                                     <button
-                                        onClick={() => toggleWishlist({
-                                            id: product.id,
+                                        onClick={() => setSelectedItem({
+                                            id: String(product.id),
                                             name: product.name,
-                                            price: product.price,
                                             image: product.image,
+                                            price: product.price,
                                             category: product.category,
+                                            isPackage: false,
                                         })}
-                                        className={`flex items-center justify-center gap-2 border active:scale-95 text-sm px-4 py-2 rounded-lg transition-all duration-150 ${
-                                            isWishlisted(product.id)
-                                                ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400'
-                                                : 'border-yellow-600/40 hover:border-yellow-400 hover:bg-yellow-500/5 text-yellow-400'
-                                        }`}
+                                        className="flex items-center justify-center gap-2 border border-yellow-600/40 hover:border-yellow-400 hover:bg-yellow-500/5 text-yellow-400 text-sm px-4 py-2 rounded-lg transition-all duration-150"
                                     >
-                                        <Heart size={14} fill={isWishlisted(product.id) ? '#EAB308' : 'none'} />
-                                        {isWishlisted(product.id) ? 'Wishlisted' : 'Wishlist'}
+                                        View Product
                                     </button>
+                                    <p className="text-xs text-gray-500 mt-1">Online purchase coming soon.</p>
                                 </div>
                             </div>
                         </div>
@@ -279,15 +278,14 @@ export default function CollectionsSection({ individualProducts, productPackages
                     {filteredPackages.map((pkg) => (
                         <div
                             key={`pkg-${pkg.id}`}
-                            className="group flex gap-5 bg-slate-900 rounded-xl border border-yellow-600/20 hover:border-yellow-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-yellow-500/10 overflow-hidden"
+                            className="group flex flex-col gap-5 bg-slate-900 rounded-xl border border-yellow-600/20 hover:border-yellow-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-yellow-500/10 overflow-hidden md:flex-row"
                         >
-                            <div className="relative w-44 sm:w-52 shrink-0 bg-slate-800">
+                            <div className="relative w-full md:w-44 lg:w-52 shrink-0 bg-slate-800 overflow-hidden aspect-4/3">
                                 <span className="absolute top-2 left-2 z-10 bg-yellow-500 text-slate-950 text-xs font-bold px-2 py-0.5 rounded">New</span>
                                 <img
                                     src={pkg.image || "/placeholder.svg"}
                                     alt={pkg.name}
                                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                                    style={{ minHeight: '140px', maxHeight: '180px' }}
                                 />
                             </div>
                             <div className="flex flex-1 items-center justify-between py-5 pr-5 flex-wrap gap-4">
@@ -309,33 +307,25 @@ export default function CollectionsSection({ individualProducts, productPackages
                                 </div>
                                 <div className="flex flex-col gap-2 min-w-35">
                                     <button
-                                        onClick={(e) => addToCart({
-                                            id: `pkg-${pkg.id}`,
-                                            name: pkg.name,
-                                            price: getPkgPrice(pkg.name),
-                                            image: pkg.image,
-                                            isPackage: true,
-                                        }, e)}
-                                        className="flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-400 active:scale-95 text-slate-950 font-bold text-sm px-4 py-2.5 rounded-lg transition-all duration-150">
+                                        disabled
+                                        className="flex items-center justify-center gap-2 bg-yellow-500/30 text-slate-300 cursor-not-allowed font-bold text-sm px-4 py-2.5 rounded-lg transition-all duration-150"
+                                    >
                                         <ShoppingCart size={15} /> Add to cart
                                     </button>
                                     <button
-                                        onClick={() => toggleWishlist({
+                                        onClick={() => setSelectedItem({
                                             id: `pkg-${pkg.id}`,
                                             name: pkg.name,
-                                            price: getPkgPrice(pkg.name),
                                             image: pkg.image,
+                                            price: getPkgPrice(pkg.name),
+                                            description: pkg.description,
                                             isPackage: true,
                                         })}
-                                        className={`flex items-center justify-center gap-2 border active:scale-95 text-sm px-4 py-2 rounded-lg transition-all duration-150 ${
-                                            isWishlisted(`pkg-${pkg.id}`)
-                                                ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400'
-                                                : 'border-yellow-600/40 hover:border-yellow-400 hover:bg-yellow-500/5 text-yellow-400'
-                                        }`}
+                                        className="flex items-center justify-center gap-2 border border-yellow-600/40 hover:border-yellow-400 hover:bg-yellow-500/5 text-yellow-400 text-sm px-4 py-2 rounded-lg transition-all duration-150"
                                     >
-                                        <Heart size={14} fill={isWishlisted(`pkg-${pkg.id}`) ? '#EAB308' : 'none'} />
-                                        {isWishlisted(`pkg-${pkg.id}`) ? 'Wishlisted' : 'Wishlist'}
+                                        View Package
                                     </button>
+                                    <p className="text-xs text-gray-500 mt-1">Online purchase coming soon.</p>
                                 </div>
                             </div>
                         </div>
@@ -345,11 +335,10 @@ export default function CollectionsSection({ individualProducts, productPackages
                     {showComingSoon && COMING_SOON_CARDS.map((cs) => (
                         <div
                             key={cs.id}
-                            className="flex gap-5 bg-slate-900/50 rounded-xl border border-dashed border-yellow-600/20 overflow-hidden opacity-60"
+                            className="flex flex-col gap-5 bg-slate-900/50 rounded-xl border border-dashed border-yellow-600/20 overflow-hidden opacity-60 md:flex-row"
                         >
                             {/* Placeholder image area */}
-                            <div className="relative w-44 sm:w-52 shrink-0 bg-slate-800/60 flex items-center justify-center"
-                                style={{ minHeight: '140px' }}>
+                            <div className="relative w-full md:w-44 lg:w-52 shrink-0 bg-slate-800/60 flex items-center justify-center aspect-4/3">
                                 <Lock size={24} className="text-yellow-600/40" />
                             </div>
                             <div className="flex flex-1 items-center justify-between py-5 pr-5 flex-wrap gap-4">
@@ -391,6 +380,30 @@ export default function CollectionsSection({ individualProducts, productPackages
                         </div>
                     )}
                 </div>
+
+                {selectedItem && (
+                    <div
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+                        onClick={() => setSelectedItem(null)}
+                    >
+                        <div
+                            className="w-full max-w-3xl overflow-hidden rounded-3xl bg-slate-950 shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+
+                            <div className="grid gap-6 p-5 lg:grid-cols-[1.2fr,0.8fr]">
+                                <div className="overflow-hidden rounded-3xl bg-slate-800 aspect-4/3">
+                                    <img
+                                        src={selectedItem.image || '/placeholder.svg'}
+                                        alt={selectedItem.name}
+                                        className="w-full h-full object-fill"
+                                    />
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* ── Show More ── */}
                 <div className="flex justify-center mt-10 mb-6">

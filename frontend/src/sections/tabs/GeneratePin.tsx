@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { ExportModal } from '../modals/ExportModal';
 
-export const API_BASE = 'http://localhost:3000';
+const API_BASE = 'http://localhost:3000';
 
 // ─── Shared types ───────────────────────────────────────────────────────────────
 

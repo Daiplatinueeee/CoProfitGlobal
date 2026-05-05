@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom"
 
 import bg from "../../assets/video refs/5c6e4f6f-0d2a-45fc-84a0-ad879be5d6b3.mp4";
 import ForgotPasswordModal from '../tabs/ForgotPassword';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function AuthPage() {
     const [isSignIn,] = useState(true);
@@ -41,15 +42,8 @@ export default function AuthPage() {
         }));
     };
 
-    const fillAdminCredentials = () => {
-        setFormData((prev) => ({
-            ...prev,
-            email: 'admin@coprofitglobal.com',
-            password: 'coprofitglobal123',
-        }));
-    };
-
     const navigate = useNavigate()
+    const { setAccessToken } = useAuth()
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -57,7 +51,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch('http://localhost:3000/auth/login', {
+            const response = await fetch(`http://localhost:3000/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -81,7 +75,7 @@ export default function AuthPage() {
             }
 
             // Save auth data
-            localStorage.setItem('accessToken', data.access_token);
+            setAccessToken(data.access_token);
             localStorage.setItem('user', JSON.stringify(data.user));
 
             // Remember Me — save or clear credentials
@@ -112,7 +106,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch('http://localhost:3000/auth/signup', {
+            const response = await fetch(`http://localhost:3000/auth/signup`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -282,22 +276,6 @@ export default function AuthPage() {
                                 >
                                     Forgot Password?
                                 </a>
-                            </div>
-                        )}
-
-                        {/* Auto Fill Admin Button */}
-                        {isSignIn && (
-                            <div className="text-center">
-                                <button
-                                    type="button"
-                                    onClick={fillAdminCredentials}
-                                    className="text-xs text-gray-400 hover:text-yellow-500 transition-colors duration-300 mt-10"
-                                >
-                                    Click here to use Admin Credentials (Testing Only)
-                                </button>
-                                <p className="text-[13px] text-gray-500 mt-1">
-                                    Click to fill in admin credentials for testing purposes. The admin account is very long omaygad
-                                </p>
                             </div>
                         )}
 

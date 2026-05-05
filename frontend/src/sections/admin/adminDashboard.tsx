@@ -9,6 +9,7 @@ import UsersOverview from '../tabs/UsersOverview';
 import PendingPayouts from '../tabs/PendingPayouts';
 import PendingWithdrawGC from '../tabs/PendingWithdrawGC';
 import Leaderboards from '../tabs/Leaderboards';
+import PendingRequests from '../tabs/PendingRequests';
 
 const KEYFRAMES = `
   @keyframes crane-swing {
@@ -374,7 +375,7 @@ function UnderDevelopmentContent() {
 
 /* ── Main dashboard component ── */
 export default function AdminDashboard() {
-  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -403,6 +404,7 @@ export default function AdminDashboard() {
     { id: 'users', label: 'Users Overview', icon: Users },
     { id: 'pendingPayouts', label: 'Pending Payouts', icon: ClipboardClock },
     { id: 'pendingWithdrawGC', label: 'Pending Withdrawals (GC)', icon: ClipboardClock },
+    { id: 'pendingRequests', label: 'Pending Requests', icon: ClipboardClock },
     { id: 'leaderboards', label: 'Leaderboards', icon: Trophy },
   ], []);
 
@@ -413,16 +415,13 @@ export default function AdminDashboard() {
       'users': <UsersOverview />,
       'pendingPayouts': <PendingPayouts />,
       'pendingWithdrawGC': <PendingWithdrawGC />,
+      'pendingRequests': <PendingRequests />,
       'leaderboards': <Leaderboards />,
     };
     return map[activeTab] ?? <div />;
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('token');
-    navigate('/auth');
-  };
+  const handleLogout = logout;
 
   return (
     <div className="flex h-screen bg-white">

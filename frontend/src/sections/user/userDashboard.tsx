@@ -326,6 +326,7 @@ export default function UserDashboard() {
   const [, setMuteSessions] = useState<number | null>(null);
   const [showMuteTooltip, setShowMuteTooltip] = useState(false);
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   // ── Wallet / income state ────────────────────────────────────────────
   const [income, setIncome] = useState<IncomeBreakdown | null>(null);
@@ -1440,13 +1441,7 @@ export default function UserDashboard() {
     return contents[activeTab] || <div />;
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('user');
-    navigate('/auth');
-  };
+  const handleLogout = logout;
 
   return (
     <div className="flex h-screen bg-white">

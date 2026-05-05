@@ -7,23 +7,40 @@ import { CartProvider } from './sections/landingSections/cartContents/cartContex
 import UserDashboard from './sections/user/userDashboard';
 import AdminDashboard from './sections/admin/adminDashboard';
 
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import SessionExpiredModal from './sections/modals/SessionExpiredModal';
+
+function SessionExpiredModalBridge() {
+  const { showSessionExpiredModal, resolveSessionExpired } = useAuth();
+  return (
+    <SessionExpiredModal
+      isOpen={showSessionExpiredModal}
+      onStayLoggedIn={() => resolveSessionExpired(true)}
+      onLogOut={() => resolveSessionExpired(false)}
+    />
+  );
+}
+
 const App: React.FC = () => {
   return (
     <CartProvider>
       <BrowserRouter>
-        <Routes>
+        <AuthProvider>
+          <SessionExpiredModalBridge />
+          <Routes>
 
-          {/* Landing Page */}
-          <Route path='/' element={<Landing />} />
+            {/* Landing Page */}
+            <Route path='/' element={<Landing />} />
 
-          {/* Authintication */}
-          <Route path='/auth' element={<Auth />} />
+            {/* Authintication */}
+            <Route path='/auth' element={<Auth />} />
 
-          {/* Dashboards */}
-          <Route path='/user' element={<UserDashboard />} />
-          <Route path='/admin' element={<AdminDashboard />} />
+            {/* Dashboards */}
+            <Route path='/user' element={<UserDashboard />} />
+            <Route path='/admin' element={<AdminDashboard />} />
 
-        </Routes>
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </CartProvider>
   );

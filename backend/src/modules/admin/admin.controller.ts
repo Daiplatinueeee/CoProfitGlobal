@@ -61,6 +61,25 @@ export class AdminController {
     return this.adminService.updateLegPoints(id, dto);
   }
 
+  @Patch('users/:id/bonuses')
+  updateUserBonuses(
+    @Param('id') id: string,
+    @Body()
+    dto: {
+      totalPairingBonus?: number;
+      totalSign5Bonus?: number;
+      totalLeadershipBonus?: number;
+      totalDirectReferralIncome?: number;
+      totalIndirectReferralIncome?: number;
+      totalRepeatBinaryBonusIncome?: number;
+      totalStairstepBonusIncome?: number;
+      totalRoyaltyBonusIncome?: number;
+      unilevelPoints?: number;
+    },
+  ) {
+    return this.adminService.updateBonuses(id, dto);
+  }
+
   @Patch('users/:id/membership-tier')
   updateMembershipTier(
     @Param('id') id: string,

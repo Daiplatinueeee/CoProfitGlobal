@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Clock, Hash, Plus, X, RefreshCw, AlertTriangle, KeyRound, Trash2 } from 'lucide-react';
-import { API_BASE } from './GeneratePin';
+import { API_BASE } from "./GeneratePin";
 import { apiFetch } from '../../lib/apiFetch';
 
 interface ProductPin {
@@ -300,7 +300,7 @@ export default function GenerateProductPin() {
                   </tr>
                 ) : (
                   pins.map((pin) => {
-                    const expiry    = resolveExpiry(pin);
+                    const expiry = resolveExpiry(pin);
                     const isExpired = expiry < new Date();
 
                     return (

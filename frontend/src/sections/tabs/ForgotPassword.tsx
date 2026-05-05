@@ -15,7 +15,6 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [formData, setFormData] = useState({
-        title: '',
         description: '',
         reason: '',
     });
@@ -25,7 +24,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
         if (isOpen) {
             setStep('form');
             setError('');
-            setFormData({ title: '', description: '', reason: '' });
+            setFormData({ description: '', reason: '' });
         }
     }, [isOpen]);
 
@@ -49,7 +48,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
         e.preventDefault();
         setError('');
 
-        if (!formData.title.trim() || !formData.description.trim() || !formData.reason.trim()) {
+        if (!formData.description.trim() || !formData.reason.trim()) {
             setError('Please fill in all fields before submitting.');
             return;
         }
@@ -206,36 +205,6 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
                     to   { opacity: 1; transform: scale(1)    translateY(0); }
                 }
             `}</style>
-        </div>
-    );
-}
-
-/* ================= REUSABLE UNDERLINE INPUT ================= */
-
-function UnderlineInput({
-    label, name, value, onChange, type = 'text', icon,
-}: {
-    label: string; name: string; value: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    type?: string; icon?: React.ReactNode;
-}) {
-    return (
-        <div className="relative w-full">
-            <input
-                type={type} name={name} value={value} onChange={onChange}
-                placeholder=" "
-                className="peer w-full bg-transparent text-white py-3
-                           border-b border-zinc-600 focus:outline-none focus:border-yellow-500
-                           transition-all duration-300 pr-8 text-sm"
-            />
-            <label className="absolute left-0 top-3 text-gray-400 text-sm transition-all duration-300 pointer-events-none
-                              peer-placeholder-shown:translate-y-0 peer-placeholder-shown:text-sm
-                              peer-focus:-translate-y-6 peer-focus:text-xs peer-focus:text-yellow-500
-                              peer-not-placeholder-shown:-translate-y-6 peer-not-placeholder-shown:text-xs">
-                {label}
-            </label>
-            {icon && <div className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-500">{icon}</div>}
-            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-yellow-500 transition-all duration-300 peer-focus:w-full" />
         </div>
     );
 }
