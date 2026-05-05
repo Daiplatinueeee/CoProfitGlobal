@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { apiFetch } from '../../lib/apiFetch';
 
 const API_BASE = 'http://localhost:3000';
 
@@ -22,7 +23,6 @@ interface Profile {
 type EditSection = 'contact' | 'account' | 'beneficiary' | null;
 
 /* ── Helpers ─────────────────────────────────────────────────── */
-const API_TOKEN = () => localStorage.getItem('accessToken') ?? '';
 
 const formatBirthday = (dateStr: string) => {
   if (!dateStr) return '—';
@@ -184,12 +184,9 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     }
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/users/me/password`, {
+      const res = await apiFetch(`${API_BASE}/users/me/password`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${API_TOKEN()}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword: form.current, newPassword: form.next }),
       });
       const data = await res.json();
@@ -345,9 +342,7 @@ function ViewMyAccount() {
     setLoading(true);
     setFetchError('');
     try {
-      const res = await fetch(`${API_BASE}/users/me`, {
-        headers: { Authorization: `Bearer ${API_TOKEN()}` },
-      });
+      const res = await apiFetch(`${API_BASE}/users/me`);
       if (!res.ok) throw new Error('Failed to load profile');
       const data: Profile = await res.json();
       setProfile(data);
@@ -362,12 +357,9 @@ function ViewMyAccount() {
 
   /* ── Patch helper ── */
   const patchProfile = async (fields: Partial<Profile>) => {
-    const res = await fetch(`${API_BASE}/users/me`, {
+    const res = await apiFetch(`${API_BASE}/users/me`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${API_TOKEN()}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(fields),
     });
     if (!res.ok) {

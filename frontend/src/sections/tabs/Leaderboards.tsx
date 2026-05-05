@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../../lib/apiFetch';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -66,11 +67,8 @@ export default function Leaderboards() {
   const [referralsLoading, setReferralsLoading] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
     setLoading(true);
-    fetch(`${API_BASE_URL}/leaderboard?sortBy=${activeTab}&limit=50`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    apiFetch(`${API_BASE_URL}/leaderboard?sortBy=${activeTab}&limit=50`)
       .then((res) => res.json())
       .then((json) => {
         setData(Array.isArray(json.entries) ? json.entries : []);
@@ -82,14 +80,11 @@ export default function Leaderboards() {
 
   useEffect(() => {
     if (data.length === 0) return;
-    const token = localStorage.getItem('accessToken');
     setReferralsLoading(true);
 
     Promise.all(
       data.map((entry) =>
-        fetch(`${API_BASE_URL}/genealogy/referrals/${entry.userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        apiFetch(`${API_BASE_URL}/genealogy/referrals/${entry.userId}`)
           .then((res) => res.json())
           .then((json) => ({
             userId: entry.userId,

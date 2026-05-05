@@ -1,20 +1,15 @@
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../../lib/apiFetch';
 
 const API_BASE_URL = 'http://localhost:3000';
 
-function getAuthContext() {
-  const token = localStorage.getItem('accessToken');
-  let userId = localStorage.getItem('userId');
-  if (!userId) {
-    const str = localStorage.getItem('user');
-    if (str) {
-      try {
-        const obj = JSON.parse(str);
-        userId = obj.id ?? obj._id ?? obj.userId;
-      } catch {}
-    }
-  }
-  return { token, userId };
+function getUserId(): string | null {
+  const direct = localStorage.getItem('userId');
+  if (direct) return direct;
+  try {
+    const obj = JSON.parse(localStorage.getItem('user') ?? '{}');
+    return obj.id ?? obj._id ?? obj.userId ?? null;
+  } catch { return null; }
 }
 
 interface PairingAward {
@@ -120,12 +115,10 @@ function MyPairings() {
   useEffect(() => {
     const fetch_ = async () => {
       try {
-        const { token, userId } = getAuthContext();
-        if (!token || !userId) { setError('Not authenticated.'); setLoading(false); return; }
+        const userId = getUserId();
+        if (!userId) { setError('Not authenticated.'); setLoading(false); return; }
 
-        const res = await fetch(`${API_BASE_URL}/pairing/history/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await apiFetch(`${API_BASE_URL}/pairing/history/${userId}`);
         if (!res.ok) throw new Error(`Failed to fetch pairing history (${res.status})`);
         setHistory(await res.json());
       } catch (err: any) {
@@ -291,12 +284,10 @@ function DownlinePairings() {
   useEffect(() => {
     const fetch_ = async () => {
       try {
-        const { token, userId } = getAuthContext();
-        if (!token || !userId) { setError('Not authenticated.'); setLoading(false); return; }
+        const userId = getUserId();
+        if (!userId) { setError('Not authenticated.'); setLoading(false); return; }
 
-        const res = await fetch(`${API_BASE_URL}/pairing/downline-history/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await apiFetch(`${API_BASE_URL}/pairing/downline-history/${userId}`);
         if (!res.ok) throw new Error(`Failed to fetch downline history (${res.status})`);
         setHistory(await res.json());
       } catch (err: any) {

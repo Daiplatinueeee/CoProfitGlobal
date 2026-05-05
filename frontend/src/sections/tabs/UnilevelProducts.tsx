@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { apiFetch } from '../../lib/apiFetch';
 import {
   CheckCircle, AlertCircle, KeyRound, Gift, ShoppingBag,
   MapPin, Tag, History, Copy, Lock, ShieldCheck, Sparkles,
@@ -122,15 +123,10 @@ export default function UnilevelProducts() {
   const [lastRedemption, setLastRedemption] = useState<RewardRedemption | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  // ─── Auth helpers ─────────────────────────────────────────────────────────
-
-  const token = () => localStorage.getItem('accessToken');
-  const authHeaders = () => ({ Authorization: `Bearer ${token()}` });
-
   // ─── Fetch ────────────────────────────────────────────────────────────────
 
   const refreshPv = useCallback(() => {
-    return fetch(`${API_BASE_URL}/unilevel-products/my/pv-status`, { headers: authHeaders() })
+    return apiFetch(`${API_BASE_URL}/unilevel-products/my/pv-status`)
       .then(r => r.json())
       .then(pvJson => setPvStatus(pvJson?.monthKey ? pvJson : null));
   }, []);
@@ -142,7 +138,7 @@ export default function UnilevelProducts() {
 
   const fetchRewards = useCallback(() => {
     setRewardsLoading(true);
-    fetch(`${API_BASE_URL}/unilevel-products/lifestyle-rewards`, { headers: authHeaders() })
+    apiFetch(`${API_BASE_URL}/unilevel-products/lifestyle-rewards`)
       .then(r => r.ok ? r.json() : [])
       .then(data => setRewards(Array.isArray(data) && data.length > 0 ? data : sampleLifestyleRewards as LifestyleReward[]))
       .catch(() => setRewards(sampleLifestyleRewards as LifestyleReward[]))
@@ -151,7 +147,7 @@ export default function UnilevelProducts() {
 
   const fetchRewardHistory = useCallback(() => {
     setRewardHistoryLoading(true);
-    fetch(`${API_BASE_URL}/unilevel-products/my/reward-history`, { headers: authHeaders() })
+    apiFetch(`${API_BASE_URL}/unilevel-products/my/reward-history`)
       .then(r => r.ok ? r.json() : [])
       .then(data => setRewardRedemptions(Array.isArray(data) ? data : []))
       .catch(() => setRewardRedemptions([]))
@@ -190,9 +186,9 @@ export default function UnilevelProducts() {
     setPinError('');
     setPinSuccess('');
     try {
-      const res = await fetch(`${API_BASE_URL}/unilevel-products/redeem-pin`, {
+      const res = await apiFetch(`${API_BASE_URL}/unilevel-products/redeem-pin`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
       });
       const json = await res.json();
@@ -211,9 +207,9 @@ export default function UnilevelProducts() {
     setRedeemingReward(rewardId);
     setRewardError(prev => ({ ...prev, [rewardId]: '' }));
     try {
-      const res = await fetch(`${API_BASE_URL}/unilevel-products/redeem-lifestyle-reward`, {
+      const res = await apiFetch(`${API_BASE_URL}/unilevel-products/redeem-lifestyle-reward`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rewardId }),
       });
       const json = await res.json();

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { apiFetch } from '../../lib/apiFetch';
 import { CheckCircle2, Loader2, AlertTriangle, KeyRound, ArrowUp } from 'lucide-react';
 
 const API_BASE = 'http://localhost:3000';
@@ -60,14 +61,9 @@ export default function Subscription() {
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const token = localStorage.getItem('accessToken');
-
   /* ── Load current tier from user profile ── */
   useEffect(() => {
-    if (!token) return;
-    fetch(`${API_BASE}/users/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    apiFetch(`${API_BASE}/users/me`)
       .then((r) => r.json())
       .then((data) => {
         if (data?.membershipTier) setCurrentTier(data.membershipTier);
@@ -100,9 +96,7 @@ export default function Subscription() {
 
     debounceRef.current = setTimeout(async () => {
       try {
-        const res  = await fetch(`${API_BASE}/users/pins/lookup?pin=${encodeURIComponent(clean)}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res  = await apiFetch(`${API_BASE}/users/pins/lookup?pin=${encodeURIComponent(clean)}`);
         const data = await res.json();
 
         if (!data?.found) {
@@ -165,12 +159,9 @@ export default function Subscription() {
     if (!detectedTier || pinStatus !== 'valid') return;
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/users/upgrade`, {
+      const res = await apiFetch(`${API_BASE}/users/upgrade`, {
         method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          Authorization:   `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin: pin.trim().toUpperCase() }),
       });
 

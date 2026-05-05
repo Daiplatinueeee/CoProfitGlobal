@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Pencil, OctagonMinus, ArrowUpCircle, KeyRound, X, ChevronLeft, ChevronRight, Users, Lock, Trash2 } from 'lucide-react';
+import { apiFetch } from '../../lib/apiFetch';
 
 import CreateUserModal from '../modals/CreateUserModal';
 
@@ -304,11 +305,6 @@ function UsersOverview() {
 
   // ─── API Helpers ──────────────────────────────────────────────────────────
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('token') ?? localStorage.getItem('accessToken');
-    return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-  };
-
   const formatUserDateTime = (apiUser: any): User => {
     const createdDate = new Date(apiUser.createdAt);
     return {
@@ -341,10 +337,7 @@ function UsersOverview() {
     try {
       setLoading(true);
       setError(null);
-      const token = localStorage.getItem('token') ?? localStorage.getItem('accessToken');
-      if (!token) { setError('Not authenticated. Please log in again.'); return; }
-      const response = await fetch(`${API_BASE}/admin/users`, { method: 'GET', headers: getAuthHeaders() });
-      if (response.status === 401) { setError('Session expired. Please log in again.'); return; }
+      const response = await apiFetch(`${API_BASE}/admin/users`);
       if (!response.ok) throw new Error(`Failed to fetch users: ${response.status}`);
       const data = await response.json();
       setUsers(Array.isArray(data) ? data.map(formatUserDateTime) : []);
@@ -359,9 +352,9 @@ function UsersOverview() {
     if (!validateForm()) return;
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/admin/users`, {
+      const response = await apiFetch(`${API_BASE}/admin/users`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name, username: formData.username || undefined,
           email: formData.email, password: formData.password,
@@ -392,9 +385,7 @@ function UsersOverview() {
   const handleSelectUser = async (user: User) => {
     setSelectedUser(user);
     try {
-      const res = await fetch(`${API_BASE}/admin/users/${user.id}/available-points`, {
-        headers: getAuthHeaders(),
-      });
+      const res = await apiFetch(`${API_BASE}/admin/users/${user.id}/available-points`);
       if (res.ok) {
         const pts = await res.json();
         setSelectedUser((prev) =>
@@ -411,9 +402,7 @@ function UsersOverview() {
   const openEditPoints = async (user: User) => {
     setSelectedUser(null);
     try {
-      const res = await fetch(`${API_BASE}/admin/users/${user.id}/available-points`, {
-        headers: getAuthHeaders(),
-      });
+      const res = await apiFetch(`${API_BASE}/admin/users/${user.id}/available-points`);
       const pts = res.ok ? await res.json() : { leftAvailablePoints: 0, rightAvailablePoints: 0 };
       setEditPointsForm({
         leftAvailablePoints: String(pts.leftAvailablePoints ?? 0),
@@ -433,8 +422,8 @@ function UsersOverview() {
       rightAvailablePoints: Number(editPointsForm.rightAvailablePoints) || 0,
     };
     try {
-      const response = await fetch(`${API_BASE}/admin/users/${editPointsUserId}/leg-points`, {
-        method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify(parsedPoints),
+      const response = await apiFetch(`${API_BASE}/admin/users/${editPointsUserId}/leg-points`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parsedPoints),
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -459,7 +448,7 @@ function UsersOverview() {
     if (target && isProtectedAdmin(target)) return; // should never be reachable via UI
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     try {
-      const response = await fetch(`${API_BASE}/admin/users/${userId}`, { method: 'DELETE', headers: getAuthHeaders() });
+      const response = await apiFetch(`${API_BASE}/admin/users/${userId}`, { method: 'DELETE' });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to delete user');
@@ -480,7 +469,7 @@ function UsersOverview() {
       const ids = deletableUsers.map((u) => u.id);
       const results = await Promise.allSettled(
         ids.map((id) =>
-          fetch(`${API_BASE}/admin/users/${id}`, { method: 'DELETE', headers: getAuthHeaders() })
+          apiFetch(`${API_BASE}/admin/users/${id}`, { method: 'DELETE' })
         )
       );
       const failed = results.filter((r) => r.status === 'rejected').length;
@@ -515,9 +504,9 @@ function UsersOverview() {
     setChangePasswordLoading(true);
     setChangePasswordError(null);
     try {
-      const response = await fetch(`${API_BASE}/admin/users/${changePasswordUser.id}/password`, {
+      const response = await apiFetch(`${API_BASE}/admin/users/${changePasswordUser.id}/password`, {
         method: 'PATCH',
-        headers: getAuthHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPassword }),
       });
       const data = await response.json();
@@ -553,9 +542,9 @@ function UsersOverview() {
     setRestrictLoading(true);
     setRestrictError(null);
     try {
-      const response = await fetch(`${API_BASE}/admin/users/${restrictUser.id}/restrict`, {
+      const response = await apiFetch(`${API_BASE}/admin/users/${restrictUser.id}/restrict`, {
         method: 'PATCH',
-        headers: getAuthHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isRestricted: willRestrict, reason: willRestrict ? restrictReason.trim() : '' }),
       });
       const data = await response.json();
@@ -596,9 +585,9 @@ function UsersOverview() {
     setGeneratePinLoading(true);
     setUpgradeError(null);
     try {
-      const response = await fetch(`${API_BASE}/admin/pins/generate`, {
+      const response = await apiFetch(`${API_BASE}/admin/pins/generate`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tier: generatePinTier, quantity: 1 }),
       });
       const data = await response.json();
@@ -630,9 +619,9 @@ function UsersOverview() {
     setUpgradeLoading(true);
     setUpgradeError(null);
     try {
-      const response = await fetch(`${API_BASE}/admin/users/${upgradeUser.id}/upgrade-package`, {
+      const response = await apiFetch(`${API_BASE}/admin/users/${upgradeUser.id}/upgrade-package`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ packagePin: pin }),
       });
       const data = await response.json();
@@ -661,8 +650,8 @@ function UsersOverview() {
     if (!user) return;
     const newStatus = !user.isActive;
     try {
-      const response = await fetch(`${API_BASE}/users/${userId}/status`, {
-        method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify({ isActive: newStatus }),
+      const response = await apiFetch(`${API_BASE}/users/${userId}/status`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: newStatus }),
       });
       if (!response.ok) {
         const errorData = await response.json();

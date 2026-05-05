@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../../lib/apiFetch';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -39,7 +40,6 @@ function Payout() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const token = localStorage.getItem('accessToken');
   const userId = localStorage.getItem('userId') ?? (() => {
     try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.id ?? ''; } catch { return ''; }
   })();
@@ -48,12 +48,8 @@ function Payout() {
     setLoading(true);
     try {
       const [balRes, histRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/wallet/${userId}/balances`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE_URL}/withdrawal/my`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        apiFetch(`${API_BASE_URL}/wallet/${userId}/balances`),
+        apiFetch(`${API_BASE_URL}/withdrawal/my`),
       ]);
 
       const balJson = await balRes.json();
@@ -84,12 +80,9 @@ function Payout() {
     setSubmitting(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/withdrawal`, {
+      const res = await apiFetch(`${API_BASE_URL}/withdrawal`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: parseFloat(formData.amount),
           paymentMethod: formData.paymentMethod,

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Loader2, X } from 'lucide-react';
+import { apiFetch } from '../../lib/apiFetch';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -38,7 +39,6 @@ export default function WithdrawGC() {
   const [loading, setLoading]                   = useState(true);
   const [showFormSheet, setShowFormSheet]       = useState(false);
 
-  const token  = localStorage.getItem('accessToken');
   const userId = localStorage.getItem('userId') ?? (() => {
     try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.id ?? ''; } catch { return ''; }
   })();
@@ -47,12 +47,8 @@ export default function WithdrawGC() {
     setLoading(true);
     try {
       const [balRes, histRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/wallet/${userId}/balances`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE_URL}/withdrawal/my?currency=gc_points`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        apiFetch(`${API_BASE_URL}/wallet/${userId}/balances`),
+        apiFetch(`${API_BASE_URL}/withdrawal/my?currency=gc_points`),
       ]);
       const balJson  = await balRes.json();
       const histJson = await histRes.json();
@@ -80,9 +76,9 @@ export default function WithdrawGC() {
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/withdrawal`, {
+      const res = await apiFetch(`${API_BASE_URL}/withdrawal`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount, currency: 'gc_points' }),
       });
       const json = await res.json();

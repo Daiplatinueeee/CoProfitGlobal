@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { apiFetch } from '../../lib/apiFetch'
 import { X, Search, AlertCircle, ShieldAlert, UserCheck, Loader2 } from 'lucide-react'
 
 interface Member {
@@ -96,10 +97,7 @@ export default function ExistingMemberModal({
 
     try {
       const params = new URLSearchParams({ q: trimmed })
-      const response = await fetch(`${apiBaseUrl}/genealogy/search-unplaced?${params}`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      })
+      const response = await apiFetch(`${apiBaseUrl}/genealogy/search-unplaced?${params}`)
       const data = await response.json()
 
       if (!response.ok) {

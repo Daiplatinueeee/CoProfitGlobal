@@ -1,21 +1,16 @@
 import { useEffect, useState } from 'react';
 import defaultLogo from './../../assets/refs/Logo.webp';
+import { apiFetch } from '../../lib/apiFetch';
 
 const API_BASE_URL = 'http://localhost:3000';
 
-function getAuthContext() {
-  const token = localStorage.getItem('accessToken');
-  let userId = localStorage.getItem('userId');
-  if (!userId) {
-    const str = localStorage.getItem('user');
-    if (str) {
-      try {
-        const obj = JSON.parse(str);
-        userId = obj.id ?? obj._id ?? obj.userId;
-      } catch {}
-    }
-  }
-  return { token, userId };
+function getUserId(): string | null {
+  const direct = localStorage.getItem('userId');
+  if (direct) return direct;
+  try {
+    const obj = JSON.parse(localStorage.getItem('user') ?? '{}');
+    return obj.id ?? obj._id ?? obj.userId ?? null;
+  } catch { return null; }
 }
 
 interface DownlineMember {
@@ -76,17 +71,15 @@ function ReferalsHierarchy() {
   const [openLevels, setOpenLevels] = useState<Set<number>>(new Set([1]));
 
   useEffect(() => {
-    const { token, userId } = getAuthContext();
-    if (!token || !userId) return;
+    const userId = getUserId();
+    if (!userId) return;
 
-    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
-    fetch(`${API_BASE_URL}/genealogy/downlines/${userId}`, { headers })
+    apiFetch(`${API_BASE_URL}/genealogy/downlines/${userId}`)
       .then(r => r.json())
       .then((data: DownlineMember[]) => {
         if (!Array.isArray(data)) { setMembers([]); return; }
         // Build a set of IDs within this user's own network (root + all downlines).
-        const networkIds = new Set<string>([userId, ...data.map(m => m.id ?? m.userId ?? '')]);
+        const networkIds = new Set<string>([userId!, ...data.map(m => m.id ?? m.userId ?? '')]);
         // Exclude spillover: members whose sponsor is outside this user's network.
         const filtered = data.filter(m => m.sponsorId != null && networkIds.has(m.sponsorId));
         setMembers(filtered);
@@ -125,7 +118,7 @@ function ReferalsHierarchy() {
     );
   }
 
-  const { userId: rootUserId } = getAuthContext();
+  const rootUserId = getUserId();
   const levelMap = groupByLevel(members, rootUserId ?? '');
   const levelNumbers = Array.from(levelMap.keys()).sort((a, b) => a - b);
 

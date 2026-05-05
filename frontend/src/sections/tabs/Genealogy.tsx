@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { apiFetch } from '../../lib/apiFetch'
 import logo from './../../assets/refs/Logo.webp'
 import MemberDetailsPanel from './membersDetailPanel'
 import AddMemberModal, { EMPTY_ADD_MEMBER_FORM } from '../modals/AddMemberModal'
@@ -124,12 +125,7 @@ function Genealogy() {
   }
 
   const fetchRootTree = useCallback(async (userId: string) => {
-    const response = await fetch(`${API_BASE_URL}/genealogy/root/${userId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
+    const response = await apiFetch(`${API_BASE_URL}/genealogy/root/${userId}`)
 
     const data = await response.json()
 
@@ -308,7 +304,7 @@ function Genealogy() {
       if (data.beneficiary.trim()) payload.beneficiary = data.beneficiary.trim()
       if (data.birthday) payload.birthday = data.birthday
 
-      const response = await fetch(`${API_BASE_URL}/genealogy/place`, {
+      const response = await apiFetch(`${API_BASE_URL}/genealogy/place`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -355,7 +351,7 @@ function Genealogy() {
         placerUserId: currentUserId,
         existingMemberId: member.userId || member.id,
       }
-      const response = await fetch(`${API_BASE_URL}/genealogy/place-existing`, {
+      const response = await apiFetch(`${API_BASE_URL}/genealogy/place-existing`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

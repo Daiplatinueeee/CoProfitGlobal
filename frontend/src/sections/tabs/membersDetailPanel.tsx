@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import logo from './../../assets/refs/Logo.webp';
+import { apiFetch } from '../../lib/apiFetch';
 
 // ─── Domain interfaces ────────────────────────────────────────────────────────
 
@@ -76,13 +77,6 @@ interface MemberDetailsPanelProps {
 
 // ─── Shared auth headers helper ───────────────────────────────────────────────
 
-function authHeaders(): HeadersInit {
-  const token = localStorage.getItem('accessToken');
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -130,10 +124,7 @@ export default function MemberDetailsPanel({
       setReferralError(null);
       setReferralCounts(null);
       try {
-        const res = await fetch(`${BASE}/genealogy/referrals/${id}`, {
-          method: 'GET',
-          headers: authHeaders(),
-        });
+        const res = await apiFetch(`${BASE}/genealogy/referrals/${id}`);
         if (!res.ok) throw new Error(`Failed to fetch referral counts (${res.status})`);
         const data = await res.json();
         console.log('referral counts response:', data);
@@ -163,9 +154,7 @@ export default function MemberDetailsPanel({
       setWalletError(null);
       setWalletAmounts(null);
       try {
-        const res = await fetch(`${BASE}/wallet/${id}/transactions?limit=200`, {
-          headers: authHeaders(),
-        });
+        const res = await apiFetch(`${BASE}/wallet/${id}/transactions?limit=200`);
         if (!res.ok) throw new Error(`Failed to fetch wallet transactions (${res.status})`);
 
         const txns: WalletTransaction[] = await res.json();
@@ -210,10 +199,7 @@ export default function MemberDetailsPanel({
       setSign5Bonus(null);
       try {
         const monthKey = new Date().toISOString().slice(0, 7);
-        const res = await fetch(`${BASE}/sign5/status/${id}?monthKey=${monthKey}`, {
-          method: 'GET',
-          headers: authHeaders(),
-        });
+        const res = await apiFetch(`${BASE}/sign5/status/${id}?monthKey=${monthKey}`);
         if (!res.ok) throw new Error(`Failed to fetch Sign-5 bonus (${res.status})`);
         const data = await res.json();
 
@@ -245,10 +231,7 @@ export default function MemberDetailsPanel({
       setLeadershipBonus(null);
       try {
         const monthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
-        const res = await fetch(`${BASE}/leadership/status/${id}?monthKey=${monthKey}`, {
-          method: 'GET',
-          headers: authHeaders(),
-        });
+        const res = await apiFetch(`${BASE}/leadership/status/${id}?monthKey=${monthKey}`);
         if (!res.ok) throw new Error(`Failed to fetch leadership bonus (${res.status})`);
         const data = await res.json();
         console.log('leadership status response:', data);

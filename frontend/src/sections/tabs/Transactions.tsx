@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../../lib/apiFetch';
 import { ChevronDown, ChevronLeft, ChevronRight, TrendingUp, Gift, Users, Award, Zap, AlertTriangle, ArrowUpCircle } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:3000';
@@ -78,14 +79,11 @@ export default function Transactions() {
   const PAGE_SIZE = 6;
 
   useEffect(() => {
-    const token  = localStorage.getItem('accessToken');
     const userId = localStorage.getItem('userId') ?? (() => {
       try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.id ?? ''; } catch { return ''; }
     })();
 
-    fetch(`${API_BASE_URL}/wallet/${userId}/transactions?limit=200`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    apiFetch(`${API_BASE_URL}/wallet/${userId}/transactions?limit=200`)
       .then((res) => res.json())
       .then((json: any[]) => {
         if (!Array.isArray(json)) return;

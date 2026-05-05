@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Check, X, ExternalLink } from 'lucide-react';
+import { apiFetch } from '../../lib/apiFetch';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -27,14 +28,10 @@ export default function PendingUnilevelPurchases() {
   const [actionError, setActionError] = useState('');
   const [noteMap, setNoteMap]         = useState<Record<string, string>>({});
 
-  const token = localStorage.getItem('accessToken');
-
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res  = await fetch(`${API_BASE_URL}/unilevel-products/admin/purchases/pending`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res  = await apiFetch(`${API_BASE_URL}/unilevel-products/admin/purchases/pending`);
       const json = await res.json();
       setRecords(Array.isArray(json) ? json : []);
     } catch {
@@ -49,12 +46,9 @@ export default function PendingUnilevelPurchases() {
   const handleApprove = async (id: string) => {
     setActionError('');
     try {
-      const res = await fetch(`${API_BASE_URL}/unilevel-products/admin/purchases/${id}/approve`, {
+      const res = await apiFetch(`${API_BASE_URL}/unilevel-products/admin/purchases/${id}/approve`, {
         method:  'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminNote: noteMap[id] ?? '' }),
       });
       if (!res.ok) {
@@ -71,12 +65,9 @@ export default function PendingUnilevelPurchases() {
   const handleReject = async (id: string) => {
     setActionError('');
     try {
-      const res = await fetch(`${API_BASE_URL}/unilevel-products/admin/purchases/${id}/reject`, {
+      const res = await apiFetch(`${API_BASE_URL}/unilevel-products/admin/purchases/${id}/reject`, {
         method:  'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminNote: noteMap[id] ?? '' }),
       });
       if (!res.ok) {

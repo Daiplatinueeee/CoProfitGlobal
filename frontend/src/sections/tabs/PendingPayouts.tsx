@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Clock, Check, X } from 'lucide-react';
+import { apiFetch } from '../../lib/apiFetch';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -20,14 +21,10 @@ function PendingPayouts() {
   const [loading, setLoading]     = useState(true);
   const [actionError, setActionError] = useState('');
 
-  const token = localStorage.getItem('accessToken');
-
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res  = await fetch(`${API_BASE_URL}/withdrawal/all?currency=php&status=pending`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res  = await apiFetch(`${API_BASE_URL}/withdrawal/all?currency=php&status=pending`);
       const json = await res.json();
       setRecords(Array.isArray(json) ? json : []);
     } catch {
@@ -42,9 +39,8 @@ function PendingPayouts() {
   const handleApprove = async (id: string) => {
     setActionError('');
     try {
-      const res = await fetch(`${API_BASE_URL}/withdrawal/${id}/approve`, {
+      const res = await apiFetch(`${API_BASE_URL}/withdrawal/${id}/approve`, {
         method:  'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         const json = await res.json();
@@ -60,9 +56,8 @@ function PendingPayouts() {
   const handleDecline = async (id: string) => {
     setActionError('');
     try {
-      const res = await fetch(`${API_BASE_URL}/withdrawal/${id}/reject`, {
+      const res = await apiFetch(`${API_BASE_URL}/withdrawal/${id}/reject`, {
         method:  'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         const json = await res.json();

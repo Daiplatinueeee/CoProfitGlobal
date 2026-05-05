@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { KeyRound, CheckCircle, Clock, X, RefreshCw, Inbox, Lock, AlertCircle } from 'lucide-react';
+import { apiFetch } from '../../lib/apiFetch';
 
 const API_BASE = 'http://localhost:3000';
 
@@ -16,10 +17,6 @@ interface ForgotPasswordRequest {
   resolvedNote?: string;
 }
 
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('token') ?? localStorage.getItem('accessToken');
-  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-};
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -143,9 +140,9 @@ function ChangePasswordModal({
 
     try {
       // 1. Change the password
-      const pwRes = await fetch(`${API_BASE}/admin/users/${req.userId}/password`, {
+      const pwRes = await apiFetch(`${API_BASE}/admin/users/${req.userId}/password`, {
         method: 'PATCH',
-        headers: getAuthHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPassword }),
       });
       const pwData = await pwRes.json();
@@ -156,9 +153,9 @@ function ChangePasswordModal({
 
       // 2. Optionally mark as resolved
       if (resolveAfter) {
-        await fetch(`${API_BASE}/admin/forgot-password-requests/${req.id}/resolve`, {
+        await apiFetch(`${API_BASE}/admin/forgot-password-requests/${req.id}/resolve`, {
           method: 'PATCH',
-          headers: getAuthHeaders(),
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ note: note.trim() || 'Password changed by admin.' }),
         });
       }
@@ -309,9 +306,9 @@ function ResolveModal({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/admin/forgot-password-requests/${req.id}/resolve`, {
+      const res = await apiFetch(`${API_BASE}/admin/forgot-password-requests/${req.id}/resolve`, {
         method: 'PATCH',
-        headers: getAuthHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ note: note.trim() || undefined }),
       });
       const data = await res.json();
@@ -417,10 +414,7 @@ export default function PendingRequests() {
     setError(null);
     try {
       const query = statusFilter === 'all' ? '' : `?status=${statusFilter}`;
-      const res = await fetch(`${API_BASE}/admin/forgot-password-requests${query}`, {
-        headers: getAuthHeaders(),
-      });
-      if (res.status === 401) { setError('Session expired. Please log in again.'); return; }
+      const res = await apiFetch(`${API_BASE}/admin/forgot-password-requests${query}`);
       if (!res.ok) throw new Error(`Failed to fetch requests: ${res.status}`);
       const data = await res.json();
       const mapped: ForgotPasswordRequest[] = (Array.isArray(data) ? data : []).map((r: any) => ({

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../../lib/apiFetch';
 import {
   Home, TrendingUp, Gift, Lock, Wallet, Leaf,
   Network, AlertCircle, LogOut, ChevronLeft, Construction,
@@ -301,7 +302,6 @@ const formatPhp = (amount: number) =>
 // ── Auth helper ───────────────────────────────────────────────────────────
 
 function getAuthContext() {
-  const token = localStorage.getItem('accessToken');
   let userId = localStorage.getItem('userId');
   if (!userId) {
     const str = localStorage.getItem('user');
@@ -312,7 +312,7 @@ function getAuthContext() {
       } catch { }
     }
   }
-  return { token, userId };
+  return { userId };
 }
 
 
@@ -367,12 +367,10 @@ export default function UserDashboard() {
     if (activeTab !== 'dashboard') return;
     const fetchCurrentUser = async () => {
       try {
-        const { token, userId } = getAuthContext();
-        if (!token || !userId) return;
+        const { userId } = getAuthContext();
+        if (!userId) return;
 
-        const res = await fetch(`${API_BASE_URL}/users/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await apiFetch(`${API_BASE_URL}/users/me`);
         if (!res.ok) throw new Error('Failed to fetch user');
         const data = await res.json();
         console.log('current user:', data);
@@ -380,9 +378,7 @@ export default function UserDashboard() {
 
         // Fetch genealogy root for left/right leg points
         try {
-          const gRes = await fetch(`${API_BASE_URL}/genealogy/root/${userId}`, {
-            headers: { 'Content-Type': 'application/json' },
-          });
+          const gRes = await apiFetch(`${API_BASE_URL}/genealogy/root/${userId}`);
           if (gRes.ok) {
             const gData = await gRes.json();
             setGenealogyRoot({
@@ -409,18 +405,16 @@ export default function UserDashboard() {
     if (activeTab !== 'dashboard') return;
     const fetchIncome = async () => {
       try {
-        const { token, userId } = getAuthContext();
-        if (!token || !userId) {
-          console.error('Missing token or userId — cannot fetch income');
+        const { userId } = getAuthContext();
+        if (!userId) {
+          console.error('Missing userId — cannot fetch income');
           return;
         }
 
         // Fetch income summary (server-side aggregation — no limit)
         const [summaryRes, txnRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/wallet/${userId}/income-summary`,
-            { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${API_BASE_URL}/wallet/${userId}/transactions?limit=10`,
-            { headers: { Authorization: `Bearer ${token}` } }),
+          apiFetch(`${API_BASE_URL}/wallet/${userId}/income-summary`),
+          apiFetch(`${API_BASE_URL}/wallet/${userId}/transactions?limit=10`),
         ]);
 
         if (!summaryRes.ok) throw new Error('Failed to fetch income summary');
@@ -457,13 +451,10 @@ export default function UserDashboard() {
     if (activeTab !== 'dashboard') return;
     const fetchBalances = async () => {
       try {
-        const { token, userId } = getAuthContext();
-        if (!token || !userId) return;
+        const { userId } = getAuthContext();
+        if (!userId) return;
 
-        const res = await fetch(
-          `${API_BASE_URL}/wallet/${userId}/balances`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        const res = await apiFetch(`${API_BASE_URL}/wallet/${userId}/balances`);
         if (!res.ok) throw new Error('Failed to fetch balances');
 
         const data = await res.json();
@@ -487,13 +478,10 @@ export default function UserDashboard() {
     if (activeTab !== 'dashboard') return;
     const fetchReferrals = async () => {
       try {
-        const { token, userId } = getAuthContext();
-        if (!token || !userId) return;
+        const { userId } = getAuthContext();
+        if (!userId) return;
 
-        const res = await fetch(
-          `${API_BASE_URL}/genealogy/referrals/${userId}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        const res = await apiFetch(`${API_BASE_URL}/genealogy/referrals/${userId}`);
         if (!res.ok) throw new Error('Failed to fetch referrals');
 
         const data: ReferralData = await res.json();
@@ -512,12 +500,9 @@ export default function UserDashboard() {
     if (activeTab !== 'dashboard') return;
     const fetchPairingCap = async () => {
       try {
-        const { token, userId } = getAuthContext();
-        if (!token || !userId) return;
-        const res = await fetch(
-          `${API_BASE_URL}/pairing/current-cap/${userId}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        const { userId } = getAuthContext();
+        if (!userId) return;
+        const res = await apiFetch(`${API_BASE_URL}/pairing/current-cap/${userId}`);
         if (!res.ok) return;
         const data = await res.json();
         setPairingCap({ capUsed: data.capUsed, capLimit: data.capLimit, cycle: data.cycle });
@@ -533,13 +518,10 @@ export default function UserDashboard() {
     if (activeTab !== 'dashboard') return;
     const fetchUserRank = async () => {
       try {
-        const { token, userId } = getAuthContext();
-        if (!token || !userId) return;
+        const { userId } = getAuthContext();
+        if (!userId) return;
 
-        const res = await fetch(
-          `${API_BASE_URL}/leaderboard/rank/${userId}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        const res = await apiFetch(`${API_BASE_URL}/leaderboard/rank/${userId}`);
         if (!res.ok) throw new Error('Failed to fetch user rank');
 
         const data = await res.json();
@@ -558,25 +540,20 @@ export default function UserDashboard() {
     if (activeTab !== 'dashboard') return;
     const evaluateAndFetchSign5 = async () => {
       try {
-        const { token, userId } = getAuthContext();
-        if (!token || !userId) return;
+        const { userId } = getAuthContext();
+        if (!userId) return;
         const monthKey = new Date().toISOString().slice(0, 7);
 
         // Always evaluate first — idempotent, only credits what hasn't been paid yet.
-        // This ensures any pending bonuses (e.g. for existing referrals) are credited.
-        await fetch(`${API_BASE_URL}/sign5/evaluate`, {
+        await apiFetch(`${API_BASE_URL}/sign5/evaluate`, {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, monthKey }),
         });
 
         // Now fetch the updated status
-        const statusRes = await fetch(
+        const statusRes = await apiFetch(
           `${API_BASE_URL}/sign5/status/${userId}?monthKey=${monthKey}`,
-          { headers: { Authorization: `Bearer ${token}` } },
         );
         if (!statusRes.ok) throw new Error('Failed to fetch sign5 status');
         const data = await statusRes.json();
@@ -599,9 +576,8 @@ export default function UserDashboard() {
         }
 
         // Re-fetch income summary so the sign5Bonus card reflects the new credit
-        const summaryRes = await fetch(
+        const summaryRes = await apiFetch(
           `${API_BASE_URL}/wallet/${userId}/income-summary`,
-          { headers: { Authorization: `Bearer ${token}` } },
         );
         if (summaryRes.ok) {
           const summary = await summaryRes.json();

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../../lib/apiFetch';
 import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock, Tag, Trophy } from 'lucide-react';
 
 import GeneratePin from '../tabs/GeneratePin';
@@ -379,12 +380,9 @@ export default function AdminDashboard() {
 
   const lastPeriodKey = useRef<string | null>(null);
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
     const check = async () => {
       try {
-        const res = await fetch('http://localhost:3000/pairing/current-period', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        const res = await apiFetch('http://localhost:3000/pairing/current-period');
         if (!res.ok) return;
         const { periodKey } = await res.json();
         if (lastPeriodKey.current && lastPeriodKey.current !== periodKey) {

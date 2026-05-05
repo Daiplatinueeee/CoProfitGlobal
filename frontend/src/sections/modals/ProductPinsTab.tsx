@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { ExportModal } from './ExportModal';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface ProductPIN {
   id: string;
@@ -133,10 +134,7 @@ export default function ProductPinTab({
 
   const fetchPins = useCallback(async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_BASE}/admin/product-pins?limit=200`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiFetch(`${API_BASE}/admin/product-pins?limit=200`);
       if (!res.ok) throw new Error(`Failed to load product pins (${res.status})`);
       const data: any[] = await res.json();
       setPins(data.map(mapApiProductPin));
@@ -159,10 +157,9 @@ export default function ProductPinTab({
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_BASE}/admin/product-pins/generate`, {
+      const res = await apiFetch(`${API_BASE}/admin/product-pins/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ productId, quantity: qty }),
       });
 
@@ -189,10 +186,7 @@ export default function ProductPinTab({
       setPins((prev) => [...newPins, ...prev]);
 
       setTimeout(async () => {
-        const token2 = localStorage.getItem('accessToken');
-        const res2 = await fetch(`${API_BASE}/admin/product-pins?limit=200`, {
-          headers: { Authorization: `Bearer ${token2}` },
-        });
+        const res2 = await apiFetch(`${API_BASE}/admin/product-pins?limit=200`);
         if (!res2.ok) return;
         const list: any[] = await res2.json();
         setPins(list.map(mapApiProductPin));

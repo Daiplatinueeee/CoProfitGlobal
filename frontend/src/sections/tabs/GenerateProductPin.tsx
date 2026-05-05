@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Clock, Hash, Plus, X, RefreshCw, AlertTriangle, KeyRound, Trash2 } from 'lucide-react';
 import { API_BASE } from './GeneratePin';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface ProductPin {
   _id: string;
@@ -40,15 +41,11 @@ export default function GenerateProductPin() {
   const [successCount, setSuccessCount] = useState<number | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
-  const token = localStorage.getItem('accessToken');
-
   /* ── data fetchers ── */
   const fetchPins = async () => {
     setLoadingPins(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/product-pins`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiFetch(`${API_BASE}/admin/product-pins`);
       const data = await res.json();
       setPins(Array.isArray(data) ? data : []);
     } catch {
@@ -103,12 +100,9 @@ export default function GenerateProductPin() {
     setSubmitting(true);
     setModalError(null);
     try {
-      const res = await fetch(`${API_BASE}/admin/product-pins/generate`, {
+      const res = await apiFetch(`${API_BASE}/admin/product-pins/generate`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pv: Number(pv), quantity }),
       });
 
@@ -134,9 +128,8 @@ export default function GenerateProductPin() {
     setDeleting(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/admin/product-pins/bulk-delete?status=${status}`, {
+      const res = await apiFetch(`${API_BASE}/admin/product-pins/bulk-delete?status=${status}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         const msg = await res.json().catch(() => ({}));
