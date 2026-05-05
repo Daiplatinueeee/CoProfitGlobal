@@ -15,7 +15,6 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [formData, setFormData] = useState({
-        title: '',
         description: '',
         reason: '',
     });
@@ -25,7 +24,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
         if (isOpen) {
             setStep('form');
             setError('');
-            setFormData({ title: '', description: '', reason: '' });
+            setFormData({ description: '', reason: '' });
         }
     }, [isOpen]);
 
@@ -49,7 +48,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
         e.preventDefault();
         setError('');
 
-        if (!formData.title.trim() || !formData.description.trim() || !formData.reason.trim()) {
+        if (!formData.description.trim() || !formData.reason.trim()) {
             setError('Please fill in all fields before submitting.');
             return;
         }
