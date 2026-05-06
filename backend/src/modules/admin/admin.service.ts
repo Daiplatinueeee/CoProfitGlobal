@@ -60,6 +60,7 @@ import {
 } from '../wallet/schemas/wallet-transaction.schema';
 
 import { AdminRestrictUserDto } from './dto/admin-restrict-user.dto';
+import { WalletService } from '../wallet/wallet.service';
 
 @Injectable()
 export class AdminService {
@@ -78,10 +79,11 @@ export class AdminService {
     private readonly unilevelProductModel: Model<UnilevelProductDocument>,
     @InjectModel(WalletTransaction.name)
     private readonly txnModel: Model<WalletTransactionDocument>,
-    @InjectModel(ForgotPasswordRequest.name)
+@InjectModel(ForgotPasswordRequest.name)
     private readonly forgotPasswordRequestModel: Model<ForgotPasswordRequestDocument>,
     private readonly usersService: UsersService,
     private readonly pairingService: PairingService,
+    private readonly walletService: WalletService,
   ) {}
 
   private isValidObjectId(id: string) {
@@ -464,6 +466,24 @@ export class AdminService {
       throw new BadRequestException('Invalid userId');
     }
 
+    const bonusFields = [
+      'totalPairingBonus',
+      'totalSign5Bonus',
+      'totalLeadershipBonus',
+      'totalDirectReferralIncome',
+      'totalIndirectReferralIncome',
+      'totalRepeatBinaryBonusIncome',
+      'totalStairstepBonusIncome',
+      'totalRoyaltyBonusIncome',
+    ] as const;
+
+    const current = await this.userModel
+      .findById(new Types.ObjectId(userId))
+      .select(bonusFields.join(' '))
+      .lean();
+
+    if (!current) throw new NotFoundException('User not found');
+
     const allowedFields: Record<string, number> = {};
 
     if (dto.totalPairingBonus !== undefined)
@@ -496,6 +516,37 @@ export class AdminService {
     );
 
     if (!updated) throw new NotFoundException('User not found');
+
+    // Compute the net PHP delta across all changed bonus fields so that
+    // today / thisWeek / thisMonth aggregations reflect the adjustment.
+    const u = current as any;
+    let phpDelta = 0;
+    for (const field of bonusFields) {
+      if (allowedFields[field] !== undefined) {
+        phpDelta += allowedFields[field] - (u[field] ?? 0);
+      }
+    }
+
+    const refKey = `admin_adjustment:${userId}:${Date.now()}`;
+    if (phpDelta > 0) {
+      await this.walletService.credit({
+        userId,
+        currency: WalletCurrency.PHP,
+        amount: phpDelta,
+        source: WalletTxnSource.ADMIN_ADJUSTMENT,
+        refKey,
+        note: 'Admin bonus adjustment',
+      });
+    } else if (phpDelta < 0) {
+      await this.walletService.debit({
+        userId,
+        currency: WalletCurrency.PHP,
+        amount: Math.abs(phpDelta),
+        source: WalletTxnSource.ADMIN_ADJUSTMENT,
+        refKey,
+        note: 'Admin bonus adjustment',
+      });
+    }
 
     return {
       id: (updated as any)._id.toString(),

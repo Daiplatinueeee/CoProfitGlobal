@@ -10,6 +10,7 @@ import {
   WalletTxnSource,
 } from './schemas/wallet-transaction.schema';
 import { WalletBalance, WalletBalanceDocument } from './schemas/wallet-balance.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 
 @Injectable()
 export class WalletService {
@@ -18,6 +19,8 @@ export class WalletService {
     private readonly txnModel: Model<WalletTransactionDocument>,
     @InjectModel(WalletBalance.name)
     private readonly balModel: Model<WalletBalanceDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
   ) {}
 
   private toObjectId(id: string) {
@@ -55,44 +58,74 @@ export class WalletService {
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const rows = await this.txnModel.aggregate([
-      {
-        $match: {
-          userId: uid,
-          currency: WalletCurrency.PHP,
-          type: WalletTxnType.CREDIT,
+    // Per-bonus totals come from user model (admin-editable, absolute values).
+    // Time-based sums (today/week/month) still aggregate wallet credits so
+    // they reflect when income was actually posted.
+    const [user, timeRows] = await Promise.all([
+      this.userModel
+        .findById(uid)
+        .select(
+          'totalPairingBonus totalSign5Bonus totalLeadershipBonus ' +
+          'totalDirectReferralIncome totalIndirectReferralIncome ' +
+          'totalRepeatBinaryBonusIncome totalStairstepBonusIncome ' +
+          'totalRoyaltyBonusIncome',
+        )
+        .lean(),
+      this.txnModel.aggregate([
+        {
+          $match: {
+            userId: uid,
+            currency: WalletCurrency.PHP,
+            type: WalletTxnType.CREDIT,
+          },
         },
-      },
-      {
-        $group: {
-          _id: null,
-          totalIncome:           { $sum: '$amount' },
-          pairingBonus:          { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.PAIRING] },           '$amount', 0] } },
-          repeatBinaryBonus:     { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.REPEAT_BINARY] },     '$amount', 0] } },
-          sign5Bonus:            { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.SIGN5] },             '$amount', 0] } },
-          leadershipBonus:       { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.LEADERSHIP] },        '$amount', 0] } },
-          directReferralBonus:   { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.REFERRAL_DIRECT] },   '$amount', 0] } },
-          indirectReferralBonus: { $sum: { $cond: [{ $eq: ['$source', WalletTxnSource.REFERRAL_INDIRECT] }, '$amount', 0] } },
-          today:    { $sum: { $cond: [{ $gte: ['$postedAt', startOfToday] }, '$amount', 0] } },
-          thisWeek: { $sum: { $cond: [{ $gte: ['$postedAt', startOfWeek] },  '$amount', 0] } },
-          thisMonth:{ $sum: { $cond: [{ $gte: ['$postedAt', startOfMonth] }, '$amount', 0] } },
+        {
+          $group: {
+            _id: null,
+            grandTotal: { $sum: '$amount' },
+            today:      { $sum: { $cond: [{ $gte: ['$postedAt', startOfToday] }, '$amount', 0] } },
+            thisWeek:   { $sum: { $cond: [{ $gte: ['$postedAt', startOfWeek] },  '$amount', 0] } },
+            thisMonth:  { $sum: { $cond: [{ $gte: ['$postedAt', startOfMonth] }, '$amount', 0] } },
+          },
         },
-      },
+      ]),
     ]);
 
-    const s = rows[0];
+    const t = timeRows[0];
+    const u = user as any;
+
+    const pairingBonus          = u?.totalPairingBonus          ?? 0;
+    const sign5Bonus            = u?.totalSign5Bonus            ?? 0;
+    const leadershipBonus       = u?.totalLeadershipBonus       ?? 0;
+    const directReferralBonus   = u?.totalDirectReferralIncome  ?? 0;
+    const indirectReferralBonus = u?.totalIndirectReferralIncome ?? 0;
+    const repeatBinaryBonus     = u?.totalRepeatBinaryBonusIncome ?? 0;
+    const stairstepBonus        = u?.totalStairstepBonusIncome  ?? 0;
+    const royaltyBonus          = u?.totalRoyaltyBonusIncome    ?? 0;
+
+    const totalIncome =
+      pairingBonus + sign5Bonus + leadershipBonus +
+      directReferralBonus + indirectReferralBonus +
+      repeatBinaryBonus + stairstepBonus + royaltyBonus;
+
+    // Scale period sums proportionally when admin overrides bonus totals.
+    // grandTotal = sum of all raw credit transactions; totalIncome = admin-edited truth.
+    // Ratio < 1 when admin reduced income, > 1 when increased.
+    const grandTotal = t?.grandTotal ?? 0;
+    const ratio = grandTotal > 0 ? totalIncome / grandTotal : 1;
+
     return {
       userId,
-      totalIncome:           s?.totalIncome           ?? 0,
-      pairingBonus:          s?.pairingBonus          ?? 0,
-      repeatBinaryBonus:     s?.repeatBinaryBonus     ?? 0,
-      sign5Bonus:            s?.sign5Bonus            ?? 0,
-      leadershipBonus:       s?.leadershipBonus       ?? 0,
-      directReferralBonus:   s?.directReferralBonus   ?? 0,
-      indirectReferralBonus: s?.indirectReferralBonus ?? 0,
-      today:                 s?.today                 ?? 0,
-      thisWeek:              s?.thisWeek              ?? 0,
-      thisMonth:             s?.thisMonth             ?? 0,
+      totalIncome,
+      pairingBonus,
+      repeatBinaryBonus,
+      sign5Bonus,
+      leadershipBonus,
+      directReferralBonus,
+      indirectReferralBonus,
+      today:     (t?.today     ?? 0) * ratio,
+      thisWeek:  (t?.thisWeek  ?? 0) * ratio,
+      thisMonth: (t?.thisMonth ?? 0) * ratio,
     };
   }
 

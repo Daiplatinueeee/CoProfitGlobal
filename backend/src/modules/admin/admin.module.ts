@@ -28,6 +28,7 @@ import {
 } from '../unilevel-products/schemas/unilevel-product.schema';
 import { RolesGuard } from '../auth/roles.guard';
 import { PairingModule } from '../pairing/pairing.module';
+import { WalletModule } from '../wallet/wallet.module';
 import { WalletTransaction, WalletTransactionSchema } from '../wallet/schemas/wallet-transaction.schema';
 import {
   ForgotPasswordRequest,
@@ -38,6 +39,7 @@ import {
   imports: [
     UsersModule,
     PairingModule,
+    WalletModule,
     MongooseModule.forFeature([
       { name: User.name,          schema: UserSchema },
       { name: ProductPin.name,    schema: ProductPinSchema },
@@ -46,7 +48,7 @@ import {
       { name: LifestyleReward.name, schema: LifestyleRewardSchema },
       { name: UnilevelProduct.name, schema: UnilevelProductSchema },
       { name: WalletTransaction.name, schema: WalletTransactionSchema },
-      { name: ForgotPasswordRequest.name, schema: ForgotPasswordRequestSchema },
+{ name: ForgotPasswordRequest.name, schema: ForgotPasswordRequestSchema },
     ]),
   ],
   controllers: [AdminController],
