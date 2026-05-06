@@ -43,7 +43,15 @@ export default function AuthPage() {
     };
 
     const navigate = useNavigate()
-    const { setAccessToken } = useAuth()
+    const { setAccessToken, accessToken } = useAuth()
+
+    // Redirect already-authenticated users away from the login page
+    useEffect(() => {
+        if (accessToken) {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            navigate(user?.role === 'admin' ? '/admin' : '/user', { replace: true });
+        }
+    }, [accessToken, navigate]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -87,11 +95,11 @@ export default function AuthPage() {
                 localStorage.removeItem('rememberedPassword');
             }
 
-            // Navigate based on role
+            // Navigate based on role — replace so /auth is removed from history
             if (data.user.role === 'admin') {
-                navigate('/admin');
+                navigate('/admin', { replace: true });
             } else {
-                navigate('/user');
+                navigate('/user', { replace: true });
             }
 
         } catch (err) {

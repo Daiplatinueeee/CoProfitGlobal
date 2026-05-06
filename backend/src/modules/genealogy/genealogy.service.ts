@@ -142,7 +142,7 @@ export class GenealogyService {
 
   // ── Tree builder ──────────────────────────────────────────────────────────
 
-  private async buildTree(userId: string): Promise<any> {
+  private async buildTree(userId: string, maxDepth = 3, currentDepth = 0): Promise<any> {
     const node = await this.genealogyModel.findOne({
       userId: this.toObjectId(userId),
     })
@@ -152,16 +152,22 @@ export class GenealogyService {
     const member = await this.mapUserToMember(node.userId)
     if (!member) return null
 
-    let leftChild:  any = undefined
-    let rightChild: any = undefined
-
-    if (node.leftChildUserId) {
-      leftChild = await this.buildTree(node.leftChildUserId.toString())
+    if (currentDepth >= maxDepth) {
+      return {
+        ...member,
+        hasLeftChild:  !!node.leftChildUserId,
+        hasRightChild: !!node.rightChildUserId,
+      }
     }
 
-    if (node.rightChildUserId) {
-      rightChild = await this.buildTree(node.rightChildUserId.toString())
-    }
+    const [leftChild, rightChild] = await Promise.all([
+      node.leftChildUserId
+        ? this.buildTree(node.leftChildUserId.toString(),  maxDepth, currentDepth + 1)
+        : Promise.resolve(undefined),
+      node.rightChildUserId
+        ? this.buildTree(node.rightChildUserId.toString(), maxDepth, currentDepth + 1)
+        : Promise.resolve(undefined),
+    ])
 
     return { ...member, leftChild, rightChild }
   }
@@ -373,7 +379,7 @@ export class GenealogyService {
     }
   }
 
-  async getOrCreateRoot(userId: string) {
+  async getOrCreateRoot(userId: string, maxDepth = 3) {
     if (!this.isValidObjectId(userId)) {
       throw new BadRequestException('Invalid userId')
     }
@@ -397,19 +403,19 @@ export class GenealogyService {
       })
     }
 
-    const tree = await this.buildTree(userId)
+    const tree = await this.buildTree(userId, maxDepth)
 
     if (!tree) throw new NotFoundException('Failed to load genealogy root')
 
     return tree
   }
 
-  async getTree(userId: string) {
+  async getTree(userId: string, maxDepth = 3) {
     if (!this.isValidObjectId(userId)) {
       throw new BadRequestException('Invalid userId')
     }
 
-    const tree = await this.buildTree(userId)
+    const tree = await this.buildTree(userId, maxDepth)
 
     if (!tree) throw new NotFoundException('Genealogy tree not found')
 

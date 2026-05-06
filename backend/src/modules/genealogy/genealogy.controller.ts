@@ -7,16 +7,18 @@ import { PlaceExistingMemberDto } from './dto/place-existing-member.dto'
 export class GenealogyController {
   constructor(private readonly genealogyService: GenealogyService) {}
 
-  // auto-create root if missing, then return full root tree
+  // auto-create root if missing, then return depth-limited root tree
   @Get('root/:userId')
-  getOrCreateRoot(@Param('userId') userId: string) {
-    return this.genealogyService.getOrCreateRoot(userId)
+  getOrCreateRoot(@Param('userId') userId: string, @Query('depth') depth?: string) {
+    const maxDepth = depth ? parseInt(depth, 10) : 3
+    return this.genealogyService.getOrCreateRoot(userId, maxDepth)
   }
 
-  // return full tree for a user if already placed
+  // return depth-limited tree for a user if already placed
   @Get('tree/:userId')
-  getTree(@Param('userId') userId: string) {
-    return this.genealogyService.getTree(userId)
+  getTree(@Param('userId') userId: string, @Query('depth') depth?: string) {
+    const maxDepth = depth ? parseInt(depth, 10) : 3
+    return this.genealogyService.getTree(userId, maxDepth)
   }
 
   // add/place a member under a parent on left or right

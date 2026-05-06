@@ -52,9 +52,16 @@ function InfoField({ label, value }: { label: string; value?: string }) {
   return (
     <div>
       <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">{label}</p>
-      <p className="text-sm text-slate-900 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 min-h-9 flex items-center">
-        {value || <span className="text-slate-300">—</span>}
-      </p>
+      <div className="relative group">
+        <div className="text-sm text-slate-900 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 min-h-9 flex items-center overflow-hidden">
+          <span className="truncate">{value || <span className="text-slate-300">—</span>}</span>
+        </div>
+        {value && (
+          <div className="absolute left-0 top-0 z-30 hidden group-hover:block px-3 py-2 border border-slate-300 rounded-lg bg-white shadow-lg text-sm text-slate-900 min-w-full whitespace-normal break-words">
+            {value}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -109,12 +116,12 @@ function UserDetailModal({
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-base font-semibold text-slate-900">{user.username}</h3>
+            <h3 className="text-base font-semibold text-slate-900 truncate">{user.username}</h3>
 
+            <div className="flex items-center gap-1.5 flex-wrap mt-1">
               {/* Protected admin badge */}
               {isAdmin && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 whitespace-nowrap">
                   <Lock className="w-3 h-3" />
                   Admin Account
                 </span>
@@ -124,7 +131,7 @@ function UserDetailModal({
                 <button
                   onClick={() => onToggleStatus(user.id)}
                   title="Click to toggle status"
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 transition-colors ${user.isActive
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 transition-colors whitespace-nowrap ${user.isActive
                     ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
                     : 'bg-red-50 text-red-600 ring-red-200 hover:bg-red-100'
                     }`}
@@ -135,20 +142,21 @@ function UserDetailModal({
               )}
 
               {user.tier ? (
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ring-1 capitalize ${tierConfig[user.tier].bg} ${tierConfig[user.tier].text} ${tierConfig[user.tier].ring}`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ring-1 capitalize whitespace-nowrap ${tierConfig[user.tier].bg} ${tierConfig[user.tier].text} ${tierConfig[user.tier].ring}`}>
                   {tierConfig[user.tier].label}
                 </span>
               ) : (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-400 ring-1 ring-slate-200">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-400 ring-1 ring-slate-200 whitespace-nowrap">
                   No Tier
                 </span>
               )}
               {user.isFree && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 ring-1 ring-slate-300">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 ring-1 ring-slate-300 whitespace-nowrap">
                   Free
                 </span>
               )}
             </div>
+
             <p className="text-xs text-slate-400 mt-0.5 truncate">{user.email}</p>
           </div>
 
@@ -674,9 +682,9 @@ function UsersOverview() {
       unilevelPoints: Number(editBonusForm.unilevelPoints) || 0,
     };
     try {
-      const response = await fetch(`${API_BASE}/admin/users/${editBonusUser.id}/bonuses`, {
+      const response = await apiFetch(`${API_BASE}/admin/users/${editBonusUser.id}/bonuses`, {
         method: 'PATCH',
-        headers: getAuthHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       if (!response.ok) {

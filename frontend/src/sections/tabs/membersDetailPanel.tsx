@@ -292,7 +292,7 @@ export default function MemberDetailsPanel({
       </div>
 
       {/* Header */}
-      <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 px-6 py-4 shrink-0">
+      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-200 px-6 py-4 shrink-0">
         <div className="flex items-center justify-between">
           <h3 className="text-2xl text-gray-900">Member Details</h3>
           <button

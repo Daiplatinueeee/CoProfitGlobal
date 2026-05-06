@@ -8,6 +8,7 @@ import ExistingMemberModal from '../modals/ExistingUserModal'
 import type { ExistingMemberResult } from '../modals/ExistingUserModal'
 import ErrorModal from '../modals/errorModal'
 import SuccessModal from '../modals/sucessModal'
+import MemberDetailsPanel from './membersDetailPanel'
 
 interface Member {
   id: string
@@ -23,6 +24,8 @@ interface Member {
   rightAvailablePoints: number
   leftChild?: Member
   rightChild?: Member
+  hasLeftChild?: boolean
+  hasRightChild?: boolean
   directReferralBonus?: number
   indirectReferralBonus?: number
   spillOverBonus?: number
@@ -50,53 +53,91 @@ const VERTICAL_SPACING    = 320
 const ACTION_BTN_WIDTH    = 110
 const ACTION_BTN_HEIGHT   = 36
 
-// Fixed slot positions derived from a full 7-node tree with the algorithm below.
-// Using these constants means every tree (1–7 nodes) shares the same angles/spacing.
-//
-// Derivation (MIN_HORIZONTAL_SPACING = 280):
-//   level-1 children of a full subtree of width 660 each:
-//     leftX  = 0 − (660 + 280) / 2 = −470
-//     rightX = 0 + (660 + 280) / 2 = +470
-//   level-2 children of a leaf pair (each subtree width = 190):
-//     x = parentX ± (190 + 280) / 2 = parentX ± 235
-const SLOT_POSITIONS: Record<string, NodePosition> = {
-  '':   { x: 0,    y: 0 },
-  'l':  { x: -470, y: VERTICAL_SPACING },
-  'r':  { x:  470, y: VERTICAL_SPACING },
-  'll': { x: -705, y: VERTICAL_SPACING * 2 },
-  'lr': { x: -235, y: VERTICAL_SPACING * 2 },
-  'rl': { x:  235, y: VERTICAL_SPACING * 2 },
-  'rr': { x:  705, y: VERTICAL_SPACING * 2 },
-}
+// Compute node positions and SVG viewBox dynamically for any tree depth.
+// depth=2 → 7 nodes, depth=3 → up to 15 nodes.
+// Leaf-slot widths: depth 2 = 470px gap (spacious), depth 3 = 235px (compact).
+function computeTreeLayout(
+  root: Member | null | undefined,
+  maxDepth: number,
+): { positions: Map<string, NodePosition>; viewBox: string } {
+  const positions = new Map<string, NodePosition>()
+  if (!root) return { positions, viewBox: '0 -60 1720 1000' }
 
-// viewBox that perfectly fits all 7 slots with 60px padding on every side
-//   content: x ∈ [−705, 895]  y ∈ [0, 936]  → w=1600, h=936
-//   +60px padding → x0=−765, y0=−60, w=1720, h=1056
-const FIXED_VIEWBOX = '-765 -60 1720 1056'
+  const leafSlotW  = maxDepth <= 2 ? 470 : 235
+  const numSlots   = Math.pow(2, maxDepth)
+  const contentW   = numSlots * leafSlotW
 
-// Assign each member in the (depth-limited) tree to its fixed slot position
-const buildSlotMap = (
-  member: Member | null | undefined,
-  path = '',
-  map = new Map<string, NodePosition>(),
-): Map<string, NodePosition> => {
-  if (!member) return map
-  const pos = SLOT_POSITIONS[path]
-  if (pos) map.set(member.id, pos)
-  if (member.leftChild)  buildSlotMap(member.leftChild,  path + 'l', map)
-  if (member.rightChild) buildSlotMap(member.rightChild, path + 'r', map)
-  return map
-}
-
-// Limit to 3 levels so at most 7 nodes are ever displayed (1 + 2 + 4)
-const limitTreeDepth = (member: Member | null | undefined, maxDepth = 3): Member | null | undefined => {
-  if (!member) return member
-  if (maxDepth <= 1) return { ...member, leftChild: undefined, rightChild: undefined }
-  return {
-    ...member,
-    leftChild:  member.leftChild  ? (limitTreeDepth(member.leftChild,  maxDepth - 1) as Member) : undefined,
-    rightChild: member.rightChild ? (limitTreeDepth(member.rightChild, maxDepth - 1) as Member) : undefined,
+  function place(
+    member: Member | null | undefined,
+    level: number,
+    slotL: number,
+    slotR: number,
+  ) {
+    if (!member) return
+    const cx = (slotL + slotR) / 2
+    positions.set(member.id, { x: Math.round(cx - NODE_WIDTH / 2), y: level * VERTICAL_SPACING })
+    if (level >= maxDepth) return
+    const mid = (slotL + slotR) / 2
+    place(member.leftChild,  level + 1, slotL, mid)
+    place(member.rightChild, level + 1, mid,   slotR)
   }
+  place(root, 0, 0, contentW)
+
+  // Tight viewBox around actual node content + 60px padding
+  let minX = Infinity, maxX = -Infinity
+  for (const p of positions.values()) {
+    if (p.x < minX) minX = p.x
+    if (p.x + NODE_WIDTH > maxX) maxX = p.x + NODE_WIDTH
+  }
+  const PAD     = 60
+  const vbX     = minX - PAD
+  const vbW     = maxX - minX + PAD * 2
+  const vbH     = maxDepth * VERTICAL_SPACING + NODE_HEIGHT + 120
+  const viewBox = `${vbX} -60 ${vbW} ${vbH}`
+
+  return { positions, viewBox }
+}
+
+function GenealogySkeletonLoader() {
+  const ns = 54
+  const nodes = [
+    { x: 158, y: 0   },
+    { x:  68, y: 115 },
+    { x: 248, y: 115 },
+    { x:  10, y: 230 },
+    { x: 126, y: 230 },
+    { x: 190, y: 230 },
+    { x: 306, y: 230 },
+  ]
+  const cx = (n: { x: number }) => n.x + ns / 2
+
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center bg-white gap-8 select-none">
+      <div className="animate-pulse flex flex-col items-center gap-1">
+        <svg width="370" height="300" viewBox="0 0 370 300">
+          <line x1={cx(nodes[0])} y1={ns}      x2={cx(nodes[1])} y2={115}  stroke="#e0e7ff" strokeWidth="2" />
+          <line x1={cx(nodes[0])} y1={ns}      x2={cx(nodes[2])} y2={115}  stroke="#fef3c7" strokeWidth="2" />
+          <line x1={cx(nodes[1])} y1={115 + ns} x2={cx(nodes[3])} y2={230} stroke="#e0e7ff" strokeWidth="2" />
+          <line x1={cx(nodes[1])} y1={115 + ns} x2={cx(nodes[4])} y2={230} stroke="#e0e7ff" strokeWidth="2" />
+          <line x1={cx(nodes[2])} y1={115 + ns} x2={cx(nodes[5])} y2={230} stroke="#fef3c7" strokeWidth="2" />
+          <line x1={cx(nodes[2])} y1={115 + ns} x2={cx(nodes[6])} y2={230} stroke="#fef3c7" strokeWidth="2" />
+          {nodes.map((n, i) => (
+            <g key={i}>
+              <rect x={n.x} y={n.y} width={ns} height={ns} rx="12"
+                fill="#f8fafc" stroke={i <= 0 ? '#a5b4fc' : i <= 2 ? '#c7d2fe' : '#dde3f7'}
+                strokeWidth="1.5" />
+              <circle cx={n.x + ns / 2} cy={n.y + 18} r="9" fill={i <= 0 ? '#c7d2fe' : '#e0e7ff'} />
+              <rect x={n.x + 8}  y={n.y + 34} width={ns - 16} height="5" rx="3" fill="#e2e8f0" />
+              <rect x={n.x + 13} y={n.y + 43} width={ns - 26} height="4" rx="2" fill="#f1f5f9" />
+            </g>
+          ))}
+        </svg>
+      </div>
+      <div className="text-center">
+        <p className="text-slate-600 text-sm font-medium tracking-wide">Loading genealogy tree…</p>
+      </div>
+    </div>
+  )
 }
 
 function Genealogy() {
@@ -107,6 +148,7 @@ function Genealogy() {
 
   const [originalRoot, setOriginalRoot] = useState<Member | null>(null)
   const [treeRoot, setTreeRoot] = useState<Member | null>(null)
+  const [currentDepth, setCurrentDepth] = useState(2)
 
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState<Member[]>([])
@@ -120,6 +162,8 @@ function Genealogy() {
 
   const [successModal, setSuccessModal] = useState<{ title: string; message: string } | null>(null)
   const [errorModal, setErrorModal] = useState<{ title: string; message: string } | null>(null)
+
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null)
 
   const resetModalState = useCallback(() => {
     setChooserModal(null)
@@ -141,14 +185,42 @@ function Genealogy() {
   }
 
   const fetchRootTree = useCallback(async (userId: string) => {
-    const response = await fetch(`${API_BASE_URL}/genealogy/root/${userId}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
+    const response = await apiFetch(`${API_BASE_URL}/genealogy/root/${userId}?depth=2`)
     const data = await response.json()
     if (!response.ok) throw new Error(data.message || 'Failed to load genealogy tree')
     return data
   }, [])
+
+  const navigateTo = useCallback(async (member: Member) => {
+    const targetId = member.userId || member.id
+    setCurrentDepth(2)
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/genealogy/root/${targetId}?depth=2`)
+      const data = await response.json()
+      if (response.ok) setTreeRoot(data)
+    } catch {
+      // silently keep current view on failure
+    }
+  }, [])
+
+  const handleSeeMore = useCallback(async () => {
+    if (!treeRoot) return
+    const newDepth = currentDepth + 1
+    setLoading(true)
+    try {
+      const id = treeRoot.userId || treeRoot.id
+      const response = await apiFetch(`${API_BASE_URL}/genealogy/root/${id}?depth=${newDepth}`)
+      const data = await response.json()
+      if (response.ok) {
+        setCurrentDepth(newDepth)
+        setTreeRoot(data)
+      }
+    } catch {
+      // silently keep current view on failure
+    } finally {
+      setLoading(false)
+    }
+  }, [currentDepth, treeRoot])
 
   useEffect(() => {
     const initializeTree = async () => {
@@ -196,7 +268,7 @@ function Genealogy() {
     }
   }, [currentUserId, fetchRootTree])
 
-  // Full member map — used to resolve complete member data (with all descendants) on click
+  // Member map built from the currently visible tree (up to 7 nodes)
   const memberMap = useMemo(() => {
     const map = new Map<string, Member>()
     const register = (member: Member | null | undefined) => {
@@ -205,17 +277,25 @@ function Genealogy() {
       register(member.leftChild)
       register(member.rightChild)
     }
-    register(originalRoot)
+    register(treeRoot)
     return map
-  }, [originalRoot])
+  }, [treeRoot])
 
   const allMembers = useMemo(() => Array.from(memberMap.values()), [memberMap])
 
-  // Tree capped at 3 levels (max 7 nodes)
-  const displayRoot = useMemo(() => limitTreeDepth(treeRoot, 3), [treeRoot])
+  const displayRoot = treeRoot
 
-  // Map each visible member to its fixed slot position
-  const positions = useMemo(() => buildSlotMap(displayRoot), [displayRoot])
+  const { positions, viewBox } = useMemo(
+    () => computeTreeLayout(displayRoot, currentDepth),
+    [displayRoot, currentDepth],
+  )
+
+  const hasMore = useMemo(() => {
+    for (const member of memberMap.values()) {
+      if (member.hasLeftChild || member.hasRightChild) return true
+    }
+    return false
+  }, [memberMap])
 
   const attachMember = async (parent: Member, leg: 'left' | 'right', data: AddMemberFormData) => {
     try {
@@ -309,6 +389,7 @@ function Genealogy() {
 
   const handleReset = useCallback(() => {
     setTreeRoot(originalRoot)
+    setCurrentDepth(2)
     setSearch('')
     setSearchResults([])
   }, [originalRoot])
@@ -374,12 +455,7 @@ function Genealogy() {
     elements.push(
       <g
         key={`node-${member.id}`}
-        onClick={() => {
-          // Look up the full member (all descendants) so a clicked grandchild
-          // correctly becomes the new root with its real subtree
-          const fullMember = memberMap.get(member.id) ?? member
-          setTreeRoot(fullMember)
-        }}
+        onClick={() => { navigateTo(member); setSelectedMember(member) }}
         style={{ cursor: 'pointer' }}
       >
         <rect
@@ -448,7 +524,7 @@ function Genealogy() {
           <circle cx={pos.x + NODE_WIDTH - 15} cy={pos.y + 15} r="4" fill="#f59e0b" />
         </g>
 
-        {!member.leftChild && (
+        {!member.leftChild && !member.hasLeftChild && (
           <g
             onClick={(e) => {
               e.stopPropagation()
@@ -478,7 +554,7 @@ function Genealogy() {
           </g>
         )}
 
-        {!member.rightChild && (
+        {!member.rightChild && !member.hasRightChild && (
           <g
             onClick={(e) => {
               e.stopPropagation()
@@ -514,14 +590,7 @@ function Genealogy() {
   }
 
   if (loading) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading genealogy tree...</p>
-        </div>
-      </div>
-    )
+    return <GenealogySkeletonLoader />
   }
 
   if (error) {
@@ -548,8 +617,9 @@ function Genealogy() {
   }
 
   return (
+    <div className="w-full h-full flex overflow-hidden bg-white">
     <div
-      className="w-full h-full overflow-hidden bg-white relative"
+      className="flex-1 overflow-hidden relative"
       style={{ userSelect: 'none' }}
     >
       {/* Floating search bar — top-left */}
@@ -580,9 +650,9 @@ function Genealogy() {
                 key={m.id}
                 className="px-3 py-2 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition"
                 onClick={() => {
-                  setTreeRoot(m)
                   setSearch('')
                   setSearchResults([])
+                  navigateTo(m)
                 }}
               >
                 <p className="font-semibold text-gray-800 text-sm">{m.username}</p>
@@ -629,12 +699,23 @@ function Genealogy() {
       <svg
         width="100%"
         height="100%"
-        viewBox={FIXED_VIEWBOX}
+        viewBox={viewBox}
         preserveAspectRatio="xMidYMid meet"
         className="block"
       >
         {renderTree(displayRoot)}
       </svg>
+
+      {hasMore && currentDepth < 3 && (
+        <div className="absolute bottom-5 left-0 right-0 flex justify-center z-10 pointer-events-none">
+          <button
+            onClick={handleSeeMore}
+            className="pointer-events-auto px-6 py-2 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white text-sm font-semibold rounded-full shadow-lg transition-colors flex items-center gap-2"
+          >
+            See More ↓
+          </button>
+        </div>
+      )}
 
       <SuccessModal
         isOpen={!!successModal}
@@ -652,6 +733,12 @@ function Genealogy() {
         retryLabel="Try Again"
         onRetry={() => setErrorModal(null)}
       />
+    </div>
+
+    <MemberDetailsPanel
+      selectedMember={selectedMember}
+      onClose={() => setSelectedMember(null)}
+    />
     </div>
   )
 }
