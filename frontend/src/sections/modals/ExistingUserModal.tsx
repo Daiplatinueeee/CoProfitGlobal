@@ -67,7 +67,7 @@ export default function ExistingMemberModal({
   modal,
   onPlace,
   onClose,
-  apiBaseUrl = 'http://localhost:3000',
+  apiBaseUrl = import.meta.env.VITE_API_BASE_URL,
 }: ExistingMemberModalProps) {
   const [query,       setQuery]       = useState('')
   const [results,     setResults]     = useState<ExistingMemberResult[]>([])

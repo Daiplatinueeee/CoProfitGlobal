@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../../lib/apiFetch';
 import { CheckCircle2, Loader2, AlertTriangle, KeyRound, ArrowUp } from 'lucide-react';
 
-const API_BASE = 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 type Tier = 'bronze' | 'silver' | 'gold' | 'platinum';
 

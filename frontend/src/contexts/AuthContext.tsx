@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 interface AuthContextValue {
   accessToken: string | null;

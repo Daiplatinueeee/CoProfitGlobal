@@ -8,6 +8,8 @@ import bg from "../../assets/video refs/5c6e4f6f-0d2a-45fc-84a0-ad879be5d6b3.mp4
 import ForgotPasswordModal from '../tabs/ForgotPassword';
 import { useAuth } from '../../contexts/AuthContext';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 export default function AuthPage() {
     const [isSignIn,] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
@@ -59,7 +61,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch(`http://localhost:3000/auth/login`, {
+            const response = await fetch(`${API_BASE_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -114,7 +116,7 @@ export default function AuthPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch(`http://localhost:3000/auth/signup`, {
+            const response = await fetch(`${API_BASE_URL}/auth/signup`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

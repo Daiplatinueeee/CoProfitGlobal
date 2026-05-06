@@ -384,7 +384,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await apiFetch('http://localhost:3000/pairing/current-period');
+        const res = await apiFetch(`${import.meta.env.VITE_API_BASE_URL}/pairing/current-period`);
         if (!res.ok) return;
         const { periodKey } = await res.json();
         if (lastPeriodKey.current && lastPeriodKey.current !== periodKey) {

@@ -4,7 +4,7 @@ import { apiFetch } from '../../lib/apiFetch';
 
 import CreateUserModal from '../modals/CreateUserModal';
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 const PROTECTED_ADMIN_EMAIL = 'admin@coprofitglobal.com';
 const isProtectedAdmin = (user: User) => user.email === PROTECTED_ADMIN_EMAIL;

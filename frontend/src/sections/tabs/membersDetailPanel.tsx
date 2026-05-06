@@ -84,7 +84,7 @@ export default function MemberDetailsPanel({
   selectedMember,
   onClose,
 }: MemberDetailsPanelProps) {
-  const BASE = 'http://localhost:3000';
+  const BASE = import.meta.env.VITE_API_BASE_URL;
   const id = selectedMember?.id;
 
   // Referral counts
