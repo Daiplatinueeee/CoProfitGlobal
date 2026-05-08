@@ -9,6 +9,7 @@ import { User, UserDocument, MembershipTier } from '../users/schemas/user.schema
 import { GenealogyNode, GenealogyNodeDocument } from '../genealogy/schema/genealogy-node.schema';
 import { WalletService } from '../wallet/wallet.service';
 import { WalletCurrency, WalletTxnSource } from '../wallet/schemas/wallet-transaction.schema';
+import { UnilevelProductsService } from '../unilevel-products/unilevel-products.service';
 
 import { PairingCycle } from './enums/pairing-cycle.enum';
 export { PairingCycle };
@@ -16,7 +17,6 @@ export { PairingCycle };
 export interface TryRepeatBinaryResult {
   skipped: boolean;
   reason?: string;
-  scenario?: 'A' | 'B' | 'C';
   pairsCount?: number;
   totalPayoutPhp?: number;
   pvConsumed?: number;
@@ -72,6 +72,7 @@ export class PairingService {
     private readonly genealogyNodeModel: Model<GenealogyNodeDocument>,
 
     private readonly walletService: WalletService,
+    private readonly unilevelProductsService: UnilevelProductsService,
   ) {}
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -619,12 +620,17 @@ export class PairingService {
   // ── Repeat Binary ────────────────────────────────────────────────────────
 
   /**
-   * Fires after regular pairing when one or both legs have no points but the
-   * user holds enough Unilevel PV to substitute:
-   *   Scenario A: left ≥1 pt, right = 0, PV ≥ 80
-   *   Scenario B: right ≥1 pt, left = 0, PV ≥ 80
-   *   Scenario C: both = 0, PV ≥ 80
-   * Shares the same per-cycle cap as regular pairing. 80 PV is consumed per pair.
+   * Repeat Binary pairing — fires after regular pairing each sweep.
+   *
+   * Evaluated per-user. The user with ≥ 80 Available PV (Unilevel POINTS wallet)
+   * is the one who benefits:
+   *   1. Check the user's own Available PV ≥ 80.
+   *   2. Find the user's position in the genealogy (left or right child of parent).
+   *   3. Check if a sibling exists on the OPPOSITE side of the same parent.
+   *   4. If a sibling is present → user earns ₱400 per 80 PV, PV resets toward 0.
+   *
+   * Bypasses the regular binary daily cap — Unilevel PV is a separate income stream.
+   * Shows on the user's own dashboard as "Total Income of Repeat Binary Bonus".
    */
   async tryRepeatBinaryIfPossible(userIdStr: string): Promise<TryRepeatBinaryResult> {
     const userId            = this.toObjectId(userIdStr);
@@ -632,90 +638,65 @@ export class PairingService {
     const currentCycle      = this.getCurrentCycle();
     const cyclePeriodPrefix = `${dateKey}-${currentCycle}`;
 
-    const user = await this.userModel.findById(userId).select('membershipTier tierUpgradedAt isFree').lean();
+    const user = await this.userModel.findById(userId).select('membershipTier isFree').lean();
     if (!user) return { skipped: true, reason: 'User not found' };
+    if ((user as any).isFree) return { skipped: true, reason: 'Free users excluded from repeat binary' };
 
-    const tier            = (user as any).membershipTier as MembershipTier ?? MembershipTier.BRONZE;
-    const tierUpgradedAt  = (user as any).tierUpgradedAt as Date | null ?? null;
-    const dailyCap        = (user as any).isFree ? 0 : this.getCapForTier(tier);
-    const capUsed         = await this.getDailyCapUsed(userId, cyclePeriodPrefix, tierUpgradedAt);
-    const capRemaining = dailyCap - capUsed;
+    // 1. Check user's own Available PV (from unilevel purchases/pins minus redemptions/deductions)
+    const userPV = await this.unilevelProductsService.computeAvailablePv(userId);
 
-    if (capRemaining <= 0) return { skipped: true, reason: 'Cap exhausted' };
+    if (userPV < 80) return { skipped: true, reason: 'Insufficient Available PV (need ≥ 80)' };
 
-    const [leftBucket, rightBucket] = await Promise.all([
-      this.bucketModel.findOne({ ownerUserId: userId, leg: VolumeLeg.LEFT }).lean(),
-      this.bucketModel.findOne({ ownerUserId: userId, leg: VolumeLeg.RIGHT }).lean(),
-    ]);
+    // 2. Find user's own genealogy node to know parent + position
+    const ownNode = await this.genealogyNodeModel
+      .findOne({ userId })
+      .select('parentUserId position')
+      .lean();
 
-    const leftPts  = leftBucket?.availablePoints  ?? 0;
-    const rightPts = rightBucket?.availablePoints ?? 0;
-
-    // Both sides have points → regular pairing handles this
-    if (leftPts >= 1 && rightPts >= 1) {
-      return { skipped: true, reason: 'Both legs have points — regular pairing applies' };
+    if (!ownNode?.parentUserId) {
+      return { skipped: true, reason: 'User is root — no parent, no sibling check possible' };
     }
 
-    const pvResult = await this.walletService.getBalances(userIdStr);
-    const userPV   = pvResult.balances[WalletCurrency.POINTS] ?? 0;
+    const parentId       = ownNode.parentUserId as Types.ObjectId;
+    const ownPosition    = (ownNode as any).position as string; // 'left' | 'right'
+    const siblingPos     = ownPosition === 'left' ? 'right' : 'left';
 
-    if (userPV < 80) return { skipped: true, reason: 'Insufficient PV (need ≥ 80)' };
+    // 3. Check if a sibling exists on the opposite side of the same parent
+    const sibling = await this.genealogyNodeModel
+      .findOne({ parentUserId: parentId, position: siblingPos })
+      .select('_id')
+      .lean();
 
-    let scenario: 'A' | 'B' | 'C';
-    let pairsCount: number;
-
-    if (leftPts >= 1 && rightPts === 0) {
-      scenario   = 'A';
-      pairsCount = Math.min(leftPts, Math.floor(userPV / 80), capRemaining);
-    } else if (rightPts >= 1 && leftPts === 0) {
-      scenario   = 'B';
-      pairsCount = Math.min(rightPts, Math.floor(userPV / 80), capRemaining);
-    } else {
-      scenario   = 'C';
-      pairsCount = Math.min(Math.floor(userPV / 80), capRemaining);
+    if (!sibling) {
+      return { skipped: true, reason: `No member on the ${siblingPos} side of parent — no pair` };
     }
 
-    if (pairsCount <= 0) return { skipped: true, reason: 'pairsCount resolved to 0' };
-
+    // 4. Calculate pairs: each 80 PV = 1 pair = ₱400 (no binary cap applies)
+    const pairsCount  = Math.floor(userPV / 80);
     const pvToConsume = pairsCount * 80;
     const payoutPhp   = pairsCount * this.RATE_PHP_PER_POINT;
 
-    // Deduct points from the leg that contributed them
-    if (scenario === 'A') {
-      await this.bucketModel.updateOne(
-        { ownerUserId: userId, leg: VolumeLeg.LEFT },
-        { $inc: { availablePoints: -pairsCount } },
-      );
-    } else if (scenario === 'B') {
-      await this.bucketModel.updateOne(
-        { ownerUserId: userId, leg: VolumeLeg.RIGHT },
-        { $inc: { availablePoints: -pairsCount } },
-      );
-    }
-
+    const tier      = (user as any).membershipTier as MembershipTier ?? MembershipTier.BRONZE;
     const seq       = await this.getDailySequence(userId, cyclePeriodPrefix);
-    const periodKey = `${cyclePeriodPrefix}-${seq}`;
+    const periodKey = `${cyclePeriodPrefix}-rb-${seq}`;
 
     try {
-      // Debit PV — if insufficient at debit time (race), abort cleanly
-      await this.walletService.debit({
-        userId:   userIdStr,
-        currency: WalletCurrency.POINTS,
-        amount:   pvToConsume,
-        source:   WalletTxnSource.REPEAT_BINARY_DEBIT,
-        refKey:   `repeat_binary:pv:${userIdStr}:${periodKey}`,
-        note:     `Repeat Binary PV deduction — ${periodKey} | ${pairsCount} pairs × 80 PV`,
-        meta:     { scenario, periodKey, pairsCount, pvToConsume, capRemaining, capUsed },
-      });
+      // Consume Available PV — creates a deduction record so computeAvailablePv reflects new balance
+      await this.unilevelProductsService.consumePvForRepeatBinary(
+        userId,
+        pvToConsume,
+        `repeat_binary:pv:${userIdStr}:${periodKey}`,
+      );
 
+      // Credit ₱400 per pair to this same user
       await this.walletService.credit({
         userId:   userIdStr,
         currency: WalletCurrency.PHP,
         amount:   payoutPhp,
         source:   WalletTxnSource.REPEAT_BINARY,
         refKey:   `repeat_binary:${userIdStr}:${periodKey}`,
-        note:     `Repeat Binary bonus — ${periodKey} | Scenario ${scenario} | ${pairsCount} pairs × ₱400 | ${pvToConsume} PV consumed`,
-        meta:     { scenario, periodKey, pairsCount, pvToConsume, payoutPhp, capRemaining, capUsed },
+        note:     `Repeat Binary bonus — ${periodKey} | ${pairsCount} pairs × ₱400 | ${pvToConsume} PV consumed`,
+        meta:     { periodKey, pairsCount, pvToConsume, payoutPhp, ownPosition, siblingPos },
       });
 
       await this.awardModel.create({
@@ -726,13 +707,13 @@ export class PairingService {
         pairedPoints:    pairsCount,
         payoutPhp,
         ratePhpPerPoint: this.RATE_PHP_PER_POINT,
-        capLimit:        dailyCap,
+        capLimit:        0,
         gcAwarded:       0,
         isRepeatBinary:  true,
       });
     } catch (err: any) {
       this.logger.error(
-        `[repeatBinary] ${userIdStr} ${periodKey} — failed after PV debit: ${err.message}. ` +
+        `[repeatBinary] ${userIdStr} ${periodKey} — failed: ${err.message}. ` +
         `Manual check required: pvConsumed=${pvToConsume}, payoutPhp=${payoutPhp}`,
       );
       throw err;
@@ -740,11 +721,11 @@ export class PairingService {
 
     this.logger.log(
       `[repeatBinary] ${userIdStr} ${periodKey} — ` +
-      `Scenario ${scenario} | ${pairsCount} pairs → ₱${payoutPhp} | ` +
-      `PV consumed: ${pvToConsume} | cap ${capUsed + pairsCount}/${dailyCap}`,
+      `${pairsCount} pairs → ₱${payoutPhp} | PV consumed: ${pvToConsume} | ` +
+      `position=${ownPosition}, sibling on ${siblingPos}`,
     );
 
-    return { skipped: false, scenario, pairsCount, totalPayoutPhp: payoutPhp, pvConsumed: pvToConsume };
+    return { skipped: false, pairsCount, totalPayoutPhp: payoutPhp, pvConsumed: pvToConsume };
   }
 
   // ── Cycle flush ───────────────────────────────────────────────────────────

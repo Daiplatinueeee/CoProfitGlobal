@@ -8,7 +8,6 @@ import ExistingMemberModal from '../modals/ExistingUserModal'
 import type { ExistingMemberResult } from '../modals/ExistingUserModal'
 import ErrorModal from '../modals/errorModal'
 import SuccessModal from '../modals/sucessModal'
-import MemberDetailsPanel from './membersDetailPanel'
 
 interface Member {
   id: string
@@ -47,11 +46,11 @@ interface NodePosition {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 // Layout constants — kept outside so position helpers can reference them
-const NODE_WIDTH          = 190
-const NODE_HEIGHT         = 240
-const VERTICAL_SPACING    = 320
-const ACTION_BTN_WIDTH    = 110
-const ACTION_BTN_HEIGHT   = 36
+const NODE_WIDTH          = 270
+const NODE_HEIGHT         = 330
+const VERTICAL_SPACING    = 430
+const ACTION_BTN_WIDTH    = 120
+const ACTION_BTN_HEIGHT   = 40
 
 // Compute node positions and SVG viewBox dynamically for any tree depth.
 // depth=2 → 7 nodes, depth=3 → up to 15 nodes.
@@ -163,8 +162,6 @@ function Genealogy() {
   const [successModal, setSuccessModal] = useState<{ title: string; message: string } | null>(null)
   const [errorModal, setErrorModal] = useState<{ title: string; message: string } | null>(null)
 
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null)
-
   const resetModalState = useCallback(() => {
     setChooserModal(null)
     setModal(null)
@@ -202,25 +199,6 @@ function Genealogy() {
       // silently keep current view on failure
     }
   }, [])
-
-  const handleSeeMore = useCallback(async () => {
-    if (!treeRoot) return
-    const newDepth = currentDepth + 1
-    setLoading(true)
-    try {
-      const id = treeRoot.userId || treeRoot.id
-      const response = await apiFetch(`${API_BASE_URL}/genealogy/root/${id}?depth=${newDepth}`)
-      const data = await response.json()
-      if (response.ok) {
-        setCurrentDepth(newDepth)
-        setTreeRoot(data)
-      }
-    } catch {
-      // silently keep current view on failure
-    } finally {
-      setLoading(false)
-    }
-  }, [currentDepth, treeRoot])
 
   useEffect(() => {
     const initializeTree = async () => {
@@ -289,13 +267,6 @@ function Genealogy() {
     () => computeTreeLayout(displayRoot, currentDepth),
     [displayRoot, currentDepth],
   )
-
-  const hasMore = useMemo(() => {
-    for (const member of memberMap.values()) {
-      if (member.hasLeftChild || member.hasRightChild) return true
-    }
-    return false
-  }, [memberMap])
 
   const attachMember = async (parent: Member, leg: 'left' | 'right', data: AddMemberFormData) => {
     try {
@@ -410,7 +381,7 @@ function Genealogy() {
     setSearchResults(results)
   }
 
-  const renderTree = (member: Member | null | undefined): React.ReactNode[] => {
+  const renderTree = (member: Member | null | undefined, level = 0): React.ReactNode[] => {
     if (!member) return []
     const pos = positions.get(member.id)
     if (!pos) return []
@@ -431,7 +402,7 @@ function Genealogy() {
           />,
         )
       }
-      elements.push(...renderTree(member.leftChild))
+      elements.push(...renderTree(member.leftChild, level + 1))
     }
 
     if (member.rightChild) {
@@ -449,13 +420,13 @@ function Genealogy() {
           />,
         )
       }
-      elements.push(...renderTree(member.rightChild))
+      elements.push(...renderTree(member.rightChild, level + 1))
     }
 
     elements.push(
       <g
         key={`node-${member.id}`}
-        onClick={() => { navigateTo(member); setSelectedMember(member) }}
+        onClick={() => navigateTo(member)}
         style={{ cursor: 'pointer' }}
       >
         <rect
@@ -463,7 +434,7 @@ function Genealogy() {
           y={pos.y}
           width={NODE_WIDTH}
           height={NODE_HEIGHT}
-          rx="14"
+          rx="16"
           fill="white"
           stroke="#e5e7eb"
           strokeWidth="2"
@@ -471,28 +442,28 @@ function Genealogy() {
 
         <circle
           cx={pos.x + NODE_WIDTH / 2}
-          cy={pos.y + 55}
-          r="32"
+          cy={pos.y + 72}
+          r="46"
           fill="#f3f4f6"
           stroke="#d1d5db"
         />
 
         <image
           href={member.profileImage || logo}
-          x={pos.x + NODE_WIDTH / 2 - 30}
-          y={pos.y + 25}
-          width="60"
-          height="60"
+          x={pos.x + NODE_WIDTH / 2 - 44}
+          y={pos.y + 28}
+          width="88"
+          height="88"
           preserveAspectRatio="xMidYMid slice"
-          clipPath="circle(30px at 30px 30px)"
+          clipPath="circle(44px at 44px 44px)"
         />
 
         <text
           x={pos.x + NODE_WIDTH / 2}
-          y={pos.y + 125}
+          y={pos.y + 162}
           textAnchor="middle"
-          fontSize="13"
-          fontWeight="600"
+          fontSize="20"
+          fontWeight="700"
           fill="#7c3aed"
         >
           {member.username}
@@ -500,31 +471,34 @@ function Genealogy() {
 
         <text
           x={pos.x + NODE_WIDTH / 2}
-          y={pos.y + 145}
+          y={pos.y + 200}
           textAnchor="middle"
-          fontSize="12"
+          fontSize="23"
           fill="#9ca3af"
         >
-          {member.email}
+          <tspan x={pos.x + NODE_WIDTH / 2} dy="0">
+            {member.email.split('@')[0]}
+          </tspan>
+          <tspan x={pos.x + NODE_WIDTH / 2} dy="30">
+            @{member.email.split('@')[1]}
+          </tspan>
         </text>
 
         <text
           x={pos.x + NODE_WIDTH / 2}
-          y={pos.y + 210}
+          y={pos.y + 290}
           textAnchor="middle"
-          fontSize="12"
+          fontSize="20"
           fontWeight="600"
           fill="#6b7280"
         >
           Points ( L {member.leftAvailablePoints ?? 0} • R {member.rightAvailablePoints ?? 0} )
         </text>
 
-        <g>
-          <circle cx={pos.x + 15}              cy={pos.y + 15} r="4" fill="#10b981" />
-          <circle cx={pos.x + NODE_WIDTH - 15} cy={pos.y + 15} r="4" fill="#f59e0b" />
-        </g>
+        <circle cx={pos.x + 18}              cy={pos.y + 18} r="5" fill="#10b981" />
+        <circle cx={pos.x + NODE_WIDTH - 18} cy={pos.y + 18} r="5" fill="#f59e0b" />
 
-        {!member.leftChild && !member.hasLeftChild && (
+        {level < 2 && !member.leftChild && !member.hasLeftChild && (
           <g
             onClick={(e) => {
               e.stopPropagation()
@@ -542,19 +516,18 @@ function Genealogy() {
             />
             <text
               x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6}
-              y={pos.y + NODE_HEIGHT + 26}
+              y={pos.y + NODE_HEIGHT + 34}
               textAnchor="middle"
-              fontSize="11"
+              fontSize="18"
               fill="white"
               fontWeight="600"
             >
-              <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="0">Add Left</tspan>
-              <tspan x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6} dy="12">Member</tspan>
+              Add Left
             </text>
           </g>
         )}
 
-        {!member.rightChild && !member.hasRightChild && (
+        {level < 2 && !member.rightChild && !member.hasRightChild && (
           <g
             onClick={(e) => {
               e.stopPropagation()
@@ -572,14 +545,13 @@ function Genealogy() {
             />
             <text
               x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6}
-              y={pos.y + NODE_HEIGHT + 26}
+              y={pos.y + NODE_HEIGHT + 34}
               textAnchor="middle"
-              fontSize="11"
+              fontSize="18"
               fill="white"
               fontWeight="600"
             >
-              <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="0">Add Right</tspan>
-              <tspan x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6} dy="12">Member</tspan>
+              Add Right
             </text>
           </g>
         )}
@@ -706,17 +678,6 @@ function Genealogy() {
         {renderTree(displayRoot)}
       </svg>
 
-      {hasMore && currentDepth < 3 && (
-        <div className="absolute bottom-5 left-0 right-0 flex justify-center z-10 pointer-events-none">
-          <button
-            onClick={handleSeeMore}
-            className="pointer-events-auto px-6 py-2 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white text-sm font-semibold rounded-full shadow-lg transition-colors flex items-center gap-2"
-          >
-            See More ↓
-          </button>
-        </div>
-      )}
-
       <SuccessModal
         isOpen={!!successModal}
         onClose={() => setSuccessModal(null)}
@@ -735,10 +696,6 @@ function Genealogy() {
       />
     </div>
 
-    <MemberDetailsPanel
-      selectedMember={selectedMember}
-      onClose={() => setSelectedMember(null)}
-    />
     </div>
   )
 }

@@ -438,11 +438,23 @@ export class GenealogyService {
     if (!parentNode) throw new NotFoundException('Parent genealogy node not found')
 
     if (dto.leg === GenealogySide.LEFT && parentNode.leftChildUserId) {
-      throw new BadRequestException('Left leg already occupied')
+      const leftUserExists = await this.userModel.exists({ _id: parentNode.leftChildUserId })
+      if (leftUserExists) {
+        throw new BadRequestException('Cannot place member, slot already occupied')
+      }
+      await this.genealogyModel.deleteOne({ userId: parentNode.leftChildUserId })
+      parentNode.leftChildUserId = null as any
+      await parentNode.save()
     }
 
     if (dto.leg === GenealogySide.RIGHT && parentNode.rightChildUserId) {
-      throw new BadRequestException('Right leg already occupied')
+      const rightUserExists = await this.userModel.exists({ _id: parentNode.rightChildUserId })
+      if (rightUserExists) {
+        throw new BadRequestException('Cannot place member, slot already occupied')
+      }
+      await this.genealogyModel.deleteOne({ userId: parentNode.rightChildUserId })
+      parentNode.rightChildUserId = null as any
+      await parentNode.save()
     }
 
     // ── Validate PIN ──────────────────────────────────────────────────────
@@ -836,10 +848,22 @@ export class GenealogyService {
     if (!parentNode) throw new NotFoundException('Parent genealogy node not found')
 
     if (dto.leg === GenealogySide.LEFT && parentNode.leftChildUserId) {
-      throw new BadRequestException('Left leg already occupied')
+      const leftUserExists = await this.userModel.exists({ _id: parentNode.leftChildUserId })
+      if (leftUserExists) {
+        throw new BadRequestException('Cannot place member, slot already occupied')
+      }
+      await this.genealogyModel.deleteOne({ userId: parentNode.leftChildUserId })
+      parentNode.leftChildUserId = null as any
+      await parentNode.save()
     }
     if (dto.leg === GenealogySide.RIGHT && parentNode.rightChildUserId) {
-      throw new BadRequestException('Right leg already occupied')
+      const rightUserExists = await this.userModel.exists({ _id: parentNode.rightChildUserId })
+      if (rightUserExists) {
+        throw new BadRequestException('Cannot place member, slot already occupied')
+      }
+      await this.genealogyModel.deleteOne({ userId: parentNode.rightChildUserId })
+      parentNode.rightChildUserId = null as any
+      await parentNode.save()
     }
 
     // Validate placer

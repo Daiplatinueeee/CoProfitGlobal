@@ -120,6 +120,11 @@ export class AdminController {
     return this.adminService.bulkDeletePackagePins(status);
   }
 
+  @Delete('pins/:id')
+  deletePackagePin(@Param('id') id: string) {
+    return this.adminService.deletePackagePin(id);
+  }
+
   // ─── Unilevel PINs (product redemption) ──────────────────────────────────────
 
   @Post('unilevel-pins/generate')

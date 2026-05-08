@@ -57,7 +57,7 @@ function InfoField({ label, value }: { label: string; value?: string }) {
           <span className="truncate">{value || <span className="text-slate-300">—</span>}</span>
         </div>
         {value && (
-          <div className="absolute left-0 top-0 z-30 hidden group-hover:block px-3 py-2 border border-slate-300 rounded-lg bg-white shadow-lg text-sm text-slate-900 min-w-full whitespace-normal break-words">
+          <div className="absolute left-0 top-0 z-30 hidden group-hover:block px-3 py-2 border border-slate-300 rounded-lg bg-white shadow-lg text-sm text-slate-900 min-w-full whitespace-normal wrap-break-word">
             {value}
           </div>
         )}
@@ -82,21 +82,22 @@ function UserDetailModal({
   user,
   onClose,
   onToggleStatus,
-  onDelete,
   onEditPoints,
   onEditBonuses,
   onUpgrade,
   onChangePassword,
+  onRestrict,
+  onDelete,
 }: {
   user: User;
   onClose: () => void;
   onToggleStatus: (id: string) => void;
-  onDelete: (id: string) => void;
   onEditPoints: (user: User) => void;
   onEditBonuses: (user: User) => void;
   onUpgrade: (user: User) => void;
   onChangePassword: (user: User) => void;
   onRestrict: (user: User) => void;
+  onDelete: (user: User) => void;
 }) {
   const isAdmin = isProtectedAdmin(user);
 
@@ -128,17 +129,25 @@ function UserDetailModal({
               )}
 
               {!isAdmin && (
-                <button
-                  onClick={() => onToggleStatus(user.id)}
-                  title="Click to toggle status"
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 transition-colors whitespace-nowrap ${user.isActive
-                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
-                    : 'bg-red-50 text-red-600 ring-red-200 hover:bg-red-100'
-                    }`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                  {user.isActive ? 'Active' : 'Inactive'}
-                </button>
+                <>
+                  <button
+                    onClick={() => onToggleStatus(user.id)}
+                    title="Click to toggle status"
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 transition-colors whitespace-nowrap ${user.isActive
+                      ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
+                      : 'bg-red-50 text-red-600 ring-red-200 hover:bg-red-100'
+                      }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                    {user.isActive ? 'Active' : 'Inactive'}
+                  </button>
+                  {user.isRestricted && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 ring-1 ring-orange-200 whitespace-nowrap">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                      Restricted
+                    </span>
+                  )}
+                </>
               )}
 
               {user.tier ? (
@@ -258,11 +267,15 @@ function UserDetailModal({
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
           {!isAdmin ? (
             <button
-              onClick={() => { onDelete(user.id); onClose(); }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors"
+              onClick={() => { onClose(); onRestrict(user); }}
+              className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg transition-colors border ${
+                user.isRestricted
+                  ? 'text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100'
+                  : 'text-red-600 border-red-200 bg-red-50 hover:bg-red-100'
+              }`}
             >
               <OctagonMinus className="w-3.5 h-3.5" />
-              Restrict User
+              {user.isRestricted ? 'Unrestrict User' : 'Restrict User'}
             </button>
           ) : (
             <div /> /* spacer to keep Close button right-aligned */
@@ -284,6 +297,13 @@ function UserDetailModal({
                 >
                   <ArrowUpCircle className="w-3.5 h-3.5" />
                   Upgrade Package
+                </button>
+                <button
+                  onClick={() => { onClose(); onDelete(user); }}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete
                 </button>
               </>
             )}
@@ -339,6 +359,11 @@ function UsersOverview() {
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteAllLoading, setDeleteAllLoading] = useState(false);
   const [deleteAllError, setDeleteAllError] = useState<string | null>(null);
+
+  // ── Delete Single User state ──────────────────────────────────────────────
+  const [deleteUser, setDeleteUser] = useState<User | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // ── Edit Bonuses state ────────────────────────────────────────────────────
   const [editBonusUser, setEditBonusUser] = useState<User | null>(null);
@@ -521,25 +546,34 @@ function UsersOverview() {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    const target = users.find((u) => u.id === userId);
-    if (target && isProtectedAdmin(target)) return; // should never be reachable via UI
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
+  const openDeleteUser = (user: User) => {
+    setDeleteError(null);
+    setDeleteUser(user);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteUser) return;
+    setDeleteLoading(true);
+    setDeleteError(null);
     try {
-      const response = await apiFetch(`${API_BASE}/admin/users/${userId}`, { method: 'DELETE' });
+      const response = await apiFetch(`${API_BASE}/admin/users/${deleteUser.id}`, { method: 'DELETE' });
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to delete user');
+        const data = await response.json();
+        setDeleteError(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Failed to delete user.');
+        return;
       }
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
-      setSuccessMessage('User deleted successfully!');
+      setUsers((prev) => prev.filter((u) => u.id !== deleteUser.id));
+      setDeleteUser(null);
+      setSuccessMessage(`User @${deleteUser.username} deleted successfully.`);
       setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete user');
+    } catch {
+      setDeleteError('An unexpected error occurred.');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
-  const handleDeleteAllUsers = async () => {
+const handleDeleteAllUsers = async () => {
     setDeleteAllLoading(true);
     setDeleteAllError(null);
     try {
@@ -860,22 +894,12 @@ function UsersOverview() {
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {!loading && users.length > 0 && (
-              <>
-                <button
-                  onClick={fetchUsers}
-                  className="text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-lg transition-colors"
-                >
-                  Refresh
-                </button>
-                <button
-                  onClick={() => { setDeleteAllError(null); setShowDeleteAllConfirm(true); }}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors"
-                  title="[TEST ONLY] Delete all users"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete All
-                </button>
-              </>
+              <button
+                onClick={fetchUsers}
+                className="text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-lg transition-colors"
+              >
+                Refresh
+              </button>
             )}
             <button
               onClick={() => setShowCreateForm(true)}
@@ -1053,7 +1077,12 @@ function UsersOverview() {
 
                       {/* Status */}
                       <td className="px-3 sm:px-6 py-3 sm:py-4 text-center">
-                        {user.isActive ? (
+                        {user.isRestricted ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 ring-1 ring-orange-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                            Restricted
+                          </span>
+                        ) : user.isActive ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             Active
@@ -1113,12 +1142,12 @@ function UsersOverview() {
             user={selectedUser}
             onClose={() => setSelectedUser(null)}
             onToggleStatus={handleToggleStatus}
-            onDelete={handleDeleteUser}
             onEditPoints={openEditPoints}
             onEditBonuses={openEditBonuses}
             onUpgrade={openUpgrade}
             onChangePassword={openChangePassword}
-          onRestrict={openRestrict}
+            onRestrict={openRestrict}
+            onDelete={openDeleteUser}
           />
         )}
 
@@ -1661,6 +1690,73 @@ function UsersOverview() {
                     <>
                       <Trash2 className="w-3.5 h-3.5" />
                       Delete All
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete User Confirmation Modal */}
+        {deleteUser && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
+            <div
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => !deleteLoading && setDeleteUser(null)}
+            />
+            <div className="relative z-10 w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center">
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Delete User</h3>
+                    <p className="text-xs text-slate-400 mt-0.5 truncate max-w-45">@{deleteUser.username}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setDeleteUser(null)}
+                  disabled={deleteLoading}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors disabled:opacity-40"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="px-6 py-5 space-y-3">
+                <p className="text-sm text-slate-700">
+                  Are you sure you want to permanently delete <span className="font-semibold text-slate-900">@{deleteUser.username}</span>? This action cannot be undone.
+                </p>
+                {deleteError && (
+                  <p className="text-xs text-red-600 flex items-start gap-1">
+                    <span className="mt-0.5 shrink-0">⚠</span>
+                    {deleteError}
+                  </p>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
+                <button
+                  onClick={() => setDeleteUser(null)}
+                  disabled={deleteLoading}
+                  className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteUser}
+                  disabled={deleteLoading}
+                  className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
+                >
+                  {deleteLoading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Deleting…
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete User
                     </>
                   )}
                 </button>

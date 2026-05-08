@@ -82,7 +82,7 @@ export class PairingScheduler implements OnApplicationBootstrap {
         if (!rbResult.skipped) {
           this.logger.log(
             `[sweep:rb] ${user._id} — ` +
-            `Scenario ${rbResult.scenario} | ${rbResult.pairsCount} pairs → ₱${rbResult.totalPayoutPhp} | ` +
+            `${rbResult.pairsCount} pairs → ₱${rbResult.totalPayoutPhp} | ` +
             `${rbResult.pvConsumed} PV consumed`,
           );
         }

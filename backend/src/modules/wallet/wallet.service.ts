@@ -254,6 +254,26 @@ export class WalletService {
       `newBalance=${newBal}`,
     );
 
+    // Keep total* bonus fields on User in sync so getIncomeSummary is accurate.
+    if (params.currency === WalletCurrency.PHP) {
+      const SOURCE_TO_FIELD: Partial<Record<WalletTxnSource, string>> = {
+        [WalletTxnSource.PAIRING]:          'totalPairingBonus',
+        [WalletTxnSource.REPEAT_BINARY]:    'totalRepeatBinaryBonusIncome',
+        [WalletTxnSource.REFERRAL_DIRECT]:  'totalDirectReferralIncome',
+        [WalletTxnSource.REFERRAL_INDIRECT]:'totalIndirectReferralIncome',
+        [WalletTxnSource.LEADERSHIP]:       'totalLeadershipBonus',
+        [WalletTxnSource.SIGN5]:            'totalSign5Bonus',
+        [WalletTxnSource.SPILLOVER]:        'totalStairstepBonusIncome',
+      };
+      const field = SOURCE_TO_FIELD[params.source];
+      if (field) {
+        await this.userModel.updateOne(
+          { _id: uid },
+          { $inc: { [field]: params.amount } },
+        );
+      }
+    }
+
     return {
       message:    'Credited',
       userId:     params.userId,

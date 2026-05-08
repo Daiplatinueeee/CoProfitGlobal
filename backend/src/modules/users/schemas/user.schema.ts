@@ -153,6 +153,18 @@ export class User {
 
   @Prop({ type: [RefreshSessionSchema], default: [], select: false })
   refreshSessions: RefreshSession[];
+
+  @Prop({ type: Boolean, default: true })
+  isActive: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  isRestricted: boolean;
+
+  @Prop({ type: String, default: '' })
+  restrictedReason: string;
+
+  @Prop({ type: Date, default: null })
+  restrictedAt: Date | null;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

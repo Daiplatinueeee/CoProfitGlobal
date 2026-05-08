@@ -10,6 +10,7 @@ import { UnilevelPurchase, UnilevelPurchaseSchema } from './schemas/unilevel-pur
 import { UnilevelPin, UnilevelPinSchema } from './schemas/unilevel-pin.schema';
 import { LifestyleReward, LifestyleRewardSchema } from './schemas/lifestyle-reward.schema';
 import { RewardRedemption, RewardRedemptionSchema } from './schemas/reward-redemption.schema';
+import { UnilevelPvDeduction, UnilevelPvDeductionSchema } from './schemas/unilevel-pv-deduction.schema';
 
 @Module({
   imports: [
@@ -19,7 +20,8 @@ import { RewardRedemption, RewardRedemptionSchema } from './schemas/reward-redem
       { name: UnilevelPurchase.name, schema: UnilevelPurchaseSchema },
       { name: UnilevelPin.name,      schema: UnilevelPinSchema },
       { name: LifestyleReward.name,  schema: LifestyleRewardSchema },
-      { name: RewardRedemption.name, schema: RewardRedemptionSchema },
+      { name: RewardRedemption.name,     schema: RewardRedemptionSchema },
+      { name: UnilevelPvDeduction.name, schema: UnilevelPvDeductionSchema },
     ]),
   ],
   controllers: [UnilevelProductsController],

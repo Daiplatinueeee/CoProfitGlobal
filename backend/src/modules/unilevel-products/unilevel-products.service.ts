@@ -31,6 +31,10 @@ import {
   RewardRedemption,
   RewardRedemptionDocument,
 } from './schemas/reward-redemption.schema';
+import {
+  UnilevelPvDeduction,
+  UnilevelPvDeductionDocument,
+} from './schemas/unilevel-pv-deduction.schema';
 
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -59,6 +63,9 @@ export class UnilevelProductsService implements OnModuleInit {
 
     @InjectModel(RewardRedemption.name)
     private readonly redemptionModel: Model<RewardRedemptionDocument>,
+
+    @InjectModel(UnilevelPvDeduction.name)
+    private readonly pvDeductionModel: Model<UnilevelPvDeductionDocument>,
   ) {}
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -232,7 +239,7 @@ export class UnilevelProductsService implements OnModuleInit {
    * Lifetime available PV balance = all earned PV (purchases + pins) minus PV spent on rewards.
    */
   async computeAvailablePv(userId: Types.ObjectId): Promise<number> {
-    const [purchaseResult, pinResult, spentResult] = await Promise.all([
+    const [purchaseResult, pinResult, spentResult, deductionResult] = await Promise.all([
       this.purchaseModel.aggregate([
         { $match: { userId, status: PurchaseStatus.APPROVED } },
         { $group: { _id: null, total: { $sum: '$totalPv' } } },
@@ -245,11 +252,34 @@ export class UnilevelProductsService implements OnModuleInit {
         { $match: { userId } },
         { $group: { _id: null, total: { $sum: '$pvCost' } } },
       ]),
+      this.pvDeductionModel.aggregate([
+        { $match: { userId } },
+        { $group: { _id: null, total: { $sum: '$pvConsumed' } } },
+      ]),
     ]);
 
-    const earned = (purchaseResult[0]?.total ?? 0) + (pinResult[0]?.total ?? 0);
-    const spent  = spentResult[0]?.total ?? 0;
-    return Math.max(0, earned - spent);
+    const earned   = (purchaseResult[0]?.total ?? 0) + (pinResult[0]?.total ?? 0);
+    const spent    = spentResult[0]?.total ?? 0;
+    const deducted = deductionResult[0]?.total ?? 0;
+    return Math.max(0, earned - spent - deducted);
+  }
+
+  /**
+   * Consumes Available PV for a repeat binary pairing.
+   * Creates a deduction record so computeAvailablePv reflects the new balance.
+   * Throws if the user's current available PV is less than the requested amount.
+   */
+  async consumePvForRepeatBinary(userId: Types.ObjectId, pvAmount: number, refKey: string): Promise<void> {
+    const available = await this.computeAvailablePv(userId);
+    if (available < pvAmount) {
+      throw new Error(`Insufficient Available PV: have ${available}, need ${pvAmount}`);
+    }
+    await this.pvDeductionModel.create({
+      userId,
+      pvConsumed: pvAmount,
+      source:     'repeat_binary',
+      refKey,
+    });
   }
 
   // ─── Product PIN redemption ──────────────────────────────────────────────────

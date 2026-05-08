@@ -1,10 +1,13 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsOptional, IsString, Matches, MinLength } from 'class-validator';
 
 export class SignUpDto {
   @IsString()
   name: string;
 
-  @IsEmail()
+  @Transform(({ value }) => value?.trim?.() ?? value)
+  @IsString()
+  @Matches(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, { message: 'email must be a valid email address' })
   email: string;
 
   @IsString()

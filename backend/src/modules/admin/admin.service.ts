@@ -884,6 +884,19 @@ export class AdminService {
     return { id: pin._id.toString(), deleted: true };
   }
 
+  async deletePackagePin(pinId: string) {
+    if (!this.isValidObjectId(pinId)) {
+      throw new BadRequestException('Invalid pinId');
+    }
+
+    const pin = await this.pinModel.findById(pinId);
+    if (!pin) throw new NotFoundException('Package PIN not found');
+
+    await this.pinModel.deleteOne({ _id: pin._id });
+
+    return { id: pin._id.toString(), deleted: true };
+  }
+
   // ─── Bulk delete package PINs by status ──────────────────────────────────────
 
   async bulkDeletePackagePins(status: 'UNUSED' | 'USED') {

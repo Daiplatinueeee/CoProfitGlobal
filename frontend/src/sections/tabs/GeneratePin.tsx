@@ -336,7 +336,7 @@ export function PinCard({ pin, onClick }: { pin: PIN; onClick: () => void }) {
 
 // ─── PIN Detail Modal (exported for ProductPinTab) ──────────────────────────────
 
-export function PinDetailModal({ pin, onClose }: { pin: PIN; onClose: () => void }) {
+export function PinDetailModal({ pin, onClose, onDelete }: { pin: PIN; onClose: () => void; onDelete?: (pin: PIN) => void }) {
   const [visible, setVisible] = useState(false);
   const sc = statusConfig[pin.status];
   const tc = tierConfig[pin.tier];
@@ -440,9 +440,20 @@ export function PinDetailModal({ pin, onClose }: { pin: PIN; onClose: () => void
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between shrink-0">
           <PinExportMenu pin={pin} />
-          <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            {onDelete && (
+              <button
+                onClick={() => { onClose(); onDelete(pin); }}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </button>
+            )}
+            <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -471,6 +482,11 @@ function GeneratePin() {
   // ── Bulk-delete confirm modal state ───────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<'UNUSED' | 'USED' | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // ── Single-pin delete state ────────────────────────────────────────────────
+  const [deletePinTarget, setDeletePinTarget] = useState<PIN | null>(null);
+  const [deletePinLoading, setDeletePinLoading] = useState(false);
+  const [deletePinError, setDeletePinError] = useState<string | null>(null);
 
   // ── Package PIN fetch ──────────────────────────────────────────────────────
 
@@ -536,6 +552,28 @@ function GeneratePin() {
       setError(err.message ?? 'Failed to generate PIN');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── Single pin delete ─────────────────────────────────────────────────────
+
+  const handleDeletePin = async () => {
+    if (!deletePinTarget) return;
+    setDeletePinLoading(true);
+    setDeletePinError(null);
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/pins/${deletePinTarget.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setDeletePinError(body?.message ?? 'Failed to delete PIN.');
+        return;
+      }
+      setPins((prev) => prev.filter((p) => p.id !== deletePinTarget.id));
+      setDeletePinTarget(null);
+    } catch (err: any) {
+      setDeletePinError(err.message ?? 'An unexpected error occurred.');
+    } finally {
+      setDeletePinLoading(false);
     }
   };
 
@@ -665,26 +703,6 @@ function GeneratePin() {
                   className="text-xs font-medium bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   Bulk Export
-                </button>
-              )}
-              {pins.some((p) => p.status === 'UNUSED') && (
-                <button
-                  onClick={() => setDeleteTarget('UNUSED')}
-                  disabled={deleting}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium bg-white hover:bg-red-50 border border-red-200 text-red-600 hover:text-red-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete Unused
-                </button>
-              )}
-              {pins.some((p) => p.status === 'USED') && (
-                <button
-                  onClick={() => setDeleteTarget('USED')}
-                  disabled={deleting}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium bg-white hover:bg-red-50 border border-red-200 text-red-600 hover:text-red-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete Used
                 </button>
               )}
             </div>
@@ -876,9 +894,61 @@ function GeneratePin() {
             </div>
           )}
 
-          {selectedPin && <PinDetailModal pin={selectedPin} onClose={() => setSelectedPin(null)} />}
+          {selectedPin && (
+            <PinDetailModal
+              pin={selectedPin}
+              onClose={() => setSelectedPin(null)}
+              onDelete={(pin) => { setDeletePinError(null); setDeletePinTarget(pin); }}
+            />
+          )}
           {showExportModal && <ExportModal pins={filteredPins} onClose={() => setShowExportModal(false)} />}
         </>
+
+        {/* ── Single PIN Delete Confirm Modal ── */}
+        {deletePinTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !deletePinLoading && setDeletePinTarget(null)} />
+            <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">Delete PIN</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">This action cannot be undone</p>
+                </div>
+              </div>
+              <div className="px-6 py-4 space-y-3">
+                <p className="text-sm text-slate-600">
+                  Are you sure you want to permanently delete this <span className="font-semibold capitalize">{deletePinTarget.tier}</span> PIN?
+                </p>
+                {deletePinError && (
+                  <p className="text-xs text-red-600 flex items-start gap-1">
+                    <span className="mt-0.5 shrink-0">⚠</span>
+                    {deletePinError}
+                  </p>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setDeletePinTarget(null)}
+                  disabled={deletePinLoading}
+                  className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeletePin}
+                  disabled={deletePinLoading}
+                  className="inline-flex items-center gap-2 text-sm font-medium px-5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
+                >
+                  {deletePinLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  {deletePinLoading ? 'Deleting…' : 'Delete PIN'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Bulk Delete Confirm Modal ── */}
         {deleteTarget && (
