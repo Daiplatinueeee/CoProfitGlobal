@@ -21,8 +21,15 @@ import UnilevelProducts from '../tabs/UnilevelProducts';
 import Transactions from '../tabs/Transactions'
 import ViewMyAccount from '../tabs/ViewMyAccount';
 
-import baseImg from '../../assets/elmer-whitebg-removebg-preview.png'
+import baseImg from '../../assets/products/1-bg-removed-Pacdora.png'
 import baseImgCenter from '../../assets/logoWithName.png'
+import slideImg1 from '../../assets/products/1-bg-removed-Pacdora.png'
+import slideImg2 from '../../assets/products/2-bg-removed-Pacdora.png'
+import slideImg3 from '../../assets/products/3-bg-removed-Pacdora.png'
+import slideImg4 from '../../assets/products/4-bg-removed-Pacdora.png'
+import slideImg5 from '../../assets/products/5-bg-removed-Pacdora.png'
+
+const slideshowImages = [slideImg1, slideImg2, slideImg3, slideImg4, slideImg5];
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -321,6 +328,7 @@ function getAuthContext() {
 
 export default function UserDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
+  const [slideIndex, setSlideIndex] = useState(0);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [refreshKey, setRefreshKey] = useState(0);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -363,6 +371,11 @@ export default function UserDashboard() {
     setSign5StatusLoading(true);
     setRankLoading(true);
   }, [activeTab, refreshKey]);
+
+  useEffect(() => {
+    const id = setInterval(() => setSlideIndex(i => (i + 1) % slideshowImages.length), 3000);
+    return () => clearInterval(id);
+  }, []);
 
   // ── Fetch current user + genealogy root ──────────────────────────────
   useEffect(() => {
@@ -965,24 +978,29 @@ export default function UserDashboard() {
             <span className="text-xs xl:text-sm text-yellow-400 font-medium">www.coprofitglobal.com</span>
           </div>
 
-          {/* Right: Mascot image — large, flush to bottom */}
-          <div className="relative shrink-0 self-end z-10" style={{ width: '160px', height: '220px' }}>
-            <img
-              src={baseImg}
-              alt="Profile Right"
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                right: 0,
-                width: '160px',
-                height: '220px',
-                objectFit: 'cover',
-                objectPosition: 'top',
-                filter: 'drop-shadow(0 8px 40px rgba(234,179,8,0.35))',
-                maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
-                WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
-              }}
-            />
+          {/* Right: Product slideshow — large, flush to bottom */}
+          <div className="relative shrink-0 self-end z-10 overflow-hidden" style={{ width: '160px', height: '220px' }}>
+            {slideshowImages.map((src, i) => (
+              <img
+                key={i}
+                src={src}
+                alt={`Product ${i + 1}`}
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  right: 0,
+                  width: '160px',
+                  height: '220px',
+                  objectFit: 'cover',
+                  objectPosition: 'top',
+                  filter: 'drop-shadow(0 8px 40px rgba(234,179,8,0.35))',
+                  maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
+                  WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)',
+                  opacity: i === slideIndex ? 1 : 0,
+                  transition: 'opacity 0.8s ease-in-out',
+                }}
+              />
+            ))}
           </div>
 
         </div>

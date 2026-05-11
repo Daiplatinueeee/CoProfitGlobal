@@ -240,13 +240,6 @@ export class GenealogyService {
       directUsers.map((u: any) => buildItem(u, 'direct')),
     )
 
-    // Build a set of all downline user IDs (including root) to detect spillover.
-    // Spillover = downline member whose sponsorId is NOT within root's network.
-    const downlineUserIdSet = new Set<string>([rootUserId])
-    for (const node of downlineNodes) {
-      downlineUserIdSet.add(node.userId.toString())
-    }
-
     // Candidates: downline members that are not root and not direct referrals.
     const candidateIds = downlineNodes
       .filter((node: any) => {
@@ -265,10 +258,25 @@ export class GenealogyService {
       candidateUsers.map((u: any) => [u._id.toString(), u.sponsorId?.toString() ?? '']),
     )
 
-    // Indirect: candidate whose sponsor is within root's network (not a spillover).
+    // Build sponsor network via BFS: start from root + direct referrals, then expand
+    // to any candidate whose sponsorId is already in the network. This correctly
+    // excludes spillover descendants whose sponsor chain does not trace back to root.
+    const sponsorNetworkIds = new Set<string>([rootUserId, ...directUserIds])
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const [id, sponsorId] of candidateSponsorMap) {
+        if (!sponsorNetworkIds.has(id) && sponsorNetworkIds.has(sponsorId)) {
+          sponsorNetworkIds.add(id)
+          changed = true
+        }
+      }
+    }
+
+    // Indirect: candidate whose sponsorId traces back to root through the sponsor chain.
     const indirectUserIds = candidateIds.filter((id: any) => {
       const sponsorId = candidateSponsorMap.get(id.toString()) ?? ''
-      return downlineUserIdSet.has(sponsorId)
+      return sponsorNetworkIds.has(sponsorId)
     })
 
     const indirectUsers = indirectUserIds.length > 0

@@ -56,9 +56,12 @@ function groupByLevel(members: DownlineMember[], rootUserId: string): Map<number
     }
   }
 
+  // Only include members whose sponsor chain was traced back to rootUserId via BFS.
+  // Members not reached (spillover) are skipped entirely.
   for (const m of members) {
     const id = m.id ?? m.userId ?? '';
-    const level = levelOf.get(id) ?? 1;
+    const level = levelOf.get(id);
+    if (level === undefined) continue;
     if (!map.has(level)) map.set(level, []);
     map.get(level)!.push(m);
   }
@@ -123,9 +126,10 @@ function ReferalsHierarchy() {
   const levelNumbers = Array.from(levelMap.keys()).sort((a, b) => a - b);
 
   const directCount   = levelMap.get(1)?.length ?? 0;
-  const indirectCount = members.length - directCount;
+  const networkTotal  = Array.from(levelMap.values()).reduce((sum, arr) => sum + arr.length, 0);
+  const indirectCount = networkTotal - directCount;
   const stats = [
-    { label: 'Total Network', value: members.length },
+    { label: 'Total Network', value: networkTotal },
     { label: 'Direct',        value: directCount },
     { label: 'Indirect',      value: indirectCount },
   ];
@@ -168,7 +172,7 @@ function ReferalsHierarchy() {
         </div>
 
         {/* Level Sections */}
-        {members.length === 0 ? (
+        {levelNumbers.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
             <EmptyState />
           </div>
