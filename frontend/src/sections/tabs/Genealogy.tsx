@@ -151,6 +151,8 @@ function Genealogy() {
 
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState<Member[]>([])
+  const [allDownlines, setAllDownlines] = useState<Member[]>([])
+  const [navigationHistory, setNavigationHistory] = useState<Member[]>([])
 
   const [chooserModal, setChooserModal] = useState<{ parent: Member; leg: 'left' | 'right' } | null>(null)
   const [modal, setModal] = useState<{ parent: Member; leg: 'left' | 'right' } | null>(null)
@@ -188,13 +190,31 @@ function Genealogy() {
     return data
   }, [])
 
+  const fetchAllDownlines = useCallback(async (userId: string) => {
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/genealogy/downlines/${userId}`)
+      if (!response.ok) return
+      const data = await response.json()
+      if (Array.isArray(data)) setAllDownlines(data)
+    } catch {
+      // silently fail — search will fall back to visible nodes
+    }
+  }, [])
+
+  const treeRootRef = React.useRef<Member | null>(null)
+  treeRootRef.current = treeRoot
+
   const navigateTo = useCallback(async (member: Member) => {
     const targetId = member.userId || member.id
     setCurrentDepth(2)
     try {
       const response = await apiFetch(`${API_BASE_URL}/genealogy/root/${targetId}?depth=2`)
       const data = await response.json()
-      if (response.ok) setTreeRoot(data)
+      if (response.ok) {
+        const prev = treeRootRef.current
+        if (prev) setNavigationHistory(h => [...h, prev])
+        setTreeRoot(data)
+      }
     } catch {
       // silently keep current view on failure
     }
@@ -211,6 +231,7 @@ function Genealogy() {
         const treeData = await fetchRootTree(userId)
         setOriginalRoot(treeData)
         setTreeRoot(treeData)
+        fetchAllDownlines(userId)
       } catch (err: any) {
         setError(err.message || 'Failed to load genealogy tree')
       } finally {
@@ -363,7 +384,18 @@ function Genealogy() {
     setCurrentDepth(2)
     setSearch('')
     setSearchResults([])
+    setNavigationHistory([])
   }, [originalRoot])
+
+  const handleBack = useCallback(() => {
+    setNavigationHistory(h => {
+      if (h.length === 0) return h
+      const prev = h[h.length - 1]
+      setTreeRoot(prev)
+      setCurrentDepth(2)
+      return h.slice(0, -1)
+    })
+  }, [])
 
   const handleSearch = (value: string) => {
     setSearch(value)
@@ -372,7 +404,8 @@ function Genealogy() {
       return
     }
     const keyword = value.toLowerCase()
-    const results = allMembers.filter(
+    const searchPool = allDownlines.length > 0 ? allDownlines : allMembers
+    const results = searchPool.filter(
       (m) =>
         m.username.toLowerCase().includes(keyword) ||
         m.email.toLowerCase().includes(keyword) ||
@@ -603,6 +636,19 @@ function Genealogy() {
             placeholder="Search member..."
             className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg bg-white shadow-lg focus:outline-none focus:border-indigo-500 transition text-sm"
           />
+          {navigationHistory.length > 0 && (
+            <button
+              onClick={handleBack}
+              title="Go back"
+              className="px-3 py-2 bg-gray-500 hover:bg-gray-600 active:bg-gray-700 text-white font-semibold rounded-lg shadow-lg transition flex items-center gap-1 text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5" />
+                <path d="M12 19l-7-7 7-7" />
+              </svg>
+              Back
+            </button>
+          )}
           <button
             onClick={handleReset}
             title="Reset to root"
