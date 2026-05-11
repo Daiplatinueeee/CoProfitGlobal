@@ -926,12 +926,12 @@ export default function UserDashboard() {
               </p>
             )}
 
-            <div className="flex items-center gap-5">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <div className="flex flex-col">
                 <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">Today</span>
                 {incomeLoading
                   ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
-                  : <span className="text-xl font-semibold text-white/80">₱{formatPhp(income?.today ?? 0)}</span>
+                  : <span className="text-base xl:text-xl font-semibold text-white/80">₱{formatPhp(income?.today ?? 0)}</span>
                 }
               </div>
               <div className="w-px h-10 bg-yellow-500/20" />
@@ -939,7 +939,7 @@ export default function UserDashboard() {
                 <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">This Week</span>
                 {incomeLoading
                   ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
-                  : <span className="text-xl font-semibold text-yellow-300">₱{formatPhp(income?.thisWeek ?? 0)}</span>
+                  : <span className="text-base xl:text-xl font-semibold text-yellow-300">₱{formatPhp(income?.thisWeek ?? 0)}</span>
                 }
               </div>
               <div className="w-px h-10 bg-yellow-500/20" />
@@ -947,7 +947,7 @@ export default function UserDashboard() {
                 <span className="text-[10px] uppercase tracking-widest text-yellow-500/50 mb-1">This Month</span>
                 {incomeLoading
                   ? <div className="h-6 w-24 bg-yellow-500/10 animate-pulse rounded" />
-                  : <span className="text-xl font-semibold text-yellow-400">₱{formatPhp(income?.thisMonth ?? 0)}</span>
+                  : <span className="text-base xl:text-xl font-semibold text-yellow-400">₱{formatPhp(income?.thisMonth ?? 0)}</span>
                 }
               </div>
             </div>
@@ -972,7 +972,7 @@ export default function UserDashboard() {
           </div>
 
           {/* Right: User Info */}
-          <div className="flex flex-col items-start justify-center gap-2 px-6 xl:px-8 border-l border-yellow-500/15 relative z-10 min-w-0 shrink-0 max-w-45 xl:max-w-none">
+          <div className="flex flex-col items-start justify-center gap-2 px-4 xl:px-8 border-l border-yellow-500/15 relative z-10 min-w-0 shrink-0 max-w-40 xl:max-w-none">
             <span className="text-lg xl:text-xl font-semibold text-white truncate w-full">{displayName}</span>
             <span className="text-xs xl:text-sm text-white/50 truncate w-full">{displayEmail}</span>
             <span className="text-xs xl:text-sm text-yellow-400 font-medium">www.coprofitglobal.com</span>
