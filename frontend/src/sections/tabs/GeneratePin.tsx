@@ -3,7 +3,7 @@ import { apiFetch } from '../../lib/apiFetch';
 import {
   Copy, RefreshCw, Eye, EyeOff, Download,
   FileSpreadsheet, FileText, File,
-  ChevronDown, Package, KeyRound, ChevronLeft, ChevronRight, Trash2,
+  ChevronDown, Package, KeyRound, ChevronLeft, ChevronRight, Trash2, Search,
 } from 'lucide-react';
 import { ExportModal } from '../modals/ExportModal';
 
@@ -472,6 +472,7 @@ function GeneratePin() {
   const [currentPage, setCurrentPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<'all' | 'USED' | 'UNUSED' | 'VOID'>('all');
   const [filterTier, setFilterTier] = useState<Tier | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [quantity, setQuantity] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -603,8 +604,18 @@ function GeneratePin() {
 
   const filteredPins = pins.filter((pin) => {
     if (filterTier !== 'all' && pin.tier !== filterTier) return false;
-    if (filterStatus === 'all') return true;
-    return pin.status === filterStatus;
+    if (filterStatus !== 'all' && pin.status !== filterStatus) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      return (
+        pin.pin.toLowerCase().includes(q) ||
+        pin.tier.toLowerCase().includes(q) ||
+        pin.status.toLowerCase().includes(q) ||
+        pin.createdAt.includes(q) ||
+        (pin.usedBy ?? '').toLowerCase().includes(q)
+      );
+    }
+    return true;
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredPins.length / PINS_PER_PAGE));
@@ -743,6 +754,16 @@ function GeneratePin() {
                     </button>
                   );
                 })}
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                  placeholder="Search by PIN, tier, status, date…"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-200 placeholder-slate-400"
+                />
               </div>
             </div>
           )}

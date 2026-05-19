@@ -24,6 +24,114 @@ const getStatusBadge = (status: string) => {
   }
 };
 
+interface WithdrawalFormProps {
+  formData: { amount: string; paymentMethod: string; accountName: string; notes: string };
+  submitting: boolean;
+  submitError: string;
+  submitSuccess: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+}
+
+function WithdrawalForm({ formData, submitting, submitError, submitSuccess, onChange, onSubmit }: WithdrawalFormProps) {
+  return (
+    <form onSubmit={onSubmit} className="px-4 sm:px-6 py-5 space-y-4">
+
+      {/* Amount */}
+      <div>
+        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+          Amount
+        </label>
+        <input
+          type="number"
+          name="amount"
+          value={formData.amount}
+          onChange={onChange}
+          placeholder="Enter amount"
+          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
+          required
+          min={1}
+        />
+        {formData.amount && !isNaN(parseFloat(formData.amount)) && (
+          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+            - ₱10 fee | You will receive: ₱{(parseFloat(formData.amount) - 10).toLocaleString()}
+          </p>
+        )}
+      </div>
+
+      {/* Payment Method */}
+      <div>
+        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+          Payment Method
+        </label>
+        <select
+          name="paymentMethod"
+          value={formData.paymentMethod}
+          onChange={onChange}
+          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 bg-white"
+          required
+        >
+          <option value="">Select a method</option>
+          <option value="bank">Cash</option>
+          <option value="bank">Bank Transfer</option>
+          <option value="wallet">Gcash</option>
+          <option value="crypto">Paymaya</option>
+        </select>
+      </div>
+
+      {/* Account Name */}
+      <div>
+        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+          Account Name
+        </label>
+        <input
+          type="text"
+          name="accountName"
+          value={formData.accountName}
+          onChange={onChange}
+          placeholder="Enter account name"
+          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
+          required
+        />
+      </div>
+
+      {/* Notes */}
+      <div>
+        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+          Instructions or Notes
+        </label>
+        <textarea
+          name="notes"
+          value={formData.notes}
+          onChange={onChange}
+          placeholder="Add any special instructions..."
+          rows={3}
+          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300 resize-none"
+        />
+      </div>
+
+      {submitError && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+          {submitError}
+        </p>
+      )}
+      {submitSuccess && (
+        <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+          {submitSuccess}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className="w-full bg-slate-900 hover:bg-slate-700 active:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium py-3 px-4 rounded-lg transition-colors"
+      >
+        {submitting ? 'Submitting…' : 'Submit Request'}
+      </button>
+    </form>
+  );
+}
+
 function Payout() {
   const [formData, setFormData] = useState({
     amount: '',
@@ -73,7 +181,7 @@ function Payout() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitError('');
     setSubmitSuccess('');
@@ -122,105 +230,14 @@ function Payout() {
     { label: 'Available Balance', value: `₱${availableBalance.toLocaleString()}`, sub: 'Ready to withdraw' },
   ];
 
-  /* ─── Withdrawal Form (shared between mobile sheet & desktop sidebar) ─── */
-  const WithdrawalForm = () => (
-    <form onSubmit={handleSubmit} className="px-4 sm:px-6 py-5 space-y-4">
-
-      {/* Amount */}
-      <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
-          Amount
-        </label>
-        <input
-          type="number"
-          name="amount"
-          value={formData.amount}
-          onChange={handleInputChange}
-          placeholder="Enter amount"
-          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
-          required
-          min={1}
-        />
-        {formData.amount && !isNaN(parseFloat(formData.amount)) && (
-          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-            +10% VAT = ₱{Math.floor(parseFloat(formData.amount) * 0.10).toLocaleString()}
-            &nbsp;|&nbsp;
-            Total deducted: ₱{Math.floor(parseFloat(formData.amount) * 1.10).toLocaleString()}
-          </p>
-        )}
-      </div>
-
-      {/* Payment Method */}
-      <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
-          Payment Method
-        </label>
-        <select
-          name="paymentMethod"
-          value={formData.paymentMethod}
-          onChange={handleInputChange}
-          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 bg-white"
-          required
-        >
-          <option value="">Select a method</option>
-          <option value="bank">Cash</option>
-          <option value="bank">Bank Transfer</option>
-          <option value="wallet">Gcash</option>
-          <option value="crypto">Paymaya</option>
-        </select>
-      </div>
-
-      {/* Account Name */}
-      <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
-          Account Name
-        </label>
-        <input
-          type="text"
-          name="accountName"
-          value={formData.accountName}
-          onChange={handleInputChange}
-          placeholder="Enter account name"
-          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
-          required
-        />
-      </div>
-
-      {/* Notes */}
-      <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
-          Instructions or Notes
-        </label>
-        <textarea
-          name="notes"
-          value={formData.notes}
-          onChange={handleInputChange}
-          placeholder="Add any special instructions..."
-          rows={3}
-          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300 resize-none"
-        />
-      </div>
-
-      {submitError && (
-        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
-          {submitError}
-        </p>
-      )}
-      {submitSuccess && (
-        <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
-          {submitSuccess}
-        </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full bg-slate-900 hover:bg-slate-700 active:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium py-3 px-4 rounded-lg transition-colors"
-      >
-        {submitting ? 'Submitting…' : 'Submit Request'}
-      </button>
-    </form>
-  );
+  const formProps: WithdrawalFormProps = {
+    formData,
+    submitting,
+    submitError,
+    submitSuccess,
+    onChange: handleInputChange,
+    onSubmit: handleSubmit,
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -268,7 +285,7 @@ function Payout() {
                 <h2 className="text-base font-semibold text-slate-900">Request Withdrawal</h2>
                 <p className="text-xs text-slate-400 mt-0.5">Fill in your payout details</p>
               </div>
-              <WithdrawalForm />
+              <WithdrawalForm {...formProps} />
             </div>
           </div>
 
@@ -429,7 +446,7 @@ function Payout() {
 
             {/* Scrollable form content */}
             <div className="overflow-y-auto overscroll-contain flex-1">
-              <WithdrawalForm />
+              <WithdrawalForm {...formProps} />
             </div>
           </div>
         </div>
