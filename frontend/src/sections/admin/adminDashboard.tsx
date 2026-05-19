@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../lib/apiFetch';
 import { useAuth } from '../../contexts/AuthContext';
-import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock, Tag, Trophy } from 'lucide-react';
+import { Home, Lock, LogOut, ChevronLeft, Users, ClipboardClock, Tag, Trophy, PackageCheck } from 'lucide-react';
 
 import GeneratePin from '../tabs/GeneratePin';
 import GenerateProductPin from '../tabs/GenerateProductPin';
@@ -11,6 +11,7 @@ import PendingPayouts from '../tabs/PendingPayouts';
 import PendingWithdrawGC from '../tabs/PendingWithdrawGC';
 import Leaderboards from '../tabs/Leaderboards';
 import PendingRequests from '../tabs/PendingRequests';
+import PendingUnilevelPackages from '../tabs/PendingUnilevelPackages';
 
 const KEYFRAMES = `
   @keyframes crane-swing {
@@ -407,6 +408,7 @@ export default function AdminDashboard() {
     { id: 'pendingWithdrawGC', label: 'Pending Withdrawals (GC)', icon: ClipboardClock },
     { id: 'pendingRequests', label: 'Pending Requests', icon: ClipboardClock },
     { id: 'leaderboards', label: 'Leaderboards', icon: Trophy },
+    { id: 'unilevel-packages', label: 'Unilevel Packages', icon: PackageCheck },
   ], []);
 
   const renderTabContent = () => {
@@ -418,6 +420,7 @@ export default function AdminDashboard() {
       'pendingWithdrawGC': <PendingWithdrawGC />,
       'pendingRequests': <PendingRequests />,
       'leaderboards': <Leaderboards />,
+      'unilevel-packages': <PendingUnilevelPackages />,
     };
     return map[activeTab] ?? <div />;
   };
