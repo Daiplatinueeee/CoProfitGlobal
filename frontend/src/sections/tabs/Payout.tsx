@@ -52,11 +52,19 @@ function WithdrawalForm({ formData, submitting, submitError, submitSuccess, onCh
           required
           min={1}
         />
-        {formData.amount && !isNaN(parseFloat(formData.amount)) && (
-          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-            - ₱10 fee | You will receive: ₱{(parseFloat(formData.amount) - 10).toLocaleString()}
-          </p>
-        )}
+        {formData.amount && !isNaN(parseFloat(formData.amount)) && (() => {
+          const amt = parseFloat(formData.amount);
+          const percentFee = amt * 0.10;
+          const adminFee = 50;
+          const net = amt - percentFee - adminFee;
+          return (
+            <div className="text-xs text-slate-400 mt-1.5 leading-relaxed space-y-0.5">
+              <p>- 10% processing fee: ₱{percentFee.toLocaleString()}</p>
+              <p>- Admin fee: ₱{adminFee.toLocaleString()}</p>
+              <p className="text-slate-600 font-medium">You will receive: ₱{net.toLocaleString()}</p>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Payment Method */}
