@@ -164,6 +164,14 @@ function Genealogy() {
   const [successModal, setSuccessModal] = useState<{ title: string; message: string } | null>(null)
   const [errorModal, setErrorModal] = useState<{ title: string; message: string } | null>(null)
 
+  // ── Mobile detection ─────────────────────────────────────────────────────
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640)
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 640)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
   // ── Pan / Zoom — ViewBox-based (vector-sharp on all screens) ──────────────
   const [svgView, setSvgView] = useState({ panX: 0, panY: 0, zoom: 1 })
   const svgRef    = useRef<SVGSVGElement>(null)
@@ -173,6 +181,8 @@ function Genealogy() {
   const lastPt    = useRef({ x: 0, y: 0 })
   const lastDist  = useRef<number | null>(null)
 
+
+  const mobileZoomApplied = useRef(false)
 
   const applyZoom = (factor: number) =>
     setSvgView(v => ({ ...v, zoom: Math.min(5, Math.max(0.3, v.zoom * factor)) }))
@@ -375,6 +385,18 @@ function Genealogy() {
 
   // Keep viewBoxRef in sync so pan/zoom callbacks always read the current base viewBox
   useEffect(() => { viewBoxRef.current = viewBox }, [viewBox])
+
+  // On mobile, zoom in and pan so the root node is visible at the top
+  useEffect(() => {
+    if (!treeRoot || !isMobile || mobileZoomApplied.current) return
+    mobileZoomApplied.current = true
+    const parts = viewBox.split(' ').map(Number)
+    const bH = parts[3]
+    if (!bH) return
+    const zoom = 2.5
+    const panY = (bH - bH / zoom) / 2
+    setSvgView({ panX: 0, panY, zoom })
+  }, [treeRoot, isMobile, viewBox])
 
   // Derive the live viewBox from base + svgView — pure SVG coordinates, no CSS transform
   const effectiveViewBox = useMemo(() => {

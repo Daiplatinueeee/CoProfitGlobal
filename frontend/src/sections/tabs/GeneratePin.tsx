@@ -336,10 +336,30 @@ export function PinCard({ pin, onClick }: { pin: PIN; onClick: () => void }) {
 
 // ─── PIN Detail Modal (exported for ProductPinTab) ──────────────────────────────
 
+function formatUsedAt(usedAt: string): string {
+  const d = new Date(usedAt);
+  const date = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return `${date} ${time}`;
+}
+
 export function PinDetailModal({ pin, onClose, onDelete }: { pin: PIN; onClose: () => void; onDelete?: (pin: PIN) => void }) {
   const [visible, setVisible] = useState(false);
+  const [usedByName, setUsedByName] = useState<string | null>(null);
   const sc = statusConfig[pin.status];
   const tc = tierConfig[pin.tier];
+
+  useEffect(() => {
+    if (pin.status === 'USED' && pin.usedBy) {
+      apiFetch(`${API_BASE}/admin/users`)
+        .then((r) => r.ok ? r.json() : [])
+        .then((users: any[]) => {
+          const found = users.find((u: any) => u._id === pin.usedBy || u.id === pin.usedBy);
+          if (found) setUsedByName(found.name ?? found.username ?? pin.usedBy);
+        })
+        .catch(() => {});
+    }
+  }, [pin.usedBy, pin.status]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(pin.pin);
@@ -423,13 +443,17 @@ export function PinDetailModal({ pin, onClose, onDelete }: { pin: PIN; onClose: 
               {[
                 { label: 'Created Date', value: pin.createdAt },
                 { label: 'Created Time', value: pin.createdTime },
-                { label: 'Used At',      value: pin.usedAt },
-                { label: 'Used By',      value: pin.usedBy },
+                { label: 'Used At',      value: pin.usedAt ? formatUsedAt(pin.usedAt) : undefined },
+                { label: 'Used By',      value: usedByName ?? (pin.usedBy ? null : undefined) },
               ].map(({ label, value }) => (
                 <div key={label}>
                   <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">{label}</p>
                   <p className="text-sm text-slate-900 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 min-h-9 flex items-center">
-                    {value ?? <span className="text-slate-300">—</span>}
+                    {value === null
+                      ? <span className="inline-block w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                      : value !== undefined
+                        ? value
+                        : <span className="text-slate-300">—</span>}
                   </p>
                 </div>
               ))}

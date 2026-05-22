@@ -3,11 +3,8 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 
-import mar from '../../assets/margery.webp';
 import cel from '../../assets/celso.webp';
-import eli from '../../assets/eli.webp';
 import glende from '../../assets/glende.webp';
-import ryan from '../../assets/ryan.webp';
 import elmer from '../../assets/elmer.webp';
 
 const teamMembers = [
@@ -28,36 +25,12 @@ const teamMembers = [
         initials: 'CL',
     },
     {
-        id: 1,
-        name: 'Margery M. Cartagenas',
-        role: 'Chief Finance Officer',
-        bio: 'Margery Cartagenas is a licensed pharmacist, long-time entrepreneur, and public servant. She has 10 years of experience in community healthcare, has successfully operated Pacific Cellular Shoppe for over 20 years, and currently serves as a Barangay Councilor of Guindarohan, Cebu, reflecting her strong commitment to community service and leadership.',
-        image: mar,
-        initials: 'MC',
-    },
-    {
-        id: 3,
-        name: 'Eli Angela Cartagenas',
-        role: 'VP – Marketing',
-        bio: 'Eli Angela Cartagenas is a 22-year-old Cebu-based professional specializing in digital marketing and financial services. A Magna Cum Laude graduate of the University of San Jose–Recoletos, she works as a funnel designer and marketing specialist, a licensed Insurance Advisor for Manulife Philippines, and a Sales Associate at Industrious. Alongside her professional career, Eli brings a strong background in the performing arts, with experience in theatre, competitive singing, and performances on local, national, and international stages.',
-        image: eli,
-        initials: 'EC',
-    },
-    {
         id: 4,
         name: 'Glende S. Pastorpili',
         role: 'VP – Administrative',
         bio: 'Glende Sagarino Pastorpili is a dynamic entrepreneur and business leader from Carnaza Island, Daan Bantayan, Cebu. Currently pursuing a BS in Information Technology at the University of Cebu, she combines her academic training with extensive experience in the networking marketing industry. Formerly serving as Executive Director and now Vice President for Administration, Glende is recognized for her strategic leadership, commitment to continuous learning, and passion for empowering others through mentorship and professional development.',
         image: glende,
         initials: 'GP',
-    },
-    {
-        id: 5,
-        name: 'Ryan H. Cartagenas',
-        role: 'VP – Research & Business Development',
-        bio: 'Ryan Cartagenas is an electronics and communications engineering graduate from the University of San Jose–Recoletos with a strong background in the tech industry. Formerly a Production Manager at Kyocera Kinseki Corporation Philippines, he played a key role in semiconductor technology transfer and manufacturing operations. He is now an entrepreneur and the proprietor of Eli Delights Cafe, a Sebucha Cafe franchisee, demonstrating his adaptability and leadership across industries.',
-        image: ryan,
-        initials: 'RC',
     },
 ];
 

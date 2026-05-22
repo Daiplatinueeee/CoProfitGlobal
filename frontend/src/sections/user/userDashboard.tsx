@@ -355,10 +355,6 @@ export default function UserDashboard() {
   } | null>(null);
   const [sign5StatusLoading, setSign5StatusLoading] = useState(true);
 
-  // ── Leaderboard rank state ───────────────────────────────────────────
-  const [userRank, setUserRank] = useState<{ rank: number | null; totalParticipants: number } | null>(null);
-  const [rankLoading, setRankLoading] = useState(true);
-
   // ── Pairing cap state ────────────────────────────────────────────────
   const [pairingCap, setPairingCap] = useState<{ capUsed: number; capLimit: number; cycle: string } | null>(null);
 
@@ -369,7 +365,6 @@ export default function UserDashboard() {
     setBalancesLoading(true);
     setReferralLoading(true);
     setSign5StatusLoading(true);
-    setRankLoading(true);
   }, [activeTab, refreshKey]);
 
   useEffect(() => {
@@ -528,28 +523,6 @@ export default function UserDashboard() {
     fetchPairingCap();
   }, [activeTab, refreshKey]);
 
-  // ── Fetch leaderboard rank ───────────────────────────────────────────
-  useEffect(() => {
-    if (activeTab !== 'dashboard') return;
-    const fetchUserRank = async () => {
-      try {
-        const { userId } = getAuthContext();
-        if (!userId) return;
-
-        const res = await apiFetch(`${API_BASE_URL}/leaderboard/rank/${userId}`);
-        if (!res.ok) throw new Error('Failed to fetch user rank');
-
-        const data = await res.json();
-        setUserRank(data);
-      } catch (err) {
-        console.error('Rank fetch error:', err);
-      } finally {
-        setRankLoading(false);
-      }
-    };
-    fetchUserRank();
-  }, [activeTab, refreshKey]);
-
   // ── Evaluate + fetch Sign-5 status on dashboard load ────────────────────
   useEffect(() => {
     if (activeTab !== 'dashboard') return;
@@ -703,7 +676,7 @@ export default function UserDashboard() {
   );
 
   // ── Dashboard content ─────────────────────────────────────────────────
-  const isRefreshing = incomeLoading || balancesLoading || referralLoading || sign5StatusLoading || rankLoading;
+  const isRefreshing = incomeLoading || balancesLoading || referralLoading || sign5StatusLoading;
 
   const renderDashboardContent = () => (
     <div className="space-y-6 pb-6 bg-white">
@@ -737,24 +710,6 @@ export default function UserDashboard() {
 
           {/* Top: income content */}
           <div className="p-6 flex flex-col relative z-10">
-            {/* Rank badge */}
-            <div className="flex items-center gap-2 mb-4">
-              <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 backdrop-blur-sm rounded-full px-3 py-1">
-                <span className="text-yellow-400 text-sm">🏆</span>
-                {rankLoading ? (
-                  <span className="text-xs text-yellow-300/60 animate-pulse">Loading rank...</span>
-                ) : userRank?.rank ? (
-                  <>
-                    <span className="text-xs font-semibold text-yellow-200/80 uppercase tracking-wider">Rank</span>
-                    <span className="text-sm font-bold text-yellow-400">#{userRank.rank}</span>
-                    <span className="text-xs text-yellow-300/50">of {userRank.totalParticipants.toLocaleString()}</span>
-                  </>
-                ) : (
-                  <span className="text-xs text-yellow-300/60">Unranked</span>
-                )}
-              </div>
-            </div>
-
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-500/70 mb-1">Total Income</p>
             {incomeLoading ? (
               <div className="h-10 w-44 bg-yellow-500/10 animate-pulse rounded-xl mb-4" />
@@ -791,7 +746,7 @@ export default function UserDashboard() {
             <div className="flex flex-col gap-1 p-6 z-10">
               <span className="text-base font-semibold text-white">{displayName}</span>
               <span className="text-xs text-white/50 break-all">{displayEmail}</span>
-              <span className="text-xs text-yellow-400 font-medium">www.coprofitglobal.com</span>
+              <span className="text-xs text-yellow-400 font-medium">www.coprofit-global.com</span>
             </div>
             {/* Decorative mascot — faded, flush bottom-right */}
             <img
@@ -819,24 +774,6 @@ export default function UserDashboard() {
 
           {/* Left: Income Content */}
           <div className="flex-1 min-w-0 p-5 flex flex-col justify-center relative z-10">
-            {/* Rank badge */}
-            <div className="flex items-center gap-2 mb-3">
-              <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 backdrop-blur-sm rounded-full px-3 py-1">
-                <span className="text-yellow-400 text-xs">🏆</span>
-                {rankLoading ? (
-                  <span className="text-xs text-yellow-300/60 animate-pulse">Loading rank...</span>
-                ) : userRank?.rank ? (
-                  <>
-                    <span className="text-xs font-semibold text-yellow-200/80 uppercase tracking-wider">Rank</span>
-                    <span className="text-sm font-bold text-yellow-400">#{userRank.rank}</span>
-                    <span className="text-xs text-yellow-300/50">of {userRank.totalParticipants.toLocaleString()}</span>
-                  </>
-                ) : (
-                  <span className="text-xs text-yellow-300/60">Unranked</span>
-                )}
-              </div>
-            </div>
-
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-500/70 mb-1">Total Income</p>
             {incomeLoading ? (
               <div className="h-9 w-40 bg-yellow-500/10 animate-pulse rounded-xl mb-3" />
@@ -870,7 +807,7 @@ export default function UserDashboard() {
           <div className="flex flex-col items-start justify-center gap-1 px-5 border-l border-yellow-500/15 relative z-10 shrink-0">
             <span className="text-base font-semibold text-white truncate max-w-35">{displayName}</span>
             <span className="text-xs text-white/50 truncate max-w-35">{displayEmail}</span>
-            <span className="text-xs text-yellow-400 font-medium">www.coprofitglobal.com</span>
+            <span className="text-xs text-yellow-400 font-medium">www.coprofit-global.com</span>
           </div>
 
           {/* Right: Mascot image — smaller, flush to bottom */}
@@ -899,24 +836,6 @@ export default function UserDashboard() {
 
           {/* Left: Income Content */}
           <div className="flex-1 p-8 flex flex-col justify-center relative z-10">
-            {/* Rank badge */}
-            <div className="flex items-center gap-2 mb-4">
-              <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 backdrop-blur-sm rounded-full px-3 py-1">
-                <span className="text-yellow-400 text-sm">🏆</span>
-                {rankLoading ? (
-                  <span className="text-xs text-yellow-300/60 animate-pulse">Loading rank...</span>
-                ) : userRank?.rank ? (
-                  <>
-                    <span className="text-xs font-semibold text-yellow-200/80 uppercase tracking-wider">Rank</span>
-                    <span className="text-sm font-bold text-yellow-400">#{userRank.rank}</span>
-                    <span className="text-xs text-yellow-300/50">of {userRank.totalParticipants.toLocaleString()}</span>
-                  </>
-                ) : (
-                  <span className="text-xs text-yellow-300/60">Unranked</span>
-                )}
-              </div>
-            </div>
-
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-500/70 mb-1">Total Income</p>
             {incomeLoading ? (
               <div className="h-12 w-52 bg-yellow-500/10 animate-pulse rounded-xl mb-4" />
@@ -975,7 +894,7 @@ export default function UserDashboard() {
           <div className="flex flex-col items-start justify-center gap-2 px-4 xl:px-8 border-l border-yellow-500/15 relative z-10 min-w-0 shrink-0 max-w-40 xl:max-w-none">
             <span className="text-lg xl:text-xl font-semibold text-white truncate w-full">{displayName}</span>
             <span className="text-xs xl:text-sm text-white/50 truncate w-full">{displayEmail}</span>
-            <span className="text-xs xl:text-sm text-yellow-400 font-medium">www.coprofitglobal.com</span>
+            <span className="text-xs xl:text-sm text-yellow-400 font-medium">www.coprofit-global.com</span>
           </div>
 
           {/* Right: Product slideshow — large, flush to bottom */}

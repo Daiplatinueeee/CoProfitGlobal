@@ -9,16 +9,6 @@ interface ProductPin {
   pv: number;
   status: 'USED' | 'UNUSED' | 'VOID';
   createdAt: string;
-  expiresAt: string | null;
-}
-
-/* ─── helpers ─────────────────────────────────────────────────────────────── */
-/** Returns expiresAt: use backend value if present, otherwise createdAt + 7 days */
-function resolveExpiry(pin: ProductPin): Date {
-  if (pin.expiresAt) return new Date(pin.expiresAt);
-  const d = new Date(pin.createdAt);
-  d.setDate(d.getDate() + 7);
-  return d;
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
@@ -271,9 +261,6 @@ export default function GenerateProductPin() {
                   <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
                     Product PIN
                   </th>
-                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden lg:table-cell">
-                    Expires
-                  </th>
                   <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
                     Status
                   </th>
@@ -300,9 +287,6 @@ export default function GenerateProductPin() {
                   </tr>
                 ) : (
                   pins.map((pin) => {
-                    const expiry = resolveExpiry(pin);
-                    const isExpired = expiry < new Date();
-
                     return (
                       <tr key={pin._id} className="hover:bg-slate-50 transition-colors duration-150">
 
@@ -335,17 +319,6 @@ export default function GenerateProductPin() {
                           </span>
                         </td>
 
-                        {/* Expires — always shows 7-day date */}
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 hidden lg:table-cell">
-                          <span className={`text-xs font-medium ${isExpired ? 'text-red-500' : 'text-slate-500'}`}>
-                            {expiry.toLocaleDateString('en-US', {
-                              year: 'numeric', month: 'short', day: 'numeric',
-                            })}
-                            {isExpired && (
-                              <span className="ml-1 text-xs text-red-400">(Expired)</span>
-                            )}
-                          </span>
-                        </td>
 
                         {/* Status */}
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-center">
