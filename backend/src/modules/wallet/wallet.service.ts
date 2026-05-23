@@ -10,7 +10,7 @@ import {
   WalletTxnSource,
 } from './schemas/wallet-transaction.schema';
 import { WalletBalance, WalletBalanceDocument } from './schemas/wallet-balance.schema';
-import { User, UserDocument } from '../users/schemas/user.schema';
+import { User, UserDocument, MembershipTier } from '../users/schemas/user.schema';
 
 @Injectable()
 export class WalletService {
@@ -201,6 +201,37 @@ export class WalletService {
     if (params.amount <= 0) {
       console.error(`[wallet:credit] ✖ Invalid amount=${params.amount} — must be > 0`);
       throw new BadRequestException('Amount must be > 0');
+    }
+
+    // ── FREE account bonus guard ────────────────────────────────────────
+    // FREE accounts may never receive any performance bonus in PHP.
+    // This is the last-resort wall — it fires even if a caller bypasses
+    // the service-level checks in leadership/sign5/genealogy.
+    const FREE_BLOCKED_SOURCES = new Set<WalletTxnSource>([
+      WalletTxnSource.PAIRING,
+      WalletTxnSource.REPEAT_BINARY,
+      WalletTxnSource.SIGN5,
+      WalletTxnSource.LEADERSHIP,
+      WalletTxnSource.SPILLOVER,
+      WalletTxnSource.REFERRAL_DIRECT,
+      WalletTxnSource.REFERRAL_INDIRECT,
+    ]);
+    if (params.currency === WalletCurrency.PHP && FREE_BLOCKED_SOURCES.has(params.source)) {
+      const recipientUser = await this.userModel
+        .findById(uid)
+        .select('isFree membershipTier')
+        .lean();
+      if (
+        (recipientUser as any)?.isFree ||
+        (recipientUser as any)?.membershipTier === MembershipTier.FREE
+      ) {
+        console.warn(
+          `[wallet:credit] ⚠ Blocked bonus credit to FREE account — ` +
+          `userId=${params.userId} source=${params.source} amount=${params.amount} refKey=${params.refKey}`,
+        );
+        const balances = await this.getBalances(params.userId);
+        return { message: 'Blocked: FREE accounts cannot receive bonus credits', ...balances };
+      }
     }
 
     // ── Idempotency check ───────────────────────────────────────────────

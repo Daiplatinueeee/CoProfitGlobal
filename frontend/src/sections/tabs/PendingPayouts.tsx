@@ -16,6 +16,17 @@ interface WithdrawalRecord {
   createdAt: string;
 }
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash:   'Cash',
+  bank:   'Bank Transfer',
+  wallet: 'Gcash',
+  crypto: 'Paymaya',
+};
+
+function formatPaymentMethod(method: string) {
+  return PAYMENT_METHOD_LABELS[method] ?? method;
+}
+
 function PendingPayouts() {
   const [records, setRecords]     = useState<WithdrawalRecord[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -144,9 +155,8 @@ function PendingPayouts() {
                   <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date</th>
                   <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden sm:table-cell">Method</th>
                   <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">Account</th>
-                  <th className="text-right px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Amount</th>
+                  <th className="text-right px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Requested</th>
                   <th className="text-right px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden lg:table-cell">VAT</th>
-                  <th className="text-right px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden sm:table-cell">Total</th>
                   <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">Status</th>
                   <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Actions</th>
                 </tr>
@@ -181,11 +191,10 @@ function PendingPayouts() {
                           })}
                         </p>
                       </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-slate-500 capitalize hidden sm:table-cell">{w.paymentMethod || '—'}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-slate-500 hidden sm:table-cell">{formatPaymentMethod(w.paymentMethod) || '—'}</td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4 text-slate-500 hidden md:table-cell">{w.accountName || '—'}</td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4 text-right text-slate-900 text-xs sm:text-sm">₱{w.amount.toLocaleString()}</td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4 text-right text-slate-500 hidden lg:table-cell">₱{w.vat.toLocaleString()}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-right font-semibold text-slate-900 text-xs sm:text-sm hidden sm:table-cell">₱{w.totalAmount.toLocaleString()}</td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4 text-center hidden md:table-cell">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200">
                           <Clock className="w-3 h-3" />

@@ -679,28 +679,26 @@ export class GenealogyService {
       (a) => a.toString() === sponsorUserId,
     )
 
-    if (!sponsorIsAncestor) {
-      const sponsorUser = await this.userModel
-        .findById(this.toObjectId(sponsorUserId))
-        .select('isFree membershipTier')
-        .lean()
-      const sponsorIsFree =
-        (sponsorUser as any)?.isFree ||
-        (sponsorUser as any)?.membershipTier === MembershipTier.FREE
+    const sponsorUser = await this.userModel
+      .findById(this.toObjectId(sponsorUserId))
+      .select('isFree membershipTier')
+      .lean()
+    const sponsorIsFree =
+      (sponsorUser as any)?.isFree ||
+      (sponsorUser as any)?.membershipTier === MembershipTier.FREE
 
-      if (!sponsorIsFree) {
-        const amount = this.DIRECT_BONUS[membershipTier] ?? 0
-        if (amount > 0) {
-          await this.walletService.credit({
-            userId:   sponsorUserId,
-            currency: WalletCurrency.PHP,
-            amount,
-            source:   WalletTxnSource.REFERRAL_DIRECT,
-            refKey:   `ref_direct:${sponsorUserId}:${childNode.userId}`,
-            note:     `Direct placement bonus — ${membershipTier} member placed`,
-            meta:     { newMemberId: childNode.userId.toString(), membershipTier },
-          })
-        }
+    if (!sponsorIsAncestor && !sponsorIsFree) {
+      const amount = this.DIRECT_BONUS[membershipTier] ?? 0
+      if (amount > 0) {
+        await this.walletService.credit({
+          userId:   sponsorUserId,
+          currency: WalletCurrency.PHP,
+          amount,
+          source:   WalletTxnSource.REFERRAL_DIRECT,
+          refKey:   `ref_direct:${sponsorUserId}:${childNode.userId}`,
+          note:     `Direct placement bonus — ${membershipTier} member placed`,
+          meta:     { newMemberId: childNode.userId.toString(), membershipTier },
+        })
       }
     }
 
@@ -721,12 +719,7 @@ export class GenealogyService {
         ])
 
         if (!ancestor || !ancestorNode) return
-
-        // Free ancestors never receive direct or indirect bonuses
-        if (
-          (ancestor as any).isFree ||
-          (ancestor as any).membershipTier === MembershipTier.FREE
-        ) return
+        if ((ancestor as any).isFree || (ancestor as any).membershipTier === MembershipTier.FREE) return
 
         const depthDiff       = childNode.depth - (ancestorNode as any).depth
         const isDirectRecruit = sponsorUserId === ancestorId
@@ -918,7 +911,10 @@ export class GenealogyService {
 
     const membershipTier = (existingUser as any).membershipTier as MembershipTier
     const isFreeExisting = (existingUser as any).isFree ?? false
-    await this.awardPlacementBonuses(childNode, membershipTier, isFreeExisting, placerUser._id.toString())
+    await Promise.all([
+      this.awardPlacementBonuses(childNode, membershipTier, isFreeExisting, placerUser._id.toString()),
+      this.volumeService.awardActivationVolume(existingUserId.toString()),
+    ])
 
     const { leftAvailablePoints, rightAvailablePoints } =
       await this.getAvailablePoints(existingUserId)

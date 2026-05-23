@@ -55,12 +55,13 @@ export class WithdrawalService {
       if (!accountName)   throw new BadRequestException('Account name is required');
 
       const phpBalance = balances[WalletCurrency.PHP] ?? 0;
+      const adminFee  = 50;
       vat         = Math.floor(dto.amount * VAT_RATE);
-      totalAmount = dto.amount + vat;
+      totalAmount = dto.amount - vat - adminFee;
 
-      if (phpBalance < totalAmount) {
+      if (phpBalance < dto.amount) {
         throw new BadRequestException(
-          `Insufficient balance. Available: ₱${phpBalance.toLocaleString()}, required: ₱${totalAmount.toLocaleString()} (includes 10% VAT)`,
+          `Insufficient balance. Available: ₱${phpBalance.toLocaleString()}, required: ₱${dto.amount.toLocaleString()}`,
         );
       }
     }
@@ -117,7 +118,7 @@ export class WithdrawalService {
     await this.walletService.debit({
       userId,
       currency,
-      amount:   doc.totalAmount,
+      amount:   doc.amount,
       source:   WalletTxnSource.WITHDRAWAL,
       refKey:   `withdrawal:${withdrawalId}`,
       note,

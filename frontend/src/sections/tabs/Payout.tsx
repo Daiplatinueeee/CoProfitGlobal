@@ -54,15 +54,11 @@ function WithdrawalForm({ formData, submitting, submitError, submitSuccess, onCh
         />
         {formData.amount && !isNaN(parseFloat(formData.amount)) && (() => {
           const amt = parseFloat(formData.amount);
-          const percentFee = amt * 0.10;
-          const adminFee = 50;
-          const net = amt - percentFee - adminFee;
+          const net = amt - Math.floor(amt * 0.10) - 50;
           return (
-            <div className="text-xs text-slate-400 mt-1.5 leading-relaxed space-y-0.5">
-              <p>- 10% processing fee: ₱{percentFee.toLocaleString()}</p>
-              <p>- Admin fee: ₱{adminFee.toLocaleString()}</p>
-              <p className="text-slate-600 font-medium">You will receive: ₱{net.toLocaleString()}</p>
-            </div>
+            <p className="text-xs text-slate-500 font-medium mt-1.5">
+              Expected to receive: ₱{net.toLocaleString()}
+            </p>
           );
         })()}
       </div>
@@ -80,7 +76,7 @@ function WithdrawalForm({ formData, submitting, submitError, submitSuccess, onCh
           required
         >
           <option value="">Select a method</option>
-          <option value="bank">Cash</option>
+          <option value="cash">Cash</option>
           <option value="bank">Bank Transfer</option>
           <option value="wallet">Gcash</option>
           <option value="crypto">Paymaya</option>
@@ -347,9 +343,8 @@ function Payout() {
                       <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
                         <span className="capitalize bg-slate-100 px-2 py-0.5 rounded">{w.paymentMethod}</span>
                         <div className="text-right space-y-0.5">
-                          <p>Amount: <span className="text-slate-800 font-medium">₱{w.amount.toLocaleString()}</span></p>
-                          <p>VAT: <span className="text-slate-600">₱{w.vat.toLocaleString()}</span></p>
-                          <p>Total: <span className="text-slate-900 font-semibold">₱{w.totalAmount.toLocaleString()}</span></p>
+                          <p>Requested: <span className="text-slate-800 font-medium">₱{w.amount.toLocaleString()}</span></p>
+                          <p>To receive: <span className="text-slate-900 font-semibold">₱{w.totalAmount.toLocaleString()}</span></p>
                         </div>
                       </div>
                     </div>
@@ -364,20 +359,19 @@ function Payout() {
                     <tr className="bg-slate-50 border-b border-slate-100">
                       <th className="text-left px-4 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date</th>
                       <th className="text-left px-4 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Method</th>
-                      <th className="text-right px-4 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Amount</th>
-                      <th className="text-right px-4 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">VAT</th>
-                      <th className="text-right px-4 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Total</th>
+                      <th className="text-right px-4 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Requested</th>
+                      <th className="text-right px-4 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">To Receive</th>
                       <th className="text-center px-4 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {loading ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-400">Loading…</td>
+                        <td colSpan={5} className="px-6 py-12 text-center text-sm text-slate-400">Loading…</td>
                       </tr>
                     ) : withdrawals.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-16 text-center">
+                        <td colSpan={5} className="px-6 py-16 text-center">
                           <div className="flex flex-col items-center gap-2">
                             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">✦</div>
                             <p className="text-slate-400 text-sm">No withdrawal records yet</p>
@@ -402,7 +396,6 @@ function Payout() {
                           </td>
                           <td className="px-4 sm:px-6 py-4 text-slate-500 capitalize">{w.paymentMethod}</td>
                           <td className="px-4 sm:px-6 py-4 text-right text-slate-900">₱{w.amount.toLocaleString()}</td>
-                          <td className="px-4 sm:px-6 py-4 text-right text-slate-500 hidden md:table-cell">₱{w.vat.toLocaleString()}</td>
                           <td className="px-4 sm:px-6 py-4 text-right font-semibold text-slate-900">₱{w.totalAmount.toLocaleString()}</td>
                           <td className="px-4 sm:px-6 py-4 text-center">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${getStatusBadge(w.status)}`}>
