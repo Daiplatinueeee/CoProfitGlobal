@@ -161,8 +161,8 @@ export class Sign5Service {
     const userId = this.toObjectId(userIdStr);
 
     const user = await this.userModel.findById(userId).select('isFree membershipTier').lean();
-    if (!user || (user as any).isFree || (user as any).membershipTier === MembershipTier.FREE) {
-      return { skipped: true, reason: 'Free accounts are not eligible for sign5 bonus' };
+    if (!user) {
+      return { skipped: true, reason: 'User not found' };
     }
 
     const mk = monthKey ?? this.currentMonthKey();

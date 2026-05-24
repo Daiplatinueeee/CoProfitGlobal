@@ -110,24 +110,25 @@ Key modules:
 
 Package pins have two types, controlled by the `isFree: boolean` field on both `ProductPin` and `User` documents.
 
-| Behavior | FREE pin (`isFree=true`) | REGULAR pin (`isFree=false`) |
-|----------|--------------------------|------------------------------|
-| Generates volume on activation | No | Yes |
-| Generates referral bonuses on placement | No | Yes |
-| Receives volume from FREE sources | No | No |
-| Receives volume from REGULAR sources | No | Yes |
-| Receives referral bonuses from FREE sources | No | No |
-| Receives referral bonuses from REGULAR sources | No | Yes |
-| Can pair (convert volume → PHP) | No (cap = 0, points flushed) | Yes |
-| Eligible for Sign5 / Leadership bonuses | No | Yes |
+**The gating rule is source-based (child-based), not recipient-based:**
 
-**How the gating works — layered defense, innermost is the wallet:**
-1. `awardActivationVolume` returns immediately when the **source** user is FREE — so volume never flows from FREE sources.
-2. `awardPlacementBonuses` returns immediately when the **incoming member** is FREE — so referral PHP never flows from FREE placements.
-3. Inside `awardPlacementBonuses`, each ancestor and the non-ancestor sponsor are individually checked for `isFree` before any credit is issued — FREE recipients are silently skipped.
-4. `sign5.service.ts` `evaluateForUser` returns immediately when the evaluated user is FREE — so Sign5 payouts are never issued to FREE accounts.
-5. `leadership.service.ts` `evaluate` returns immediately when the evaluated user is FREE — so Leadership payouts are never issued to FREE accounts.
-6. **`wallet.service.ts` `credit()` — last-resort wall**: before any idempotency check or DB write, checks if the recipient is FREE whenever the source is a bonus type (`pairing`, `repeat_binary`, `sign5`, `leadership`, `spillover`, `referral_direct`, `referral_indirect`). If FREE, logs a warning and returns early without writing a transaction. This fires even if all upstream guards are bypassed.
+| Child placed | Parent/Upline | Parent can receive? |
+|---|---|---|
+| FREE → FREE | FREE parent | ❌ No |
+| FREE → Regular | REGULAR parent | ❌ No |
+| Regular → Free | FREE parent | ✅ Yes |
+
+| Behavior | FREE child (`isFree=true`) | REGULAR child (`isFree=false`) |
+|----------|--------------------------|------------------------------|
+| Generates volume for uplines on activation | No | Yes (all uplines, regardless of their FREE/REGULAR status) |
+| Generates referral bonuses for uplines | No | Yes (all uplines, regardless of their FREE/REGULAR status) |
+| Uplines eligible for Sign5 / Leadership bonuses from this activation | No | Yes (including FREE uplines) |
+| Upline pairing cap when volume arrives | N/A (no volume flows) | FREE uplines: 3/cycle (BRONZE-equivalent); REGULAR uplines: tier cap |
+
+**How the gating works — source-only defense:**
+1. `awardActivationVolume` returns immediately when the **source** (child) user is FREE — so volume never flows from FREE sources.
+2. `awardPlacementBonuses` returns immediately when the **incoming member** (child) is FREE — so referral PHP never flows from FREE placements.
+3. All recipient-level checks are intentionally absent — FREE uplines/ancestors receive everything a REGULAR upline would when a REGULAR child activates below them.
 
 **Pin format conventions:**
 - FREE pins: first character is `'F'` (e.g., `"FA1234"`) — visual identifier for admins; `isFree: true`
@@ -146,6 +147,20 @@ Package pins have two types, controlled by the `isFree: boolean` field on both `
 | `withdrawal.service.ts` `submitRequest` + `approve` | Changed fee model: `totalAmount` now stores net payout (`amount − 10% − ₱50`); balance check validates against `amount` only; `approve` debits `doc.amount` not `doc.totalAmount` | "Insufficient balance" error when user had exactly enough (old code required `amount + 10% + ₱50` in wallet); also prevented admin from over-debiting the net payout amount instead of the full requested amount |
 | `Payout.tsx` payment method options | Gave "Cash" its own `value="cash"` (was duplicating `value="bank"` with Bank Transfer) | Selecting "Cash" was stored as `bank` and displayed as "Bank Transfer" in admin pending payouts |
 | `PendingPayouts.tsx` | Added `PAYMENT_METHOD_LABELS` map (`cash→Cash`, `bank→Bank Transfer`, `wallet→Gcash`, `crypto→Paymaya`); renamed "Amount" header to "Amount Requested"; removed "Total" column | Payment method values were displayed as raw keys (e.g. `bank`) instead of human-readable labels |
+
+**Changes made (2026-05-24 rev 3) — source-based gating concept:**
+
+Gating model changed from **recipient-based** to **source-based**. The child's `isFree` status determines whether any bonuses flow — the recipient's status is irrelevant.
+
+| Location | Change | Purpose |
+|----------|--------|---------|
+| `genealogy.service.ts` `awardPlacementBonuses` | Removed `sponsorIsFree` guard on non-ancestor sponsor path | FREE sponsors now receive direct referral PHP when a REGULAR child is placed |
+| `genealogy.service.ts` `awardPlacementBonuses` | Removed `ancestor.isFree` / `ancestor.membershipTier === FREE` guard in ancestor loop | FREE ancestors now receive direct/indirect referral PHP when a REGULAR child is placed |
+| `wallet.service.ts` `credit()` | Removed FREE recipient bonus guard entirely | FREE users can now receive all bonus types (pairing, sign5, leadership, referral) when they earned them from REGULAR sources |
+| `sign5.service.ts` `evaluateForUser` | Removed FREE user early exit | FREE users now qualify for Sign5 payouts if they sponsored REGULAR members |
+| `leadership.service.ts` `evaluate` | Removed FREE user early exit | FREE users now qualify for Leadership payouts if their downline (REGULAR) generated sufficient pairing volume |
+| `pairing.service.ts` `TIER_CAP_MAP[FREE]` | Changed from `0` to `3` (BRONZE-equivalent) | FREE users can now convert volume to PHP via pairing (up to 3 pairs/cycle) when REGULAR children activated below them |
+| `pairing.service.ts` `tryPairIfPossible` | Removed `isFree ? 0` dailyCap override | FREE user pairing cap now reads from TIER_CAP_MAP (3) instead of being hard-forced to 0 |
 
 ### CORS
 Backend allows: `https://co-profit-global.vercel.app`, `https://coprofit-global.com`, `https://www.coprofit-global.com`, `http://localhost:5173`. Credentials are enabled for cookie handling.

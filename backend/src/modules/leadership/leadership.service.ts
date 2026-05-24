@@ -194,8 +194,8 @@ export class LeadershipService {
     const userId = this.toObjectId(userIdStr);
 
     const user = await this.userModel.findById(userId).select('membershipTier isFree').lean();
-    if (!user || (user as any).membershipTier === MembershipTier.FREE || (user as any).isFree) {
-      return { skipped: true, reason: 'Free accounts are not eligible for leadership bonus' };
+    if (!user) {
+      return { skipped: true, reason: 'User not found' };
     }
 
     const mk = monthKey ?? this.currentMonthKey();

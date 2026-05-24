@@ -679,15 +679,7 @@ export class GenealogyService {
       (a) => a.toString() === sponsorUserId,
     )
 
-    const sponsorUser = await this.userModel
-      .findById(this.toObjectId(sponsorUserId))
-      .select('isFree membershipTier')
-      .lean()
-    const sponsorIsFree =
-      (sponsorUser as any)?.isFree ||
-      (sponsorUser as any)?.membershipTier === MembershipTier.FREE
-
-    if (!sponsorIsAncestor && !sponsorIsFree) {
+    if (!sponsorIsAncestor) {
       const amount = this.DIRECT_BONUS[membershipTier] ?? 0
       if (amount > 0) {
         await this.walletService.credit({
@@ -710,7 +702,7 @@ export class GenealogyService {
         const [ancestor, ancestorNode] = await Promise.all([
           this.userModel
             .findById(ancestorObjId)
-            .select('countedIndirectDepths isFree membershipTier')
+            .select('countedIndirectDepths')
             .lean(),
           this.genealogyModel
             .findOne({ userId: ancestorObjId })
@@ -719,7 +711,6 @@ export class GenealogyService {
         ])
 
         if (!ancestor || !ancestorNode) return
-        if ((ancestor as any).isFree || (ancestor as any).membershipTier === MembershipTier.FREE) return
 
         const depthDiff       = childNode.depth - (ancestorNode as any).depth
         const isDirectRecruit = sponsorUserId === ancestorId

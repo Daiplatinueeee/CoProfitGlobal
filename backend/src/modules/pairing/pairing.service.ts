@@ -48,7 +48,7 @@ export class PairingService {
    * are flushed to 0 — they do NOT carry over.
    */
   private readonly TIER_CAP_MAP: Record<MembershipTier, number> = {
-    [MembershipTier.FREE]:     0,
+    [MembershipTier.FREE]:     3,
     [MembershipTier.BRONZE]:   3,
     [MembershipTier.SILVER]:   16,
     [MembershipTier.GOLD]:     30,
@@ -197,7 +197,7 @@ export class PairingService {
 
     const tier            = (user as any).membershipTier as MembershipTier ?? MembershipTier.BRONZE;
     const tierUpgradedAt  = (user as any).tierUpgradedAt as Date | null ?? null;
-    const dailyCap        = (user as any).isFree ? 0 : this.getCapForTier(tier);
+    const dailyCap        = this.getCapForTier(tier);
 
     // ── Fetch live bucket values ─────────────────────────────────────────
     // Must happen BEFORE the cap check so we can flush even when cap=0.
