@@ -11,6 +11,7 @@ interface WithdrawalRecord {
   totalAmount: number;
   paymentMethod: string;
   accountName: string;
+  contactNumber: string;
   notes: string;
   status: string;
   createdAt: string;
@@ -147,18 +148,97 @@ function PendingPayouts() {
             </span>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
+          {/* Mobile: Card List */}
+          <div className="block sm:hidden divide-y divide-slate-50">
+            {loading ? (
+              <div className="px-4 py-12 text-center text-sm text-slate-400">Loading…</div>
+            ) : records.length === 0 ? (
+              <div className="px-4 py-16 text-center">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">✦</div>
+                  <p className="text-slate-400 text-sm">No pending payouts</p>
+                  <p className="text-slate-300 text-xs">All requests have been processed</p>
+                </div>
+              </div>
+            ) : (
+              records.map((w) => (
+                <div key={w.id} className="px-4 py-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">
+                        {new Date(w.createdAt).toLocaleDateString('en-US', {
+                          year: 'numeric', month: 'short', day: 'numeric',
+                        })}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {new Date(w.createdAt).toLocaleTimeString('en-US', {
+                          hour: '2-digit', minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200">
+                      <Clock className="w-3 h-3" />
+                      Pending
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-3">
+                    <div>
+                      <span className="text-slate-400">Method</span>
+                      <p className="text-slate-700 font-medium mt-0.5">{formatPaymentMethod(w.paymentMethod) || '—'}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Requested</span>
+                      <p className="text-slate-900 font-semibold mt-0.5">₱{w.amount.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Account</span>
+                      <p className="text-slate-700 font-medium mt-0.5">{w.accountName || '—'}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">VAT</span>
+                      <p className="text-slate-700 font-medium mt-0.5">₱{w.vat.toLocaleString()}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-slate-400">Contact</span>
+                      <p className="text-slate-700 font-medium mt-0.5">{w.contactNumber || '—'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleApprove(w.id)}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition-colors"
+                    >
+                      <Check className="w-3 h-3" />
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleDecline(w.id)}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200 hover:bg-red-100 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop: Table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date</th>
-                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden sm:table-cell">Method</th>
-                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">Account</th>
-                  <th className="text-right px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Requested</th>
-                  <th className="text-right px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden lg:table-cell">VAT</th>
-                  <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">Status</th>
-                  <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Actions</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Method</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Account</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden lg:table-cell">Contact</th>
+                  <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Requested</th>
+                  <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden lg:table-cell">VAT</th>
+                  <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Status</th>
+                  <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -179,8 +259,8 @@ function PendingPayouts() {
                 ) : (
                   records.map((w) => (
                     <tr key={w.id} className="hover:bg-slate-50 transition-colors duration-150">
-                      <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        <p className="font-medium text-slate-900 text-xs sm:text-sm">
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-slate-900">
                           {new Date(w.createdAt).toLocaleDateString('en-US', {
                             year: 'numeric', month: 'short', day: 'numeric',
                           })}
@@ -191,28 +271,29 @@ function PendingPayouts() {
                           })}
                         </p>
                       </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-slate-500 hidden sm:table-cell">{formatPaymentMethod(w.paymentMethod) || '—'}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-slate-500 hidden md:table-cell">{w.accountName || '—'}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-right text-slate-900 text-xs sm:text-sm">₱{w.amount.toLocaleString()}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-right text-slate-500 hidden lg:table-cell">₱{w.vat.toLocaleString()}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-center hidden md:table-cell">
+                      <td className="px-6 py-4 text-slate-500">{formatPaymentMethod(w.paymentMethod) || '—'}</td>
+                      <td className="px-6 py-4 text-slate-500">{w.accountName || '—'}</td>
+                      <td className="px-6 py-4 text-slate-500 hidden lg:table-cell">{w.contactNumber || '—'}</td>
+                      <td className="px-6 py-4 text-right text-slate-900">₱{w.amount.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-right text-slate-500 hidden lg:table-cell">₱{w.vat.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-center">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200">
                           <Clock className="w-3 h-3" />
                           Pending
                         </span>
                       </td>
-                      <td className="px-3 sm:px-6 py-4">
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => handleApprove(w.id)}
-                            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition-colors"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition-colors"
                           >
                             <Check className="w-3 h-3" />
                             Approve
                           </button>
                           <button
                             onClick={() => handleDecline(w.id)}
-                            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200 hover:bg-red-100 transition-colors"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200 hover:bg-red-100 transition-colors"
                           >
                             <X className="w-3 h-3" />
                             Decline

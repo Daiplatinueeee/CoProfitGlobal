@@ -17,6 +17,7 @@ export enum WalletTxnType {
 export enum WalletTxnSource {
   PAIRING             = 'pairing',
   PAIRING_FLUSH       = 'pairing_flush',
+  PAIRING_CAP_REACHED = 'pairing_cap_reached',
   REPEAT_BINARY       = 'repeat_binary',
   REPEAT_BINARY_DEBIT = 'repeat_binary_debit',
   SIGN5               = 'sign5',

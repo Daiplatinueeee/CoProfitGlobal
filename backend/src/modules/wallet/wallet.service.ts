@@ -287,6 +287,7 @@ export class WalletService {
     leftFlushed: number;
     rightFlushed: number;
     periodKey: string;
+    source?: WalletTxnSource;
     note?: string;
     meta?: Record<string, any>;
   }) {
@@ -304,7 +305,7 @@ export class WalletService {
       currency: WalletCurrency.POINTS,
       type:     WalletTxnType.DEBIT,
       amount:   totalFlushed,
-      source:   WalletTxnSource.PAIRING_FLUSH,
+      source:   params.source ?? WalletTxnSource.PAIRING_FLUSH,
       refKey,
       note:     params.note ?? `Pairing flush — L=${params.leftFlushed} R=${params.rightFlushed}`,
       meta:     params.meta ?? {},

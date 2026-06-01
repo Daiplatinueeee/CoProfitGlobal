@@ -24,8 +24,23 @@ const getStatusBadge = (status: string) => {
   }
 };
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash:   'Cash',
+  wallet: 'GCash',
+  crypto: 'Paymaya',
+};
+
+function formatPaymentMethod(method: string) {
+  return PAYMENT_METHOD_LABELS[method] ?? method;
+}
+
+const ACCOUNT_LABELS: Record<string, { name: string; number: string; namePlaceholder: string; numberPlaceholder: string }> = {
+  wallet: { name: 'GCash Name', number: 'GCash Number', namePlaceholder: 'Enter GCash account name', numberPlaceholder: 'e.g. 09XX XXX XXXX' },
+  crypto: { name: 'Paymaya Name', number: 'Paymaya Number', namePlaceholder: 'Enter Paymaya account name', numberPlaceholder: 'e.g. 09XX XXX XXXX' },
+};
+
 interface WithdrawalFormProps {
-  formData: { amount: string; paymentMethod: string; accountName: string; notes: string };
+  formData: { amount: string; paymentMethod: string; accountName: string; contactNumber: string };
   submitting: boolean;
   submitError: string;
   submitSuccess: string;
@@ -34,6 +49,9 @@ interface WithdrawalFormProps {
 }
 
 function WithdrawalForm({ formData, submitting, submitError, submitSuccess, onChange, onSubmit }: WithdrawalFormProps) {
+  const needsAccountFields = formData.paymentMethod === 'wallet' || formData.paymentMethod === 'crypto';
+  const labels = ACCOUNT_LABELS[formData.paymentMethod];
+
   return (
     <form onSubmit={onSubmit} className="px-4 sm:px-6 py-5 space-y-4">
 
@@ -77,42 +95,45 @@ function WithdrawalForm({ formData, submitting, submitError, submitSuccess, onCh
         >
           <option value="">Select a method</option>
           <option value="cash">Cash</option>
-          <option value="bank">Bank Transfer</option>
-          <option value="wallet">Gcash</option>
+          <option value="wallet">GCash</option>
           <option value="crypto">Paymaya</option>
         </select>
       </div>
 
-      {/* Account Name */}
-      <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
-          Account Name
-        </label>
-        <input
-          type="text"
-          name="accountName"
-          value={formData.accountName}
-          onChange={onChange}
-          placeholder="Enter account name"
-          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
-          required
-        />
-      </div>
+      {/* Account Name + Number — only for GCash / Paymaya */}
+      {needsAccountFields && labels && (
+        <>
+          <div>
+            <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+              {labels.name}
+            </label>
+            <input
+              type="text"
+              name="accountName"
+              value={formData.accountName}
+              onChange={onChange}
+              placeholder={labels.namePlaceholder}
+              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
+              required
+            />
+          </div>
 
-      {/* Notes */}
-      <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
-          Instructions or Notes
-        </label>
-        <textarea
-          name="notes"
-          value={formData.notes}
-          onChange={onChange}
-          placeholder="Add any special instructions..."
-          rows={3}
-          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300 resize-none"
-        />
-      </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+              {labels.number}
+            </label>
+            <input
+              type="tel"
+              name="contactNumber"
+              value={formData.contactNumber}
+              onChange={onChange}
+              placeholder={labels.numberPlaceholder}
+              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
+              required
+            />
+          </div>
+        </>
+      )}
 
       {submitError && (
         <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
@@ -141,7 +162,7 @@ function Payout() {
     amount: '',
     paymentMethod: '',
     accountName: '',
-    notes: '',
+    contactNumber: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -192,14 +213,17 @@ function Payout() {
     setSubmitting(true);
 
     try {
+      const needsAccount = formData.paymentMethod === 'wallet' || formData.paymentMethod === 'crypto';
       const res = await apiFetch(`${API_BASE_URL}/withdrawal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: parseFloat(formData.amount),
           paymentMethod: formData.paymentMethod,
-          accountName: formData.accountName,
-          notes: formData.notes,
+          ...(needsAccount && {
+            accountName: formData.accountName,
+            contactNumber: formData.contactNumber,
+          }),
         }),
       });
 
@@ -209,7 +233,7 @@ function Payout() {
         setSubmitError(json?.message ?? 'Failed to submit request.');
       } else {
         setSubmitSuccess('Withdrawal request submitted successfully.');
-        setFormData({ amount: '', paymentMethod: '', accountName: '', notes: '' });
+        setFormData({ amount: '', paymentMethod: '', accountName: '', contactNumber: '' });
         setShowForm(false);
         await fetchData();
       }
@@ -341,7 +365,7 @@ function Payout() {
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
-                        <span className="capitalize bg-slate-100 px-2 py-0.5 rounded">{w.paymentMethod}</span>
+                        <span className="bg-slate-100 px-2 py-0.5 rounded">{formatPaymentMethod(w.paymentMethod)}</span>
                         <div className="text-right space-y-0.5">
                           <p>Requested: <span className="text-slate-800 font-medium">₱{w.amount.toLocaleString()}</span></p>
                           <p>To receive: <span className="text-slate-900 font-semibold">₱{w.totalAmount.toLocaleString()}</span></p>
@@ -394,7 +418,7 @@ function Payout() {
                               })}
                             </p>
                           </td>
-                          <td className="px-4 sm:px-6 py-4 text-slate-500 capitalize">{w.paymentMethod}</td>
+                          <td className="px-4 sm:px-6 py-4 text-slate-500">{formatPaymentMethod(w.paymentMethod)}</td>
                           <td className="px-4 sm:px-6 py-4 text-right text-slate-900">₱{w.amount.toLocaleString()}</td>
                           <td className="px-4 sm:px-6 py-4 text-right font-semibold text-slate-900">₱{w.totalAmount.toLocaleString()}</td>
                           <td className="px-4 sm:px-6 py-4 text-center">

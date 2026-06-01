@@ -13,11 +13,6 @@ import {
   LeadershipAward,
   LeadershipAwardDocument,
 } from './schemas/leadership-award.schema';
-import {
-  GenealogyNode,
-  GenealogyNodeDocument,
-} from '../genealogy/schema/genealogy-node.schema';
-
 import { WalletService } from '../wallet/wallet.service';
 import {
   WalletCurrency,
@@ -34,9 +29,6 @@ export class LeadershipService {
     private readonly pairingAwardModel: Model<PairingAwardDocument>,
 
     private readonly unilevelProductsService: UnilevelProductsService,
-
-    @InjectModel(GenealogyNode.name)
-    private readonly genealogyNodeModel: Model<GenealogyNodeDocument>,
 
     @InjectModel(LeadershipQualification.name)
     private readonly qualModel: Model<LeadershipQualificationDocument>,
@@ -134,23 +126,23 @@ export class LeadershipService {
   }
 
   /**
-   * Get all genealogy downlines of this user.
-   * This assumes your GenealogyNode stores an `ancestors` array.
+   * Get only direct referrals of this user (users who registered with this user's referral code).
+   * Spillover members — placed under this user by someone else — are excluded.
    */
-  private async getDownlineUserIds(userId: Types.ObjectId): Promise<Types.ObjectId[]> {
-    const rows = await this.genealogyNodeModel
-      .find({
-        ancestors: userId,
-      })
-      .select('userId')
+  private async getDirectReferralUserIds(userId: Types.ObjectId): Promise<Types.ObjectId[]> {
+    const rows = await this.userModel
+      .find({ sponsorId: userId })
+      .select('_id')
       .lean();
 
-    return rows.map((r: any) => r.userId as Types.ObjectId);
+    return rows.map((r: any) => r._id as Types.ObjectId);
   }
 
   /**
    * Leadership base:
-   * total pairing payout of all downlines for the month up to asOf.
+   * total pairing payout of DIRECT REFERRALS only for the month up to asOf.
+   * Spillover members do not contribute — if a user has no direct referrals
+   * (only spillover), their leadership base is 0 and no bonus is credited.
    */
   private async computeDownlinePairingTotalPhp(
     userId: Types.ObjectId,
@@ -160,9 +152,9 @@ export class LeadershipService {
     downlineCount: number;
     totalPhp: number;
   }> {
-    const downlineUserIds = await this.getDownlineUserIds(userId);
+    const directReferralIds = await this.getDirectReferralUserIds(userId);
 
-    if (!downlineUserIds.length) {
+    if (!directReferralIds.length) {
       return {
         downlineCount: 0,
         totalPhp: 0,
@@ -173,7 +165,7 @@ export class LeadershipService {
 
     const rows = await this.pairingAwardModel
       .find({
-        userId: { $in: downlineUserIds },
+        userId: { $in: directReferralIds },
         periodKey: {
           $gte: `${monthKey}-01`,
           $lte: asOfDay,
@@ -185,7 +177,7 @@ export class LeadershipService {
     const totalPhp = rows.reduce((sum, r: any) => sum + (r.payoutPhp ?? 0), 0);
 
     return {
-      downlineCount: downlineUserIds.length,
+      downlineCount: directReferralIds.length,
       totalPhp: this.round2(totalPhp),
     };
   }

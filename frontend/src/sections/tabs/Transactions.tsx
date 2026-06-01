@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface PayoutTransaction {
   id: string;
-  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus' | 'pairing_flush' | 'gc_reward' | 'tier_upgrade';
+  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus' | 'pairing_flush' | 'pairing_cap_reached' | 'gc_reward' | 'tier_upgrade';
   amount: number;
   currency: 'php' | 'gc_points' | string;
   date: string;
@@ -17,15 +17,16 @@ interface PayoutTransaction {
 type FilterType = 'all' | PayoutTransaction['type'];
 
 const payoutTypeConfig: Record<PayoutTransaction['type'], { label: string; icon: any; badge: string }> = {
-  withdraw:          { label: 'Withdraw',         icon: TrendingUp,    badge: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
-  sign5_bonus:       { label: 'Sign5 Bonus',       icon: Gift,          badge: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200' },
-  leadership_bonus:  { label: 'Leadership Bonus',  icon: Award,         badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
-  direct_referral:   { label: 'Direct Referral',   icon: Users,         badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
-  indirect_referral: { label: 'Indirect Referral', icon: Users,         badge: 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200' },
-  pairing_bonus:     { label: 'Pairing Bonus',     icon: Zap,           badge: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
-  pairing_flush:     { label: 'Points Flushed',    icon: AlertTriangle,   badge: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' },
-  gc_reward:         { label: 'GC Reward',          icon: Gift,            badge: 'bg-teal-50 text-teal-700 ring-1 ring-teal-200' },
-  tier_upgrade:      { label: 'Package Upgrade',    icon: ArrowUpCircle,   badge: 'bg-violet-50 text-violet-700 ring-1 ring-violet-200' },
+  withdraw:            { label: 'Withdraw',           icon: TrendingUp,    badge: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
+  sign5_bonus:         { label: 'Sign5 Bonus',         icon: Gift,          badge: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200' },
+  leadership_bonus:    { label: 'Leadership Bonus',    icon: Award,         badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
+  direct_referral:     { label: 'Direct Referral',     icon: Users,         badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
+  indirect_referral:   { label: 'Indirect Referral',   icon: Users,         badge: 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200' },
+  pairing_bonus:       { label: 'Pairing Bonus',       icon: Zap,           badge: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
+  pairing_flush:       { label: 'Points Flushed',      icon: AlertTriangle, badge: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' },
+  pairing_cap_reached: { label: 'Pairing Cap Reached', icon: AlertTriangle, badge: 'bg-red-50 text-red-700 ring-1 ring-red-200' },
+  gc_reward:           { label: 'GC Reward',            icon: Gift,          badge: 'bg-teal-50 text-teal-700 ring-1 ring-teal-200' },
+  tier_upgrade:        { label: 'Package Upgrade',      icon: ArrowUpCircle, badge: 'bg-violet-50 text-violet-700 ring-1 ring-violet-200' },
 };
 
 function mapTransaction(t: any): PayoutTransaction | null {
@@ -36,14 +37,15 @@ function mapTransaction(t: any): PayoutTransaction | null {
   }
 
   const SOURCE_MAP: Record<string, PayoutTransaction['type']> = {
-    pairing:           'pairing_bonus',
-    pairing_flush:     'pairing_flush',
-    sign5:             'sign5_bonus',
-    leadership:        'leadership_bonus',
-    referral_direct:   'direct_referral',
-    referral_indirect: 'indirect_referral',
-    withdrawal:        'withdraw',
-    tier_upgrade:      'tier_upgrade',
+    pairing:              'pairing_bonus',
+    pairing_flush:        'pairing_flush',
+    pairing_cap_reached:  'pairing_cap_reached',
+    sign5:                'sign5_bonus',
+    leadership:           'leadership_bonus',
+    referral_direct:      'direct_referral',
+    referral_indirect:    'indirect_referral',
+    withdrawal:           'withdraw',
+    tier_upgrade:         'tier_upgrade',
   };
 
   const type = SOURCE_MAP[t.source];
@@ -108,7 +110,8 @@ export default function Transactions() {
   const safePage   = Math.min(currentPage, totalPages);
   const pagedTransactions = filteredTransactions.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const totalCompleted = filteredTransactions.reduce((sum, t) => sum + (t.status === 'completed' && t.type !== 'gc_reward' ? t.amount : 0), 0);
+  const FLUSH_TYPES = new Set<PayoutTransaction['type']>(['pairing_flush', 'pairing_cap_reached']);
+  const totalCompleted = filteredTransactions.reduce((sum, t) => sum + (t.status === 'completed' && t.type !== 'gc_reward' && !FLUSH_TYPES.has(t.type) ? t.amount : 0), 0);
   const totalPending   = filteredTransactions.reduce((sum, t) => sum + (t.status === 'pending'   && t.type !== 'gc_reward' ? t.amount : 0), 0);
   const totalGc        = filteredTransactions.reduce((sum, t) => sum + (t.type === 'gc_reward' ? t.amount : 0), 0);
 
@@ -121,7 +124,8 @@ export default function Transactions() {
     { value: 'indirect_referral', label: 'Indirect Ref.' },
     { value: 'pairing_bonus',     label: 'Pairing' },
     { value: 'gc_reward',         label: 'GC Reward' },
-    { value: 'pairing_flush',     label: 'Flushed' },
+    { value: 'pairing_flush',        label: 'Flushed' },
+    { value: 'pairing_cap_reached',  label: 'Cap Reached' },
     { value: 'tier_upgrade',      label: 'Upgrade' },
   ];
 
@@ -237,8 +241,12 @@ export default function Transactions() {
 
                         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                           <div className="text-right">
-                            <p className={`text-sm font-semibold ${transaction.type === 'gc_reward' ? 'text-teal-700' : 'text-slate-900'}`}>
-                              {transaction.type === 'gc_reward' ? `${transaction.amount.toLocaleString()} GC` : `₱${transaction.amount.toLocaleString()}`}
+                            <p className={`text-sm font-semibold ${transaction.type === 'gc_reward' ? 'text-teal-700' : transaction.type === 'pairing_flush' || transaction.type === 'pairing_cap_reached' ? 'text-orange-600' : 'text-slate-900'}`}>
+                              {transaction.type === 'gc_reward'
+                                ? `${transaction.amount.toLocaleString()} GC`
+                                : transaction.type === 'pairing_flush' || transaction.type === 'pairing_cap_reached'
+                                  ? `${transaction.amount.toLocaleString()} pts`
+                                  : `₱${transaction.amount.toLocaleString()}`}
                             </p>
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusBadge(transaction.status)}`}>
                               {transaction.status}
@@ -315,7 +323,8 @@ export default function Transactions() {
               { type: 'leadership_bonus',  desc: 'Monthly bonus for maintaining your team structure and tier level' },
               { type: 'sign5_bonus',       desc: 'Special bonus when you complete 5 successful pairings' },
               { type: 'withdraw',          desc: 'Your cash withdrawals from your available balance' },
-              { type: 'pairing_flush',     desc: 'Volume points discarded when the pairing cap was exceeded for this cycle' },
+              { type: 'pairing_flush',        desc: 'Volume points cleared at the end of an AM/PM cycle (midnight or noon) when leftover points were not paired' },
+              { type: 'pairing_cap_reached',  desc: 'Points discarded because the pairing cap for the current cycle was already exhausted — no PHP payout was issued' },
               { type: 'gc_reward',         desc: 'Gift Certificate earned at every 5th cumulative paired point (1, 2, 3, 4, GC, 6, 7, 8, 9, GC…)' },
               { type: 'tier_upgrade',      desc: 'Recorded when you upgrade your membership package to a higher tier' },
             ] as { type: PayoutTransaction['type']; desc: string }[]).map(({ type, desc }) => {

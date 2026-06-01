@@ -352,6 +352,7 @@ export default function UserDashboard() {
     bronzeCount: number; silverCount: number;
     goldCount: number; platinumCount: number;
     timesTriggered: { bronze: number; silver: number; gold: number; platinum: number };
+    monthCashAmountPhp: number;
   } | null>(null);
   const [sign5StatusLoading, setSign5StatusLoading] = useState(true);
 
@@ -546,13 +547,15 @@ export default function UserDashboard() {
         if (!statusRes.ok) throw new Error('Failed to fetch sign5 status');
         const data = await statusRes.json();
         if (data.status) {
-          // Extract timesTriggered from awards for each tier
+          // Extract timesTriggered and monthly cash total from awards for each tier
           const timesTriggered = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+          let monthCashAmountPhp = 0;
           for (const award of data.awards ?? []) {
             const tier = award.tier?.toLowerCase();
             if (tier && tier in timesTriggered) {
               timesTriggered[tier as keyof typeof timesTriggered] = award.timesTriggered ?? 0;
             }
+            monthCashAmountPhp += award.cashAmountPhp ?? 0;
           }
           setSign5Status({
             bronzeCount: data.status.bronzeCount ?? 0,
@@ -560,7 +563,14 @@ export default function UserDashboard() {
             goldCount: data.status.goldCount ?? 0,
             platinumCount: data.status.platinumCount ?? 0,
             timesTriggered,
+            monthCashAmountPhp,
           });
+        } else {
+          // New month — no status record yet means 0 earned this month
+          setSign5Status(prev => prev
+            ? { ...prev, monthCashAmountPhp: 0 }
+            : { bronzeCount: 0, silverCount: 0, goldCount: 0, platinumCount: 0, timesTriggered: { bronze: 0, silver: 0, gold: 0, platinum: 0 }, monthCashAmountPhp: 0 }
+          );
         }
 
         // Re-fetch income summary so the sign5Bonus card reflects the new credit
@@ -939,11 +949,11 @@ export default function UserDashboard() {
         </div>
 
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Sign-5 Bonus (PHP)</h3>
-          {incomeLoading
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Sign-5 Bonus This Month (PHP)</h3>
+          {sign5StatusLoading
             ? <Skeleton className="h-9 w-32 mb-2" />
             : <p className="text-3xl text-gray-900 mb-2">
-              ₱{formatPhp(income?.sign5Bonus ?? 0)}
+              ₱{formatPhp(sign5Status?.monthCashAmountPhp ?? 0)}
             </p>
           }
         </div>

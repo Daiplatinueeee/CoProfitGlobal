@@ -87,11 +87,15 @@ function ChangePhotoModal({
   onConfirm,
   onCancel,
   onReselect,
+  saving,
+  error,
 }: {
   previewSrc: string;
   onConfirm: () => void;
   onCancel: () => void;
   onReselect: () => void;
+  saving: boolean;
+  error: string;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -132,18 +136,25 @@ function ChangePhotoModal({
           </div>
         </div>
 
+        {error && (
+          <div className="px-6 pb-2">
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+          </div>
+        )}
         <div className="px-6 py-4 border-t border-slate-100 flex gap-2">
           <button
             onClick={onReselect}
-            className="flex-1 text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            disabled={saving}
+            className="flex-1 text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
           >
             Choose Another
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 text-sm px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700 transition-colors font-medium"
+            disabled={saving}
+            className="flex-1 text-sm px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50 transition-colors font-medium"
           >
-            Use This Photo
+            {saving ? 'Saving…' : 'Use This Photo'}
           </button>
         </div>
       </div>
@@ -329,6 +340,8 @@ function ViewMyAccount() {
   // Photo state
   const [pendingPhoto, setPendingPhoto] = useState<string | null>(null);
   const [photoSaving, setPhotoSaving] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+  const [fileInputKey, setFileInputKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Inline edit state
@@ -411,7 +424,7 @@ function ViewMyAccount() {
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    e.target.value = '';
+    setPhotoError('');
     const reader = new FileReader();
     reader.onload = (ev) => setPendingPhoto(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -420,22 +433,29 @@ function ViewMyAccount() {
   const handleConfirmPhoto = async () => {
     if (!pendingPhoto) return;
     setPhotoSaving(true);
+    setPhotoError('');
     try {
       await patchProfile({ profileImage: pendingPhoto });
       setProfile((prev) => prev ? { ...prev, profileImage: pendingPhoto } : prev);
-    } catch {
-      // silently keep the photo in UI anyway (optimistic)
-      setProfile((prev) => prev ? { ...prev, profileImage: pendingPhoto } : prev);
+      setPendingPhoto(null);
+      setFileInputKey((k) => k + 1);
+    } catch (err: any) {
+      setPhotoError(err.message ?? 'Failed to save photo. Try a smaller image.');
     } finally {
       setPhotoSaving(false);
-      setPendingPhoto(null);
     }
   };
 
-  const handleCancelPhoto = () => setPendingPhoto(null);
+  const handleCancelPhoto = () => {
+    setPendingPhoto(null);
+    setPhotoError('');
+    setFileInputKey((k) => k + 1);
+  };
 
   const handleReselectPhoto = () => {
     setPendingPhoto(null);
+    setPhotoError('');
+    setFileInputKey((k) => k + 1);
     setTimeout(() => fileInputRef.current?.click(), 50);
   };
 
@@ -490,6 +510,8 @@ function ViewMyAccount() {
           onConfirm={handleConfirmPhoto}
           onCancel={handleCancelPhoto}
           onReselect={handleReselectPhoto}
+          saving={photoSaving}
+          error={photoError}
         />
       )}
 
@@ -553,6 +575,7 @@ function ViewMyAccount() {
                   </div>
 
                   <input
+                    key={fileInputKey}
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"

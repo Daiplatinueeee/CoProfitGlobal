@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { Sign5Controller } from './sign5.controller';
 import { Sign5Service } from './sign5.service';
+import { Sign5Scheduler } from './sign5.scheduler';
 
 import { Sign5Status, Sign5StatusSchema } from './schemas/sign5-status.schema';
 import { Sign5Award, Sign5AwardSchema } from './schemas/sign5-award.schema';
@@ -23,7 +24,7 @@ import { WalletModule } from '../wallet/wallet.module';
     ]),
   ],
   controllers: [Sign5Controller],
-  providers: [Sign5Service],
+  providers: [Sign5Service, Sign5Scheduler],
   exports: [Sign5Service],
 })
 export class Sign5Module {}

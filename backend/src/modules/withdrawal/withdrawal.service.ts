@@ -52,7 +52,7 @@ export class WithdrawalService {
     } else {
       // PHP — apply VAT and validate payment details
       if (!paymentMethod) throw new BadRequestException('Payment method is required');
-      if (!accountName)   throw new BadRequestException('Account name is required');
+      if (paymentMethod !== 'cash' && !accountName) throw new BadRequestException('Account name is required');
 
       const phpBalance = balances[WalletCurrency.PHP] ?? 0;
       const adminFee  = 50;
@@ -74,6 +74,7 @@ export class WithdrawalService {
       totalAmount,
       paymentMethod,
       accountName,
+      contactNumber: dto.contactNumber ?? '',
       notes:         dto.notes ?? '',
       status:        WithdrawalStatus.PENDING,
     });
@@ -176,6 +177,7 @@ export class WithdrawalService {
       totalAmount:   doc.totalAmount ?? doc.amount,
       paymentMethod: doc.paymentMethod ?? '',
       accountName:   doc.accountName ?? '',
+      contactNumber: doc.contactNumber ?? '',
       notes:         doc.notes ?? '',
       status:        doc.status,
       adminNote:     doc.adminNote ?? '',

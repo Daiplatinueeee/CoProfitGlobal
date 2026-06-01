@@ -4,11 +4,16 @@ import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { join } from 'path';
+import * as express from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
 
   app.use(cookieParser());
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // Serve uploaded files (payment proofs, etc.)
   app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });

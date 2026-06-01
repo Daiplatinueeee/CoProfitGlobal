@@ -251,7 +251,8 @@ export class PairingService {
         leftFlushed:  leftAvailable,
         rightFlushed: rightAvailable,
         periodKey:    `${cyclePeriodPrefix}:cap:${Date.now()}`,
-        note:         `Cap exhausted — all points flushed | L=${leftAvailable} R=${rightAvailable}`,
+        source:       WalletTxnSource.PAIRING_CAP_REACHED,
+        note:         `Pairing cap reached — points cleared | L=${leftAvailable} R=${rightAvailable}`,
         meta:         { periodKey: cyclePeriodPrefix, dailyCap, capUsed, leftAvailable, rightAvailable },
       });
 
@@ -404,7 +405,8 @@ export class PairingService {
         leftFlushed,
         rightFlushed,
         periodKey,
-        note:         `Cap hit during pairing — excess flushed | L=${leftFlushed} R=${rightFlushed}`,
+        source:       WalletTxnSource.PAIRING_CAP_REACHED,
+        note:         `Pairing cap reached — excess cleared | L=${leftFlushed} R=${rightFlushed}`,
         meta:         { periodKey, dailyCap, capUsed: newCapUsed, pairedPoints, leftFlushed, rightFlushed },
       });
     }
@@ -733,14 +735,57 @@ export class PairingService {
   /**
    * Called by the scheduler at midnight and noon.
    * Resets ALL volume bucket availablePoints to 0 — end-of-cycle housekeeping.
+   * Records a PAIRING_FLUSH ("Points Flushed") transaction for every user who
+   * still had non-zero points so the cycle boundary is visible in their history.
    *
-   * This is separate from the safety-net flush that happens during pairing.
-   * The safety-net flush (both sides → 0) only fires when a pairing succeeds.
-   * This scheduler flush catches any leftover points from users who never paired.
+   * This is separate from PAIRING_CAP_REACHED which fires during the cycle when
+   * the cap is hit. Those are already cleared to 0 by the time this runs.
    */
   async flushAllAvailablePoints(): Promise<void> {
+    const now      = new Date();
+    const dateKey  = now.toISOString().slice(0, 10);
+    const cycle    = now.getHours() < 12 ? PairingCycle.AM : PairingCycle.PM;
+    const cycleKey = `${dateKey}-${cycle}`;
+
+    // Snapshot non-zero buckets BEFORE resetting
+    const nonZero = await this.bucketModel
+      .find({ availablePoints: { $gt: 0 } })
+      .select('ownerUserId leg availablePoints')
+      .lean();
+
+    // Reset all buckets to 0
     await this.bucketModel.updateMany({}, { $set: { availablePoints: 0 } });
-    this.logger.log('Cycle flush — all VolumeBucket.availablePoints reset to 0');
+    this.logger.log(
+      `Cycle flush — all VolumeBucket.availablePoints reset to 0 ` +
+      `(${nonZero.length} non-zero buckets across users)`,
+    );
+
+    // Group left + right per user
+    const userMap = new Map<string, { left: number; right: number }>();
+    for (const b of nonZero) {
+      const uid = (b as any).ownerUserId.toString();
+      if (!userMap.has(uid)) userMap.set(uid, { left: 0, right: 0 });
+      const entry = userMap.get(uid)!;
+      if ((b as any).leg === VolumeLeg.LEFT) entry.left  = (b as any).availablePoints;
+      else                                   entry.right = (b as any).availablePoints;
+    }
+
+    // Write one PAIRING_FLUSH record per user with leftover points
+    for (const [userId, { left, right }] of userMap) {
+      if (left + right <= 0) continue;
+      try {
+        await this.walletService.recordFlush({
+          userId,
+          leftFlushed:  left,
+          rightFlushed: right,
+          periodKey:    `cycle:${cycleKey}`,
+          note:         `Points flushed — cycle reset | L=${left} R=${right}`,
+          meta:         { cycleKey, leftFlushed: left, rightFlushed: right },
+        });
+      } catch (err: any) {
+        this.logger.error(`[cycleFlush] recordFlush failed for ${userId}: ${err.message}`);
+      }
+    }
   }
 
   getCurrentPeriodKey(): string {

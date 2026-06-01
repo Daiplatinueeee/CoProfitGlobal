@@ -162,5 +162,123 @@ Gating model changed from **recipient-based** to **source-based**. The child's `
 | `pairing.service.ts` `TIER_CAP_MAP[FREE]` | Changed from `0` to `3` (BRONZE-equivalent) | FREE users can now convert volume to PHP via pairing (up to 3 pairs/cycle) when REGULAR children activated below them |
 | `pairing.service.ts` `tryPairIfPossible` | Removed `isFree ? 0` dailyCap override | FREE user pairing cap now reads from TIER_CAP_MAP (3) instead of being hard-forced to 0 |
 
+**Changes made (2026-06-01) — Sign5 monthly reset scheduler:**
+
+Sign5 was only evaluated reactively (when `activateAndPlace` triggered `evaluateForUser`). There was no proactive sweep, so monthly counters never reset on the 1st of a new month unless a new activation happened for each user. Additionally, `ScheduleModule.forRoot()` was missing from `app.module.ts`, meaning ALL `@Cron` decorators in the app (including the pairing scheduler) were silently not executing.
+
+| Location | Change | Bug prevented |
+|----------|--------|---------------|
+| `app.module.ts` | Added `ScheduleModule.forRoot()` import | All `@Cron` decorators (pairing + sign5 + future) were registered but never executed without the schedule module being initialized |
+| `sign5/sign5.scheduler.ts` (new file) | `@Cron('0 0 0 1 * *')` — runs at midnight on the 1st of each month; sweeps all users and calls `evaluateForUser` for each | Sign5 monthly counters were never reset/initialized at the start of a new month unless a reactive activation happened to trigger it |
+| `sign5/sign5.module.ts` | Added `Sign5Scheduler` to `providers` array | Scheduler bean not instantiated — cron would never run |
+
+**Why each month naturally isolates (by design):**
+- `evaluateForUser` uses `currentMonthKey()` (YYYY-MM) as the document key
+- `countDirectReferralActivations` queries `User.createdAt` within the exact UTC date range of the requested month
+- `Sign5Award` and `Sign5Status` have a unique index on `(userId, monthKey[, tier])` — so each month is a separate set of documents; no carryover is possible
+- The scheduler sweep simply initializes this month's documents for all users at month-start so the UI shows 0 counts immediately (instead of showing stale prior-month data or null)
+
+**Changes made (2026-06-01 rev 2) — Sign5 bonus card shows current month, not all-time total:**
+
+The "Total Sign-5 Bonus (PHP)" dashboard card was reading `income.sign5Bonus` which comes from `user.totalSign5Bonus` — a cumulative, admin-editable all-time total that never resets. At the start of a new month it still showed the previous months' earnings.
+
+| Location | Change | Bug prevented |
+|----------|--------|---------------|
+| `userDashboard.tsx` sign5Status state | Added `monthCashAmountPhp: number` field; populated by summing `award.cashAmountPhp` across all tier awards returned by the current-month status endpoint | Old state only tracked counts and timesTriggered, not cash earned this month |
+| `userDashboard.tsx` sign5Status setter | Added `else` branch when `data.status` is null (no awards yet this month): sets `monthCashAmountPhp: 0` | Without this, a brand-new month with no referrals would leave `monthCashAmountPhp` from the previous render (stale) |
+| `userDashboard.tsx` Sign-5 Bonus card | Changed data source from `income?.sign5Bonus` (all-time wallet total from User doc) to `sign5Status?.monthCashAmountPhp` (current-month awards sum); uses `sign5StatusLoading` spinner; renamed label to "Sign-5 Bonus This Month (PHP)" | Card showed ₱500 (or any prior total) instead of ₱0 on the first of a new month |
+
+**Do not revert to `income.sign5Bonus` for this card.** `income.sign5Bonus` (`user.totalSign5Bonus`) is intentionally cumulative and admin-editable — it is correct for the "total earnings breakdown" use case but wrong for a per-month progress indicator.
+
+**Changes made (2026-06-01 rev 3) — Pairing flush label differentiation + amount display fix:**
+
+Two pairing-flush scenarios were conflated under a single `PAIRING_FLUSH` source, causing wrong labels and incorrect PHP totals.
+
+**The two flush scenarios (now distinct):**
+
+| Scenario | When | Source enum | Frontend label |
+|----------|------|-------------|----------------|
+| Cap exhausted, no pairing fired | Both buckets have points but cap is already at limit — both cleared, ₱0 payout | `PAIRING_CAP_REACHED` | "Pairing Cap Reached" |
+| Cap hit DURING pairing, excess cleared | Last pairing of the cycle fires, remainder beyond what was paired is discarded | `PAIRING_CAP_REACHED` | "Pairing Cap Reached" |
+| End-of-cycle scheduler flush (midnight/noon) | Scheduler resets all buckets; leftover points from users who never paired are cleared | `PAIRING_FLUSH` | "Points Flushed" |
+
+| Location | Change | Bug prevented |
+|----------|--------|---------------|
+| `wallet-transaction.schema.ts` | Added `PAIRING_CAP_REACHED = 'pairing_cap_reached'` to `WalletTxnSource` | No enum to differentiate cap events from cycle-boundary flushes |
+| `wallet.service.ts` `recordFlush` | Added optional `source` param (default: `PAIRING_FLUSH`) | All flush records used `PAIRING_FLUSH` regardless of cause |
+| `pairing.service.ts` cap-exhausted branch | `source: PAIRING_CAP_REACHED`, note changed to "Pairing cap reached — points cleared" | Showed "Points Flushed" label when cap was hit mid-cycle |
+| `pairing.service.ts` cap-hit-during-pairing flush | `source: PAIRING_CAP_REACHED`, note changed to "Pairing cap reached — excess cleared" | Same wrong label; excess discard is also a cap event |
+| `pairing.service.ts` `flushAllAvailablePoints` | Added pre-flush snapshot of non-zero buckets; creates one `PAIRING_FLUSH` record per user with leftover points | Scheduler flush was silent — no record written, users couldn't see cycle-boundary clears |
+| `Transactions.tsx` `payoutTypeConfig` | Added `pairing_cap_reached` entry (red badge, "Pairing Cap Reached") | Type was unknown → transaction silently dropped from list |
+| `Transactions.tsx` `SOURCE_MAP` | Mapped `pairing_cap_reached` source → `pairing_cap_reached` type | — |
+| `Transactions.tsx` amount display | Flush/cap types show `N pts` (orange) not `₱N` | Points count (e.g. 9 = L+R) was rendered as "₱9" — implied PHP earned/lost |
+| `Transactions.tsx` `totalCompleted` | Excluded `pairing_flush` and `pairing_cap_reached` from PHP total | Points count was added to the "Total Completed ₱" stat, inflating it |
+| `Transactions.tsx` filter bar | Added "Cap Reached" filter button | No way to filter cap-reached events specifically |
+| `Transactions.tsx` legend | Updated "Points Flushed" description; added "Pairing Cap Reached" entry | No legend entry for the new type |
+
+**Cap reset timing (by design — no code change needed):**
+The cap used is computed via `getDailyCapUsed` which queries `PairingAward` records by `periodKey` prefix (`YYYY-MM-DD-AM` or `YYYY-MM-DD-PM`). When the PM cycle starts, the prefix changes and the cap starts fresh at 0 — no carry-over from AM. This is already correct.
+
+**Changes made (2026-06-02) — Payout form conditional fields, leadership direct-only, profile picture fix, admin table mobile:**
+
+### Payout form — payment method drives account fields
+
+Bank Transfer option and Instructions/Notes textarea removed. Account fields are now conditional on payment method:
+
+| Payment method | Fields shown |
+|----------------|--------------|
+| Cash | None (amount + method only) |
+| GCash (`wallet`) | GCash Name, GCash Number |
+| Paymaya (`crypto`) | Paymaya Name, Paymaya Number |
+
+**Do not add a catch-all account name/number for cash.** Cash requests have no account details by design.
+
+The frontend submit handler only includes `accountName` and `contactNumber` in the POST body when `paymentMethod === 'wallet' || 'crypto'` — cash submissions omit them entirely to avoid `forbidNonWhitelisted` validation errors.
+
+| Location | Change | Bug prevented |
+|----------|--------|---------------|
+| `Payout.tsx` | Removed `bank` option and `notes` textarea; added `ACCOUNT_LABELS` map; conditionally renders name+number fields based on method | Bank transfer stored as `cash`; notes field was unused dead weight |
+| `Payout.tsx` submit handler | Only spreads `accountName`/`contactNumber` when `needsAccount` is true | Sending empty `contactNumber` for cash triggered NestJS `forbidNonWhitelisted` 400 error |
+| `Payout.tsx` history display | Added `PAYMENT_METHOD_LABELS` map + `formatPaymentMethod()`; applied to mobile card and desktop table | Raw values `wallet`/`crypto` were shown instead of "GCash"/"Paymaya" |
+| `withdrawal.service.ts` `submitRequest` | `accountName` required check skips when `paymentMethod === 'cash'` | Cash submissions correctly rejected before when no account name was provided |
+| `withdrawal.service.ts` `format()` | Added `contactNumber: doc.contactNumber ?? ''` to returned object | `contactNumber` was saved to DB but never included in API responses — admin saw "—" in Contact column |
+
+### Leadership bonus — direct referrals only, not spillover
+
+Leadership base is now computed from `User.sponsorId` (direct recruits) instead of `GenealogyNode.ancestors` (full binary subtree including spillover).
+
+**Why this matters:** A user placed under you by someone else (spillover) is in your binary tree, but you did not recruit them. Their pairing earnings should not contribute to your leadership bonus. Only people who registered using your referral link (`sponsorId === yourId`) count.
+
+**If a user has zero direct referrals** (all downline is spillover), `directReferralIds.length === 0` → `totalPhp = 0` → no leadership bonus is credited regardless of tree volume.
+
+| Location | Change | Bug prevented |
+|----------|--------|---------------|
+| `leadership.service.ts` | Replaced `getDownlineUserIds` (ancestors lookup on `GenealogyNode`) with `getDirectReferralUserIds` (`User.find({ sponsorId: userId })`) | Spillover members incorrectly boosting upline's leadership bonus |
+| `leadership.module.ts` | Removed `GenealogyNode` schema import and `MongooseModule.forFeature` entry | Unused dependency — clean module boundary |
+
+### Profile picture replacement — body limit + file input reset
+
+Two separate bugs caused "cannot change profile picture after setting it once":
+
+1. Express's default 100KB JSON body limit silently rejected base64-encoded image PATCHes. The old catch block still did an optimistic UI update, so users thought the change worked until they refreshed.
+2. File input `onChange` stopped firing in some browsers after the first selection because the input element wasn't properly reset.
+
+| Location | Change | Bug prevented |
+|----------|--------|---------------|
+| `backend/src/main.ts` | `bodyParser: false` + custom `express.json({ limit: '10mb' })` and `express.urlencoded({ limit: '10mb' })` | Base64 profile images (~500KB+) were silently rejected with 413; optimistic UI hid the failure |
+| `ViewMyAccount.tsx` | Added `fileInputKey` state; file `<input>` gets `key={fileInputKey}`; key increments on confirm/cancel/reselect | `onChange` not firing on repeated file selections in some browsers — key forces full remount |
+| `ViewMyAccount.tsx` | `handleConfirmPhoto` catch block now sets `photoError` (keeps modal open showing error) instead of silently updating UI | User never knew the save failed; thought photo changed when it didn't |
+| `ViewMyAccount.tsx` | `ChangePhotoModal` accepts `saving` and `error` props; buttons disabled while saving; error banner shown in modal | No user feedback during save or on failure |
+
+**Do not revert the 10MB body limit in `main.ts`.** The default 100KB limit will break profile photo uploads silently.
+
+### PendingPayouts — mobile card view
+
+The admin pending payouts table was a single responsive table with most columns hidden below `lg`. On mobile only DATE, REQUESTED, and ACTIONS were visible — METHOD, ACCOUNT, CONTACT, VAT, and STATUS were all hidden.
+
+| Location | Change |
+|----------|--------|
+| `PendingPayouts.tsx` | Added `block sm:hidden` card list (all fields visible in 2-column grid per record, full-width action buttons) and `hidden sm:block` desktop table. Contact and VAT still hidden until `lg` on desktop only. |
+
 ### CORS
 Backend allows: `https://co-profit-global.vercel.app`, `https://coprofit-global.com`, `https://www.coprofit-global.com`, `http://localhost:5173`. Credentials are enabled for cookie handling.

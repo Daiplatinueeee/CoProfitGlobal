@@ -40,6 +40,9 @@ export class WithdrawalRequest {
   accountName: string;
 
   @Prop({ default: '' })
+  contactNumber: string;
+
+  @Prop({ default: '' })
   notes: string;
 
   @Prop({

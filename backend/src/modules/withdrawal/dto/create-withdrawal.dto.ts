@@ -19,5 +19,9 @@ export class CreateWithdrawalDto {
 
   @IsOptional()
   @IsString()
+  contactNumber?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
