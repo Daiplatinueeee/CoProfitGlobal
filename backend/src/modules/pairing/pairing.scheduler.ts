@@ -29,17 +29,10 @@ export class PairingScheduler implements OnApplicationBootstrap {
     await this.sweepAll()
   }
 
-  @Cron('0 0 0 * * *') // midnight — AM cycle starts
-  async amCycleFlush() {
-    this.logger.log('AM cycle flush — resetting all available points');
-    await this.pairingService.flushAllAvailablePoints();
-  }
-
-  @Cron('0 0 12 * * *') // noon — PM cycle starts
-  async pmCycleFlush() {
-    this.logger.log('PM cycle flush — resetting all available points');
-    await this.pairingService.flushAllAvailablePoints();
-  }
+  // NOTE: Scheduled bucket flushes (amCycleFlush / pmCycleFlush) are intentionally
+  // removed. Points persist in buckets until they are paired or the daily pairing cap
+  // is exhausted mid-cycle (which clears both buckets via PAIRING_CAP_REACHED).
+  // The daily cap itself resets automatically each AM/PM window via the periodKey prefix.
 
   @Cron('0 */15 * * * *') // every 15 minutes
   async sweepAll() {

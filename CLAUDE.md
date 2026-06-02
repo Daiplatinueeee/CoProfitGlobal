@@ -194,21 +194,21 @@ The "Total Sign-5 Bonus (PHP)" dashboard card was reading `income.sign5Bonus` wh
 
 Two pairing-flush scenarios were conflated under a single `PAIRING_FLUSH` source, causing wrong labels and incorrect PHP totals.
 
-**The two flush scenarios (now distinct):**
+**The flush scenarios:**
 
 | Scenario | When | Source enum | Frontend label |
 |----------|------|-------------|----------------|
 | Cap exhausted, no pairing fired | Both buckets have points but cap is already at limit — both cleared, ₱0 payout | `PAIRING_CAP_REACHED` | "Pairing Cap Reached" |
 | Cap hit DURING pairing, excess cleared | Last pairing of the cycle fires, remainder beyond what was paired is discarded | `PAIRING_CAP_REACHED` | "Pairing Cap Reached" |
-| End-of-cycle scheduler flush (midnight/noon) | Scheduler resets all buckets; leftover points from users who never paired are cleared | `PAIRING_FLUSH` | "Points Flushed" |
+
+**Points persist in buckets until paired or cap is hit — there is no scheduled cycle flush.**
 
 | Location | Change | Bug prevented |
 |----------|--------|---------------|
-| `wallet-transaction.schema.ts` | Added `PAIRING_CAP_REACHED = 'pairing_cap_reached'` to `WalletTxnSource` | No enum to differentiate cap events from cycle-boundary flushes |
+| `wallet-transaction.schema.ts` | Added `PAIRING_CAP_REACHED = 'pairing_cap_reached'` to `WalletTxnSource` | No enum to differentiate cap events from manual admin flushes |
 | `wallet.service.ts` `recordFlush` | Added optional `source` param (default: `PAIRING_FLUSH`) | All flush records used `PAIRING_FLUSH` regardless of cause |
-| `pairing.service.ts` cap-exhausted branch | `source: PAIRING_CAP_REACHED`, note changed to "Pairing cap reached — points cleared" | Showed "Points Flushed" label when cap was hit mid-cycle |
+| `pairing.service.ts` cap-exhausted branch | `source: PAIRING_CAP_REACHED`, note changed to "Pairing cap reached — points cleared" | Showed wrong label when cap was hit mid-cycle |
 | `pairing.service.ts` cap-hit-during-pairing flush | `source: PAIRING_CAP_REACHED`, note changed to "Pairing cap reached — excess cleared" | Same wrong label; excess discard is also a cap event |
-| `pairing.service.ts` `flushAllAvailablePoints` | Added pre-flush snapshot of non-zero buckets; creates one `PAIRING_FLUSH` record per user with leftover points | Scheduler flush was silent — no record written, users couldn't see cycle-boundary clears |
 | `Transactions.tsx` `payoutTypeConfig` | Added `pairing_cap_reached` entry (red badge, "Pairing Cap Reached") | Type was unknown → transaction silently dropped from list |
 | `Transactions.tsx` `SOURCE_MAP` | Mapped `pairing_cap_reached` source → `pairing_cap_reached` type | — |
 | `Transactions.tsx` amount display | Flush/cap types show `N pts` (orange) not `₱N` | Points count (e.g. 9 = L+R) was rendered as "₱9" — implied PHP earned/lost |
@@ -217,7 +217,9 @@ Two pairing-flush scenarios were conflated under a single `PAIRING_FLUSH` source
 | `Transactions.tsx` legend | Updated "Points Flushed" description; added "Pairing Cap Reached" entry | No legend entry for the new type |
 
 **Cap reset timing (by design — no code change needed):**
-The cap used is computed via `getDailyCapUsed` which queries `PairingAward` records by `periodKey` prefix (`YYYY-MM-DD-AM` or `YYYY-MM-DD-PM`). When the PM cycle starts, the prefix changes and the cap starts fresh at 0 — no carry-over from AM. This is already correct.
+The cap is computed via `getDailyCapUsed` which queries `PairingAward` records by `periodKey` prefix (`YYYY-MM-DD-AM` or `YYYY-MM-DD-PM`). When the next AM/PM window starts, the prefix changes and the cap starts fresh at 0 — no carry-over. This is already correct.
+
+**Do NOT add scheduled bucket flushes (`amCycleFlush` / `pmCycleFlush`) back to `pairing.scheduler.ts`.** These were removed because points must persist in buckets until paired or the daily cap is exhausted. A scheduled flush at midnight/noon would wipe all accumulated unmatched volume, causing users to lose valid points. The `flushAllAvailablePoints` method still exists for manual/admin use only.
 
 **Changes made (2026-06-02) — Payout form conditional fields, leadership direct-only, profile picture fix, admin table mobile:**
 
