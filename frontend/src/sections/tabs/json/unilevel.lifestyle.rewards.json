@@ -1,15 +1,100 @@
 [
   {
     "_id": "lr-001",
-    "name": "Eat All You Can Buffet Experience",
-    "description": "Enjoy an unlimited eat-all-you-can dining experience for two at Ayala Malls Central Bloc, featuring a wide selection of local and international dishes.",
-    "pointsCost": 100,
+    "name": "Eat All You Can",
+    "description": "Enjoy an unlimited eat-all-you-can dining experience at a partner restaurant, featuring a wide selection of local and international dishes.",
+    "pointsCost": 8,
     "imageUrl": "",
     "category": "Dining",
     "stock": 10,
-    "partner": "Ayala Malls Central Bloc",
-    "location": "Cebu IT Park, Cebu City",
+    "partner": "Partner Restaurants",
+    "location": "Various Locations",
     "validUntil": "2026-12-31",
-    "terms": "Valid for dine-in only. Advance reservation may be required depending on restaurant availability. Not valid during holidays or peak hours."
+    "terms": "Valid for dine-in only. Advance reservation may be required. Not valid during holidays or peak hours."
+  },
+  {
+    "_id": "lr-002",
+    "name": "Staycation for 2",
+    "description": "Enjoy a relaxing overnight staycation for two at a partner hotel or resort, complete with breakfast and amenities.",
+    "pointsCost": 25,
+    "imageUrl": "",
+    "category": "Travel",
+    "stock": 10,
+    "partner": "Partner Hotels & Resorts",
+    "location": "Various Locations",
+    "validUntil": "2026-12-31",
+    "terms": "Subject to room availability. Advance booking required. Blackout dates may apply."
+  },
+  {
+    "_id": "lr-003",
+    "name": "Android Phone",
+    "description": "Redeem a brand-new Android smartphone from our partner suppliers. Exact model subject to availability.",
+    "pointsCost": 60,
+    "imageUrl": "",
+    "category": "Electronics",
+    "stock": 10,
+    "partner": "CoProfitGlobal",
+    "validUntil": "2026-12-31",
+    "terms": "Model subject to stock availability. Non-transferable. Coordinate with admin for claim details."
+  },
+  {
+    "_id": "lr-004",
+    "name": "Macbook",
+    "description": "Redeem a brand-new Apple MacBook laptop. Model and specifications subject to availability at time of redemption.",
+    "pointsCost": 250,
+    "imageUrl": "",
+    "category": "Electronics",
+    "stock": 5,
+    "partner": "CoProfitGlobal",
+    "validUntil": "2026-12-31",
+    "terms": "Model subject to stock availability. Non-transferable. Coordinate with admin for claim details."
+  },
+  {
+    "_id": "lr-005",
+    "name": "Motorcycle",
+    "description": "Redeem a brand-new motorcycle from our partner dealers. Model and color subject to availability.",
+    "pointsCost": 500,
+    "imageUrl": "",
+    "category": "Vehicle",
+    "stock": 5,
+    "partner": "CoProfitGlobal",
+    "validUntil": "2026-12-31",
+    "terms": "Unit subject to stock and dealer availability. Non-transferable. Additional documentation may be required for registration."
+  },
+  {
+    "_id": "lr-006",
+    "name": "Sedan Car",
+    "description": "Redeem a brand-new sedan from our partner dealerships. Color and variant subject to availability at time of redemption.",
+    "pointsCost": 5000,
+    "imageUrl": "",
+    "category": "Vehicle",
+    "stock": 3,
+    "partner": "CoProfitGlobal",
+    "validUntil": "2026-12-31",
+    "terms": "Unit subject to stock and dealer availability. Non-transferable. Additional documentation required for registration and transfer of ownership."
+  },
+  {
+    "_id": "lr-007",
+    "name": "SUV Car",
+    "description": "Redeem a brand-new SUV from our partner dealerships. Color and variant subject to availability at time of redemption.",
+    "pointsCost": 10000,
+    "imageUrl": "",
+    "category": "Vehicle",
+    "stock": 2,
+    "partner": "CoProfitGlobal",
+    "validUntil": "2026-12-31",
+    "terms": "Unit subject to stock and dealer availability. Non-transferable. Additional documentation required for registration and transfer of ownership."
+  },
+  {
+    "_id": "lr-008",
+    "name": "House and Lot",
+    "description": "Redeem a house and lot property from our partner developers. Location and specifications subject to availability.",
+    "pointsCost": 25000,
+    "imageUrl": "",
+    "category": "Real Estate",
+    "stock": 1,
+    "partner": "CoProfitGlobal",
+    "validUntil": "2026-12-31",
+    "terms": "Subject to property availability and developer terms. Additional legal documentation required. Coordinate with admin for full details."
   }
 ]

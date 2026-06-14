@@ -9,6 +9,7 @@ import {
   BanknoteArrowDown,
   HandCoins,
   User,
+  Trophy,
 } from 'lucide-react';
 
 import Genealogy from '../tabs/Genealogy';
@@ -18,6 +19,7 @@ import Subscription from '../tabs/Subscription';
 import ReferalsHierarchy from '../tabs/ReferalsHierarchy';
 import WithdrawGC from '../tabs/WithdrawGC';
 import UnilevelProducts from '../tabs/UnilevelProducts';
+import StairstepProgram from '../tabs/StairstepProgram';
 import Transactions from '../tabs/Transactions'
 import ViewMyAccount from '../tabs/ViewMyAccount';
 
@@ -678,6 +680,7 @@ export default function UserDashboard() {
     { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown },
     { id: 'transactions', label: 'Transactions', icon: HandCoins},
     { id: 'viewaccount', label: 'View Account', icon: User, },
+    { id: 'stairstep', label: 'Stairstep Program', icon: Trophy },
   ], []);
 
   // ── Skeleton helper ───────────────────────────────────────────────────
@@ -1385,6 +1388,7 @@ export default function UserDashboard() {
       'unilevel-package': <UnilevelProducts />,
       'transactions': <Transactions />,
       'viewaccount': <ViewMyAccount />,
+      'stairstep': <StairstepProgram />,
     };
     return contents[activeTab] || <div />;
   };

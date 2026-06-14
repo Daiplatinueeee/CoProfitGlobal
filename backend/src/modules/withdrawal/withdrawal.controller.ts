@@ -19,6 +19,24 @@ export class WithdrawalController {
   }
 
   /**
+   * PATCH /withdrawal/:id
+   * User updates their own pending request (re-locks the new amount).
+   */
+  @Patch(':id')
+  update(@Request() req: any, @Param('id') id: string, @Body() dto: CreateWithdrawalDto) {
+    return this.withdrawalService.updateRequest(req.user.sub, id, dto);
+  }
+
+  /**
+   * PATCH /withdrawal/:id/cancel
+   * User cancels their own pending request and gets the amount refunded.
+   */
+  @Patch(':id/cancel')
+  cancel(@Request() req: any, @Param('id') id: string) {
+    return this.withdrawalService.cancelRequest(req.user.sub, id);
+  }
+
+  /**
    * GET /withdrawal/my?currency=gc_points
    * Returns the current user's withdrawal history, optionally filtered by currency.
    */

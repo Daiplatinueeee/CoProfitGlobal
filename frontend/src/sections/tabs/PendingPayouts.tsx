@@ -28,6 +28,13 @@ function formatPaymentMethod(method: string) {
   return PAYMENT_METHOD_LABELS[method] ?? method;
 }
 
+function formatAccountDetails(accountName: string, contactNumber: string, paymentMethod: string) {
+  if (paymentMethod === 'cash') return { primary: accountName || '—', secondary: '' };
+  const primary = accountName || contactNumber || '—';
+  const secondary = accountName && contactNumber ? contactNumber : '';
+  return { primary, secondary };
+}
+
 function PendingPayouts() {
   const [records, setRecords]     = useState<WithdrawalRecord[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -193,15 +200,23 @@ function PendingPayouts() {
                     </div>
                     <div>
                       <span className="text-slate-400">Account</span>
-                      <p className="text-slate-700 font-medium mt-0.5">{w.accountName || '—'}</p>
+                      {(() => {
+                        const { primary, secondary } = formatAccountDetails(w.accountName, w.contactNumber, w.paymentMethod);
+                        return (
+                          <>
+                            <p className="text-slate-700 font-medium mt-0.5">{primary}</p>
+                            {secondary && <p className="text-slate-400 text-xs">{secondary}</p>}
+                          </>
+                        );
+                      })()}
                     </div>
                     <div>
                       <span className="text-slate-400">VAT</span>
                       <p className="text-slate-700 font-medium mt-0.5">₱{w.vat.toLocaleString()}</p>
                     </div>
-                    <div className="col-span-2">
-                      <span className="text-slate-400">Contact</span>
-                      <p className="text-slate-700 font-medium mt-0.5">{w.contactNumber || '—'}</p>
+                    <div className="col-span-2 pt-1 border-t border-slate-100">
+                      <span className="text-slate-400">To Receive</span>
+                      <p className="text-emerald-700 font-bold mt-0.5">₱{w.totalAmount.toLocaleString()}</p>
                     </div>
                   </div>
 
@@ -237,6 +252,7 @@ function PendingPayouts() {
                   <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden lg:table-cell">Contact</th>
                   <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Requested</th>
                   <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden lg:table-cell">VAT</th>
+                  <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">To Receive</th>
                   <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Status</th>
                   <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Actions</th>
                 </tr>
@@ -244,11 +260,11 @@ function PendingPayouts() {
               <tbody className="divide-y divide-slate-50">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-400">Loading…</td>
+                    <td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">Loading…</td>
                   </tr>
                 ) : records.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-16 text-center">
+                    <td colSpan={9} className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">✦</div>
                         <p className="text-slate-400 text-sm">No pending payouts</p>
@@ -272,10 +288,23 @@ function PendingPayouts() {
                         </p>
                       </td>
                       <td className="px-6 py-4 text-slate-500">{formatPaymentMethod(w.paymentMethod) || '—'}</td>
-                      <td className="px-6 py-4 text-slate-500">{w.accountName || '—'}</td>
-                      <td className="px-6 py-4 text-slate-500 hidden lg:table-cell">{w.contactNumber || '—'}</td>
+                      <td className="px-6 py-4">
+                        {(() => {
+                          const { primary, secondary } = formatAccountDetails(w.accountName, w.contactNumber, w.paymentMethod);
+                          return (
+                            <>
+                              <p className="text-slate-700">{primary}</p>
+                              {secondary && <p className="text-xs text-slate-400 mt-0.5">{secondary}</p>}
+                            </>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-6 py-4 text-slate-500 hidden lg:table-cell">
+                        {w.paymentMethod === 'cash' ? '—' : w.contactNumber || '—'}
+                      </td>
                       <td className="px-6 py-4 text-right text-slate-900">₱{w.amount.toLocaleString()}</td>
                       <td className="px-6 py-4 text-right text-slate-500 hidden lg:table-cell">₱{w.vat.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-right font-semibold text-emerald-700">₱{w.totalAmount.toLocaleString()}</td>
                       <td className="px-6 py-4 text-center">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200">
                           <Clock className="w-3 h-3" />

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/apiFetch';
 import {
   CheckCircle, AlertCircle, KeyRound, Gift, ShoppingBag,
-  MapPin, Tag, History, Copy, Lock, ShieldCheck, Sparkles,
+  MapPin, Tag, Copy, Lock, ShieldCheck, Sparkles,
   TicketCheck, ArrowRight, FlaskConical, Upload, X, Clock,
   XCircle, CalendarClock,
 } from 'lucide-react';
@@ -13,11 +13,27 @@ import sampleLifestyleRewards from './json/unilevel.lifestyle.rewards.json';
 
 import redeem1 from '../../assets/lifestyle rewards/Eat-All-You-Can-Restaurants-in-IT-Park-Cebu-11-1024x683.jpg';
 
+import redeem2 from '../../assets/lifestyle rewards/staycation-ideas.jpg';
+
+import redeem3 from '../../assets/lifestyle rewards/Android_phone.jpg';
+import redeem4 from '../../assets/lifestyle rewards/macbook-6_hgfm.jpg';
+import redeem5 from '../../assets/lifestyle rewards/yamaha-mio-aerox-31196.avif';
+import redeem6 from '../../assets/lifestyle rewards/sedan.jpg';
+import redeem7 from '../../assets/lifestyle rewards/syv.jpg';
+import redeem8 from '../../assets/lifestyle rewards/house.webp';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // ─── Reward Images ────────────────────────────────────────────────────────────
 const rewardImages: Record<string, string> = {
   'lr-001': redeem1,
+  'lr-002': redeem2,
+  'lr-003': redeem3,
+  'lr-004': redeem4,
+  'lr-005': redeem5,
+  'lr-006': redeem6,
+  'lr-007': redeem7,
+  'lr-008': redeem8
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -826,75 +842,6 @@ export default function UnilevelProducts() {
         </div>
       )}
 
-      {/* ── Redemption History (table untouched) ── */}
-      <div className="mt-10">
-        <div className="flex items-center gap-2 mb-4">
-          <History size={15} className="text-slate-400" />
-          <h3 className="text-sm font-semibold text-slate-900">Redemption History</h3>
-        </div>
-
-        {rewardHistoryLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-12 bg-slate-50 rounded-xl animate-pulse" />
-            ))}
-          </div>
-        ) : rewardRedemptions.length === 0 ? (
-          <div className="rounded-xl border border-slate-100 py-10 text-center">
-            <Gift size={28} className="mx-auto mb-2 text-slate-200" />
-            <p className="text-xs text-slate-400">No rewards redeemed yet</p>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-slate-100 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Reward</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden sm:table-cell">Coupon Code</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">PV Used</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {rewardRedemptions.map(r => (
-                  <tr key={r._id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <p className="text-xs font-medium text-slate-800">{r.rewardName}</p>
-                      <p className="text-xs font-mono text-violet-600 mt-0.5 sm:hidden">{r.couponCode}</p>
-                    </td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded">
-                          {r.couponCode}
-                        </span>
-                        <button
-                          onClick={() => handleCopyCoupon(r.couponCode)}
-                          className="text-slate-300 hover:text-slate-500 transition-colors"
-                          title="Copy coupon code"
-                        >
-                          {copiedCode === r.couponCode
-                            ? <CheckCircle size={12} className="text-emerald-500" />
-                            : <Copy size={12} />
-                          }
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="text-xs font-semibold text-violet-700">{r.pvCost.toLocaleString()} PV</span>
-                    </td>
-                    <td className="px-4 py-3 text-right hidden md:table-cell">
-                      <span className="text-xs text-slate-400">
-                        {new Date(r.redeemedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
       {/* ── Redemption Success Modal ── */}
       {lastRedemption && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -985,13 +932,25 @@ export default function UnilevelProducts() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {rewardRedemptions.map(r => (
+          {rewardRedemptions.map(r => {
+            const matchedReward = rewards.find(rw => rw.name === r.rewardName);
+            const rewardImg = matchedReward ? rewardImages[matchedReward._id] : undefined;
+            return (
             <div
               key={r._id}
               className="relative bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm group"
             >
-              {/* Top accent strip */}
-              <div className="h-1 bg-linear-to-r from-violet-400 to-violet-600" />
+              {/* Reward image */}
+              {rewardImg ? (
+                <div className="aspect-video overflow-hidden bg-slate-100">
+                  <img src={rewardImg} alt={r.rewardName} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="aspect-video bg-linear-to-br from-violet-50 to-violet-100 flex flex-col items-center justify-center gap-1">
+                  <Gift size={36} className="text-violet-300" />
+                  <span className="text-xs font-medium text-violet-400">{matchedReward?.category ?? 'Reward'}</span>
+                </div>
+              )}
 
               {/* Ticket notch decorations */}
               <div className="absolute left-0 top-1/2 -translate-y-1/2 w-3 h-5 bg-slate-50 rounded-r-full border-r border-t border-b border-slate-100" />
@@ -1039,7 +998,8 @@ export default function UnilevelProducts() {
                 </div>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
     </div>

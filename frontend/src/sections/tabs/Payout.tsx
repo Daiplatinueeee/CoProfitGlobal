@@ -20,6 +20,7 @@ const getStatusBadge = (status: string) => {
     case 'completed': return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
     case 'pending': return 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200';
     case 'rejected': return 'bg-red-50 text-red-700 ring-1 ring-red-200';
+    case 'cancelled': return 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
     default: return 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
   }
 };
@@ -44,16 +45,27 @@ interface WithdrawalFormProps {
   submitting: boolean;
   submitError: string;
   submitSuccess: string;
+  isEditing: boolean;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  onCancelEdit: () => void;
 }
 
-function WithdrawalForm({ formData, submitting, submitError, submitSuccess, onChange, onSubmit }: WithdrawalFormProps) {
+function WithdrawalForm({ formData, submitting, submitError, submitSuccess, isEditing, onChange, onSubmit, onCancelEdit }: WithdrawalFormProps) {
+  const isCash = formData.paymentMethod === 'cash';
   const needsAccountFields = formData.paymentMethod === 'wallet' || formData.paymentMethod === 'crypto';
   const labels = ACCOUNT_LABELS[formData.paymentMethod];
 
   return (
     <form onSubmit={onSubmit} className="px-4 sm:px-6 py-5 space-y-4">
+
+      {/* Immediate deduction notice — new requests only */}
+      {!isEditing && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+          <p className="text-xs text-amber-800 font-medium">Balance deducted immediately</p>
+          <p className="text-xs text-amber-700 mt-0.5">Your wallet balance will be locked the moment you submit this request.</p>
+        </div>
+      )}
 
       {/* Amount */}
       <div>
@@ -68,15 +80,24 @@ function WithdrawalForm({ formData, submitting, submitError, submitSuccess, onCh
           placeholder="Enter amount"
           className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
           required
-          min={1}
+          min={100}
         />
-        {formData.amount && !isNaN(parseFloat(formData.amount)) && (() => {
+        {formData.amount && !isNaN(parseFloat(formData.amount)) && parseFloat(formData.amount) < 100 && (
+          <p className="mt-1.5 text-xs text-red-500">Minimum payout amount is ₱100.</p>
+        )}
+        {formData.amount && !isNaN(parseFloat(formData.amount)) && parseFloat(formData.amount) >= 100 && (() => {
           const amt = parseFloat(formData.amount);
-          const net = amt - Math.floor(amt * 0.10) - 50;
+          const fee = Math.floor(amt * 0.10);
+          const net = amt - fee - 50;
           return (
-            <p className="text-xs text-slate-500 font-medium mt-1.5">
-              Expected to receive: ₱{net.toLocaleString()}
-            </p>
+            <div className="mt-1.5 space-y-0.5">
+              <p className="text-xs text-slate-600 font-medium">
+                ₱{amt.toLocaleString()} will be deducted from your balance
+              </p>
+              <p className="text-xs text-slate-400">
+                Net cash payout: ₱{net.toLocaleString()} (10% fee ₱{fee.toLocaleString()} + ₱50 admin)
+              </p>
+            </div>
           );
         })()}
       </div>
@@ -100,7 +121,25 @@ function WithdrawalForm({ formData, submitting, submitError, submitSuccess, onCh
         </select>
       </div>
 
-      {/* Account Name + Number — only for GCash / Paymaya */}
+      {/* Full Name — cash only */}
+      {isCash && (
+        <div>
+          <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+            Full Name
+          </label>
+          <input
+            type="text"
+            name="accountName"
+            value={formData.accountName}
+            onChange={onChange}
+            placeholder="Enter your full name"
+            className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300"
+            required
+          />
+        </div>
+      )}
+
+      {/* Account Name + Number — GCash / Paymaya only */}
       {needsAccountFields && labels && (
         <>
           <div>
@@ -151,8 +190,21 @@ function WithdrawalForm({ formData, submitting, submitError, submitSuccess, onCh
         disabled={submitting}
         className="w-full bg-slate-900 hover:bg-slate-700 active:bg-slate-800 disabled:opacity-50 text-white text-sm font-medium py-3 px-4 rounded-lg transition-colors"
       >
-        {submitting ? 'Submitting…' : 'Submit Request'}
+        {submitting
+          ? (isEditing ? 'Updating…' : 'Submitting…')
+          : (isEditing ? 'Update Request' : 'Submit Request')}
       </button>
+
+      {isEditing && (
+        <button
+          type="button"
+          onClick={onCancelEdit}
+          disabled={submitting}
+          className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 text-sm font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
+        >
+          Cancel Edit
+        </button>
+      )}
     </form>
   );
 }
@@ -165,9 +217,12 @@ function Payout() {
     contactNumber: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState('');
   const [showForm, setShowForm] = useState(false); // mobile form toggle
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [showLimitModal, setShowLimitModal] = useState(false);
 
   const [availableBalance, setAvailableBalance] = useState(0);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
@@ -206,20 +261,60 @@ function Payout() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const pendingRequest = withdrawals.find((w) => w.status === 'pending') ?? null;
+
+  const resetForm = () => {
+    setFormData({ amount: '', paymentMethod: '', accountName: '', contactNumber: '' });
+    setEditingId(null);
+    setSubmitError('');
+  };
+
+  const startEdit = (w: WithdrawalRecord) => {
+    setFormData({
+      amount: String(w.amount),
+      paymentMethod: w.paymentMethod,
+      accountName: w.accountName ?? '',
+      contactNumber: (w as any).contactNumber ?? '',
+    });
+    setEditingId(w.id);
+    setSubmitError('');
+    setSubmitSuccess('');
+    setShowLimitModal(false);
+    setShowForm(true); // open mobile sheet
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitError('');
     setSubmitSuccess('');
+
+    // Minimum amount guard.
+    if (parseFloat(formData.amount) < 100) {
+      setSubmitError('Minimum payout request is ₱100.');
+      return;
+    }
+
+    // Guard: a pending request already exists and we're not editing it → show modal.
+    if (!editingId && pendingRequest) {
+      setShowLimitModal(true);
+      return;
+    }
+
     setSubmitting(true);
 
     try {
+      const isCashMethod = formData.paymentMethod === 'cash';
       const needsAccount = formData.paymentMethod === 'wallet' || formData.paymentMethod === 'crypto';
-      const res = await apiFetch(`${API_BASE_URL}/withdrawal`, {
-        method: 'POST',
+      const url = editingId
+        ? `${API_BASE_URL}/withdrawal/${editingId}`
+        : `${API_BASE_URL}/withdrawal`;
+      const res = await apiFetch(url, {
+        method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: parseFloat(formData.amount),
           paymentMethod: formData.paymentMethod,
+          ...(isCashMethod && { accountName: formData.accountName }),
           ...(needsAccount && {
             accountName: formData.accountName,
             contactNumber: formData.contactNumber,
@@ -230,10 +325,17 @@ function Payout() {
       const json = await res.json();
 
       if (!res.ok) {
-        setSubmitError(json?.message ?? 'Failed to submit request.');
+        // Backend single-request guard → show the dedicated modal.
+        if (!editingId && typeof json?.message === 'string' && json.message.includes('one payout request')) {
+          setShowLimitModal(true);
+        } else {
+          setSubmitError(json?.message ?? 'Failed to submit request.');
+        }
       } else {
-        setSubmitSuccess('Withdrawal request submitted successfully.');
-        setFormData({ amount: '', paymentMethod: '', accountName: '', contactNumber: '' });
+        setSubmitSuccess(editingId
+          ? 'Withdrawal request updated successfully.'
+          : 'Withdrawal request submitted successfully.');
+        resetForm();
         setShowForm(false);
         await fetchData();
       }
@@ -244,18 +346,39 @@ function Payout() {
     }
   };
 
+  const handleCancel = async () => {
+    if (!pendingRequest) return;
+    setCancelling(true);
+    setSubmitError('');
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/withdrawal/${pendingRequest.id}/cancel`, { method: 'PATCH' });
+      if (!res.ok) {
+        const json = await res.json();
+        setSubmitError(json?.message ?? 'Failed to cancel request.');
+      } else {
+        setSubmitSuccess('Withdrawal request cancelled. Your balance has been refunded.');
+        resetForm();
+        await fetchData();
+      }
+    } catch {
+      setSubmitError('Network error. Please try again.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const totalWithdrawn = withdrawals
     .filter((w) => w.status === 'completed')
     .reduce((sum, w) => sum + w.totalAmount, 0);
 
   const totalPending = withdrawals
     .filter((w) => w.status === 'pending')
-    .reduce((sum, w) => sum + w.totalAmount, 0);
+    .reduce((sum, w) => sum + w.amount, 0);
 
   const stats = [
     { label: 'Total Withdrawn', value: `₱${totalWithdrawn.toLocaleString()}`, sub: 'Completed withdrawals' },
-    { label: 'Total Pending', value: `₱${totalPending.toLocaleString()}`, sub: 'Awaiting processing' },
-    { label: 'Available Balance', value: `₱${availableBalance.toLocaleString()}`, sub: 'Ready to withdraw' },
+    { label: 'Total Pending', value: `₱${totalPending.toLocaleString()}`, sub: 'Locked from your balance' },
+    { label: 'Available Balance', value: `₱${availableBalance.toLocaleString()}`, sub: 'Deducted on request' },
   ];
 
   const formProps: WithdrawalFormProps = {
@@ -263,8 +386,10 @@ function Payout() {
     submitting,
     submitError,
     submitSuccess,
+    isEditing: !!editingId,
     onChange: handleInputChange,
     onSubmit: handleSubmit,
+    onCancelEdit: () => { resetForm(); setShowForm(false); },
   };
 
   return (
@@ -282,10 +407,16 @@ function Payout() {
 
           {/* Mobile: floating CTA button */}
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => {
+              if (pendingRequest) {
+                startEdit(pendingRequest);
+              } else {
+                setShowForm(true);
+              }
+            }}
             className="lg:hidden shrink-0 bg-slate-900 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors whitespace-nowrap"
           >
-            + Withdraw
+            {pendingRequest ? 'Update Request' : '+ Withdraw'}
           </button>
         </div>
 
@@ -310,10 +441,71 @@ function Payout() {
           <div className="hidden lg:block lg:col-span-1">
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden sticky top-6">
               <div className="px-6 py-5 border-b border-slate-100">
-                <h2 className="text-base font-semibold text-slate-900">Request Withdrawal</h2>
-                <p className="text-xs text-slate-400 mt-0.5">Fill in your payout details</p>
+                <h2 className="text-base font-semibold text-slate-900">
+                  {editingId ? 'Update Request' : pendingRequest ? 'Pending Request' : 'Request Withdrawal'}
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {editingId ? 'Edit your pending payout details' : pendingRequest ? 'You already have an active request' : 'Fill in your payout details'}
+                </p>
               </div>
-              <WithdrawalForm {...formProps} />
+
+              {/* If there's a pending request and we're not in edit mode, show summary instead of blank form */}
+              {pendingRequest && !editingId ? (
+                <div className="px-6 py-5 space-y-4">
+                  <div className="bg-yellow-50 border border-yellow-100 rounded-xl px-4 py-3 space-y-1">
+                    <p className="text-xs font-semibold text-yellow-800">One request at a time</p>
+                    <p className="text-xs text-yellow-700">
+                      You can only have one pending payout request. Your balance was already
+                      deducted when you submitted. Update the request below if needed.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2.5 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-xs">Deducted from Balance</span>
+                      <span className="font-semibold text-slate-900">₱{pendingRequest.amount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-xs">Net Cash Payout (after fees)</span>
+                      <span className="font-semibold text-emerald-700">₱{pendingRequest.totalAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-xs">Method</span>
+                      <span className="font-medium text-slate-700">{formatPaymentMethod(pendingRequest.paymentMethod)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-xs">Status</span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${getStatusBadge(pendingRequest.status)}`}>
+                        {pendingRequest.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {submitError && (
+                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">{submitError}</p>
+                  )}
+                  {submitSuccess && (
+                    <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">{submitSuccess}</p>
+                  )}
+
+                  <button
+                    onClick={() => startEdit(pendingRequest)}
+                    className="w-full bg-slate-900 hover:bg-slate-700 text-white text-sm font-medium py-3 px-4 rounded-lg transition-colors"
+                  >
+                    Update Payout Request
+                  </button>
+
+                  <button
+                    onClick={handleCancel}
+                    disabled={cancelling}
+                    className="w-full bg-white hover:bg-red-50 border border-red-200 text-red-600 text-sm font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {cancelling ? 'Cancelling…' : 'Cancel Request'}
+                  </button>
+                </div>
+              ) : (
+                <WithdrawalForm {...formProps} />
+              )}
             </div>
           </div>
 
@@ -472,6 +664,45 @@ function Payout() {
             {/* Scrollable form content */}
             <div className="overflow-y-auto overscroll-contain flex-1">
               <WithdrawalForm {...formProps} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Single-request Limit Modal ─── */}
+      {showLimitModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowLimitModal(false)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 text-xl mx-auto mb-4 font-bold">
+              ✕
+            </div>
+            <h3 className="text-base font-semibold text-slate-900">
+              Only one request allowed
+            </h3>
+            <p className="text-sm text-slate-500 mt-2">
+              You can only submit <span className="font-medium text-slate-700">one payout request at a time</span>.
+              Your balance was already deducted for your current pending request.
+              Update it instead of creating a new one.
+            </p>
+            <div className="mt-6 space-y-2">
+              {pendingRequest && (
+                <button
+                  onClick={() => startEdit(pendingRequest)}
+                  className="w-full bg-slate-900 hover:bg-slate-700 text-white text-sm font-medium py-3 px-4 rounded-lg transition-colors"
+                >
+                  Update My Payout Request
+                </button>
+              )}
+              <button
+                onClick={() => setShowLimitModal(false)}
+                className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 text-sm font-medium py-3 px-4 rounded-lg transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

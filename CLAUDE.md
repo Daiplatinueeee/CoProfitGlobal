@@ -87,7 +87,7 @@ Key modules:
   - `tabs/` — Sub-tabs rendered inside dashboards
 
 **Tab inventory** (in `frontend/src/tabs/`):
-- User tabs: `Genealogy`, `Pairing`, `Leaderboards`, `Transactions`, `Payout`, `ViewMyAccount`, `ReferalsHierarchy`, `Subscription`, `WithdrawGC`, `UnilevelProducts`
+- User tabs: `Genealogy`, `Pairing`, `Leaderboards`, `Transactions`, `Payout`, `ViewMyAccount`, `ReferalsHierarchy`, `Subscription`, `WithdrawGC`, `UnilevelProducts`, `StairstepProgram`
 - Admin tabs: `GeneratePin`, `GenerateProductPin`, `UsersOverview`, `PendingPayouts`, `PendingRequests`, `PendingUnilevelPurchases`, `PendingUnilevelPackages`, `PendingWithdrawGC`
 
 ### Authentication Flow
@@ -281,6 +281,90 @@ The admin pending payouts table was a single responsive table with most columns 
 | Location | Change |
 |----------|--------|
 | `PendingPayouts.tsx` | Added `block sm:hidden` card list (all fields visible in 2-column grid per record, full-width action buttons) and `hidden sm:block` desktop table. Contact and VAT still hidden until `lg` on desktop only. |
+
+**Changes made (2026-06-14) — Payout: one-request-only UX, immediate balance deduction visibility:**
+
+### Payout — one active request enforced, balance deducted on submit
+
+The backend already debits the wallet immediately when `submitRequest` is called (not on approval) and blocks a second pending request per currency. The frontend UX was not reflecting this — the form always showed blank on desktop even with a pending request, and there was no indication that the balance locks on submit.
+
+**Rule: a user may have at most one pending payout request at a time. Their wallet balance is deducted the moment they submit, not when admin approves.**
+
+| Payment state | Desktop sidebar shows | Mobile button label |
+|---|---|---|
+| No pending request | Empty new-request form | "+ Withdraw" |
+| Pending request exists (not editing) | Summary panel (amount, to-receive, method, status) + "Update Payout Request" button | "Update Request" → opens form pre-filled |
+| Editing pending request | Pre-filled update form | (bottom sheet in edit mode) |
+
+**Do not revert the desktop sidebar to always showing a blank form.** Showing an empty form when a pending request exists misleads users into thinking they can submit a second one.
+
+**Do not remove the immediate-deduction notice from the new-request form.** Users were unaware their balance would be locked on submit rather than on approval.
+
+| Location | Change | Bug / confusion prevented |
+|----------|--------|--------------------------|
+| `Payout.tsx` desktop sidebar | When `pendingRequest && !editingId`: renders a pending-request summary panel (amount, to-receive, method, status badge) with an "Update Payout Request" button; otherwise renders the form | Blank form showed even when a request existed — users tried to submit again |
+| `Payout.tsx` mobile header button | Label becomes "Update Request" and calls `startEdit(pendingRequest)` directly when a pending request exists; otherwise opens blank form | Users opened an empty form, filled it out, hit submit, then got a confusing modal |
+| `Payout.tsx` `WithdrawalForm` | Added amber notice banner at top of new-request form: "Balance deducted immediately — your wallet balance will be locked the moment you submit this request." Banner hidden when `isEditing`. | No prior indication that deduction happens at request time, not approval time |
+| `Payout.tsx` limit error modal | Heading changed to "Only one request allowed"; body explains deduction already happened; CTA changed to "Update My Payout Request" | Old modal was generic and didn't explain why or what the user should do |
+| `Payout.tsx` Available Balance stat sub-label | Changed from "Ready to withdraw" → "Deducted on request" | Old label implied no deduction had occurred yet |
+
+**Backend behavior (unchanged — correct as-is):**
+- `submitRequest`: blocks if a `PENDING` record already exists for that userId+currency; creates record then immediately calls `walletService.debit` with `refKey: withdrawal:<id>`
+- `updateRequest`: credits back the old locked amount then debits the new amount; effective available = `currentBalance + doc.amount`
+- `approve`: wallet was already debited at request time — only marks `COMPLETED`; no debit at approval
+- `reject`: calls `walletService.credit` with `refKey: withdrawal-refund:<id>:reject` to return the locked funds
+
+**Changes made (2026-06-15) — Lifestyle Rewards items, UnilevelProducts cleanup, and Stairstep Program:**
+
+### Lifestyle Rewards — 8 items added
+
+`unilevel.lifestyle.rewards.json` now contains all 8 reward tiers. All 8 reward images are imported and mapped in `UnilevelProducts.tsx` via `rewardImages`.
+
+| PV Cost | Reward | ID |
+|---------|--------|----|
+| 8 | Eat All You Can | `lr-001` |
+| 25 | Staycation for 2 | `lr-002` |
+| 60 | Android Phone | `lr-003` |
+| 250 | Macbook | `lr-004` |
+| 500 | Motorcycle | `lr-005` |
+| 5,000 | Sedan Car | `lr-006` |
+| 10,000 | SUV Car | `lr-007` |
+| 25,000 | House and Lot | `lr-008` |
+
+### UnilevelProducts — Redemption History removed; coupon images added
+
+- Removed the "Redemption History" table from `LifestyleRewardsPanel` — it was redundant with the "My Coupons" tab.
+- `MyCouponsPanel` coupon cards now show a reward image (looked up by matching `rewardName` → `rewards` state → `rewardImages[reward._id]`). Falls back to a violet gradient placeholder with the category name if no image is mapped.
+
+**Do not re-add the Redemption History table to `LifestyleRewardsPanel`.** The My Coupons tab is the canonical location for redeemed coupons.
+
+### Stairstep Program — new tab (`StairstepProgram.tsx`)
+
+Pure frontend ranking display — no backend schema changes. Rank is computed client-side from data already fetched by the dashboard (`/users/referral-data` for direct sponsor count, `/users/income` for `totalIncome`).
+
+**Rank table (both requirements must be met simultaneously):**
+
+| Rank | Title | Direct Sponsors | Accumulated Income |
+|------|-------|----------------|--------------------|
+| 5 | Distributor | 0 | ₱0 (no requirements) |
+| 4 | Rising Star | 10 | ₱99,000 |
+| 3 | Elite Builder | 20 | ₱299,000 |
+| 2 | Diamond Executive | 35 | ₱599,000 |
+| 1 | Global Ambassador | 60 | ₱1,000,000 |
+
+**Key behaviors:**
+- `getCurrentRank` iterates ranks from highest (1) to lowest (5) and returns the first one where both `directSponsors` and `totalIncome` thresholds are met.
+- Progress bars show advancement toward the next rank for each metric independently.
+- If both bars are 100%, a prompt to "contact your admin to upgrade" is shown — rank assignment is a manual admin action.
+- Ranks are displayed with expand/collapse to reveal requirements (with live "you have X" comparisons) and benefits.
+- Rank 1 (Global Ambassador) shows a "highest rank achieved" message instead of a progress section.
+
+**Wired into `userDashboard.tsx`:**
+- Import: `StairstepProgram` added
+- Menu item: `{ id: 'stairstep', label: 'Stairstep Program', icon: Trophy }`
+- Tab content: `'stairstep': <StairstepProgram />`
+
+**Do not add backend persistence for the computed rank** — rank is derived from existing income and referral data; storing it separately would create a sync problem. If the business decides ranks should be manually assigned by admin (overriding computed values), add a `rank` field to the User schema and an admin endpoint at that point.
 
 ### CORS
 Backend allows: `https://co-profit-global.vercel.app`, `https://coprofit-global.com`, `https://www.coprofit-global.com`, `http://localhost:5173`. Credentials are enabled for cookie handling.
