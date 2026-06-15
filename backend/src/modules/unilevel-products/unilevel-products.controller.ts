@@ -68,6 +68,62 @@ export class UnilevelProductsController {
     return this.service.getMyRewardRedemptionHistory(req.user.sub);
   }
 
+  /** GET /unilevel-products/my/purchase-status */
+  @Get('my/purchase-status')
+  myPackageStatus(@Request() req: any) {
+    return this.service.getMyPackageStatus(req.user.sub);
+  }
+
+  /** POST /unilevel-products/purchase-request — submit package activation request with proof */
+  @Post('purchase-request')
+  @UseInterceptors(
+    FileInterceptor('proof', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
+          cb(null, uploadDir);
+        },
+        filename: (_req, file, cb) => {
+          const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          cb(null, `pkg-proof-${unique}${extname(file.originalname)}`);
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        cb(null, /\.(jpg|jpeg|png|gif|webp|pdf)$/i.test(file.originalname));
+      },
+    }),
+  )
+  submitPackageRequest(
+    @Request() req: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('paymentMethod') paymentMethod: string,
+  ) {
+    const proofUrl = file ? `/uploads/unilevel-proofs/${file.filename}` : '';
+    return this.service.submitPackageRequest(req.user.sub, paymentMethod, proofUrl);
+  }
+
+  /** GET /unilevel-products/purchase-requests?status=pending */
+  @Get('purchase-requests')
+  listPackageRequests(@Query('status') status?: string) {
+    return this.service.listPackageRequests(status);
+  }
+
+  /** POST /unilevel-products/purchase-requests/:id/approve */
+  @Post('purchase-requests/:id/approve')
+  approvePackageRequest(@Param('id') id: string) {
+    return this.service.approvePackageRequest(id);
+  }
+
+  /** POST /unilevel-products/purchase-requests/:id/reject */
+  @Post('purchase-requests/:id/reject')
+  rejectPackageRequest(
+    @Param('id') id: string,
+    @Body('note') note: string,
+  ) {
+    return this.service.rejectPackageRequest(id, note ?? '');
+  }
+
   /** POST /unilevel-products/upload-proof — upload payment proof image */
   @Post('upload-proof')
   @UseInterceptors(

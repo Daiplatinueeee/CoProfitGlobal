@@ -292,7 +292,7 @@ export default function PendingUnilevelPackages() {
                 <div className="flex items-center gap-2 sm:flex-col sm:items-end sm:justify-center shrink-0">
                   {req.proofUrl && (
                     <button
-                      onClick={() => setViewProofUrl(req.proofUrl!)}
+                      onClick={() => setViewProofUrl(req.proofUrl!.startsWith('http') ? req.proofUrl! : `${API_BASE_URL}${req.proofUrl!}`)}
                       className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
                     >
                       <Eye size={13} />

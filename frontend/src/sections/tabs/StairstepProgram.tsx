@@ -330,7 +330,7 @@ export default function StairstepProgram() {
             All Ranks
           </h3>
 
-          {RANKS_DISPLAY.map((rankDef, idx) => {
+          {RANKS_DISPLAY.map((rankDef) => {
             const isCurrentRank = rankDef.rank === currentRank.rank;
             const isAchieved = rankDef.rank >= currentRank.rank;
             const isExpanded = expandedRank === rankDef.rank;

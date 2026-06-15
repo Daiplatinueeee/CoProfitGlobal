@@ -35,6 +35,11 @@ import {
   UnilevelPvDeduction,
   UnilevelPvDeductionDocument,
 } from './schemas/unilevel-pv-deduction.schema';
+import {
+  UnilevelPackageRequest,
+  UnilevelPackageRequestDocument,
+  PackageRequestStatus,
+} from './schemas/unilevel-package-request.schema';
 
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -66,6 +71,9 @@ export class UnilevelProductsService implements OnModuleInit {
 
     @InjectModel(UnilevelPvDeduction.name)
     private readonly pvDeductionModel: Model<UnilevelPvDeductionDocument>,
+
+    @InjectModel(UnilevelPackageRequest.name)
+    private readonly packageRequestModel: Model<UnilevelPackageRequestDocument>,
   ) {}
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -489,6 +497,94 @@ export class UnilevelProductsService implements OnModuleInit {
     return this.formatPurchase(doc.toObject());
   }
 
+  // ─── Package activation requests ────────────────────────────────────────────
+
+  async submitPackageRequest(userId: string, paymentMethod: string, proofUrl: string) {
+    const existing = await this.packageRequestModel.findOne({
+      userId: this.toObjectId(userId),
+      status: PackageRequestStatus.APPROVED,
+    }).lean();
+    if (existing) {
+      throw new BadRequestException('You have already activated the Unilevel Package.');
+    }
+
+    const request = await this.packageRequestModel.create({
+      userId:        this.toObjectId(userId),
+      paymentMethod,
+      amount:        1500,
+      proofUrl:      proofUrl ?? '',
+      status:        PackageRequestStatus.PENDING,
+    });
+    return this.formatPackageRequest(request.toObject());
+  }
+
+  async getMyPackageStatus(userId: string) {
+    const uid = this.toObjectId(userId);
+
+    const approved = await this.packageRequestModel
+      .findOne({ userId: uid, status: PackageRequestStatus.APPROVED })
+      .lean();
+    if (approved) {
+      return { status: 'approved', approvedAt: approved.approvedAt };
+    }
+
+    const pending = await this.packageRequestModel
+      .findOne({ userId: uid, status: PackageRequestStatus.PENDING })
+      .lean();
+    if (pending) {
+      return { status: 'pending' };
+    }
+
+    const rejected = await this.packageRequestModel
+      .findOne({ userId: uid, status: PackageRequestStatus.REJECTED })
+      .sort({ createdAt: -1 })
+      .lean();
+    if (rejected) {
+      return { status: 'rejected' };
+    }
+
+    return { status: 'none' };
+  }
+
+  async listPackageRequests(status?: string) {
+    const filter: Record<string, any> = {};
+    if (status && status !== 'all') filter.status = status;
+
+    const rows = await this.packageRequestModel
+      .find(filter)
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 })
+      .lean();
+    return rows.map(this.formatPackageRequest);
+  }
+
+  async approvePackageRequest(id: string) {
+    const doc = await this.packageRequestModel.findById(this.toObjectId(id));
+    if (!doc) throw new NotFoundException('Package request not found');
+    if (doc.status !== PackageRequestStatus.PENDING) {
+      throw new BadRequestException(`Request is already ${doc.status}`);
+    }
+    const now = new Date();
+    doc.status     = PackageRequestStatus.APPROVED;
+    doc.reviewedAt = now;
+    doc.approvedAt = now;
+    await doc.save();
+    return this.formatPackageRequest(doc.toObject());
+  }
+
+  async rejectPackageRequest(id: string, note: string) {
+    const doc = await this.packageRequestModel.findById(this.toObjectId(id));
+    if (!doc) throw new NotFoundException('Package request not found');
+    if (doc.status !== PackageRequestStatus.PENDING) {
+      throw new BadRequestException(`Request is already ${doc.status}`);
+    }
+    doc.status     = PackageRequestStatus.REJECTED;
+    doc.reviewNote = note ?? '';
+    doc.reviewedAt = new Date();
+    await doc.save();
+    return this.formatPackageRequest(doc.toObject());
+  }
+
   // ─── Formatters ─────────────────────────────────────────────────────────────
 
   private formatProduct(doc: any) {
@@ -545,6 +641,24 @@ export class UnilevelProductsService implements OnModuleInit {
       status:      doc.status,
       sortOrder:   doc.sortOrder ?? 0,
       createdAt:   doc.createdAt,
+    };
+  }
+
+  private formatPackageRequest(doc: any) {
+    const user = doc.userId;
+    return {
+      _id:           doc._id?.toString(),
+      userId:        user?._id?.toString() ?? user?.toString(),
+      userName:      user?.name ?? '',
+      userEmail:     user?.email ?? '',
+      paymentMethod: doc.paymentMethod,
+      amount:        doc.amount,
+      proofUrl:      doc.proofUrl ?? '',
+      status:        doc.status,
+      reviewNote:    doc.reviewNote ?? '',
+      reviewedAt:    doc.reviewedAt ?? null,
+      approvedAt:    doc.approvedAt ?? null,
+      createdAt:     doc.createdAt,
     };
   }
 

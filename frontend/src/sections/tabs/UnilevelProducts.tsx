@@ -3,7 +3,7 @@ import { apiFetch } from '../../lib/apiFetch';
 import {
   CheckCircle, AlertCircle, KeyRound, Gift, ShoppingBag,
   MapPin, Tag, Copy, Lock, ShieldCheck, Sparkles,
-  TicketCheck, ArrowRight, FlaskConical, Upload, X, Clock,
+  TicketCheck, ArrowRight, Upload, X, Clock,
   XCircle, CalendarClock,
 } from 'lucide-react';
 
@@ -1048,23 +1048,6 @@ export default function UnilevelProducts() {
             </p>
           </div>
 
-          {/* ── Simulation toggle ── */}
-          <div className="shrink-0">
-            <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-              <FlaskConical size={13} className="text-slate-400 shrink-0" />
-              <span className="text-xs font-medium text-slate-500 hidden sm:block">Simulate Purchase</span>
-              <button
-                onClick={() => setHasPurchased(v => !v)}
-                className={`relative inline-flex w-9 h-5 rounded-full transition-colors duration-200 focus:outline-none shrink-0 ${hasPurchased ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                title={hasPurchased ? 'Click to simulate not purchased' : 'Click to simulate purchased'}
-              >
-                <span
-                  className={`inline-block w-3.5 h-3.5 rounded-full bg-white shadow-sm transform transition-transform duration-200 mt-0.75 ${hasPurchased ? 'translate-x-4.75' : 'translate-x-0.75'}`}
-                />
-              </button>
-            </div>
-            <p className="text-[10px] text-slate-300 text-center mt-1">Dev only</p>
-          </div>
         </div>
 
         {/* ── Gate or main content ── */}
