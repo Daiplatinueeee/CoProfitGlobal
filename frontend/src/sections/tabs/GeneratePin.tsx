@@ -1076,17 +1076,17 @@ function GeneratePin() {
                   <input
                     type="number"
                     min={1}
-                    max={50}
+                    max={100}
                     value={quantity}
-                    onChange={(e) => setQuantity(Math.min(50, Math.max(1, Number(e.target.value) || 1)))}
+                    onChange={(e) => setQuantity(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
                     className="w-16 text-center border border-slate-200 rounded-lg py-1.5 text-sm font-semibold text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
                   />
                   <button
-                    onClick={() => setQuantity((q) => Math.min(50, q + 1))}
-                    disabled={quantity >= 50}
+                    onClick={() => setQuantity((q) => Math.min(100, q + 1))}
+                    disabled={quantity >= 100}
                     className="w-9 h-9 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-slate-700 transition-colors"
                   >+</button>
-                  <span className="text-xs text-slate-400 ml-1">(max 50)</span>
+                  <span className="text-xs text-slate-400 ml-1">(max 100)</span>
                 </div>
               </div>
 

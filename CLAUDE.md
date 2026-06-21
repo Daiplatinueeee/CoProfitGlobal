@@ -366,5 +366,27 @@ Pure frontend ranking display — no backend schema changes. Rank is computed cl
 
 **Do not add backend persistence for the computed rank** — rank is derived from existing income and referral data; storing it separately would create a sync problem. If the business decides ranks should be manually assigned by admin (overriding computed values), add a `rank` field to the User schema and an admin endpoint at that point.
 
+**Changes made (2026-06-22) — Pairing topline bonus: sponsor-only, no ancestor cascade:**
+
+### Pairing topline bonus — direct sponsor only, not all binary ancestors
+
+The 5% "leadership" topline bonus was being recursively cascaded up the **entire binary ancestor chain** whenever any pairing fired. Every ancestor — including those who placed the pairing user via spillover and never personally recruited them — received 5% of the pairing payout. This was wrong.
+
+**Correct rule:** Only the direct **sponsor** of the pairing user (the person who recruited them via referral link, i.e., `User.sponsorId`) receives the 5% topline bonus from that user's pairing. Binary tree ancestors who did not recruit the pairing user earn nothing from it.
+
+**Why the old code was wrong:**
+- `cascadeToParent` used `GenealogyNode.parentUserId` (binary placement parent) and recursed up the full chain
+- Binary placement can be spillover — the parent did not necessarily recruit the child
+- Every ancestor in the entire tree earned 5% of every pairing anywhere below them
+
+**What changed:**
+
+| Location | Change | Bug prevented |
+|----------|--------|---------------|
+| `pairing.service.ts` `cascadeToParent` | Replaced `GenealogyNode.parentUserId` lookup + recursion with a single `User.sponsorId` lookup; no recursion | All binary ancestors (including spillover placements) were incorrectly earning 5% from pairings of users they did not personally recruit |
+| `pairing.service.ts` `cascadeToParent` | Removed the `GenealogyNode` query and `leg` (VolumeLeg) meta field — only `User.sponsorId` is looked up | Unnecessary DB query; `leg` was only relevant for volume, not the cash credit |
+
+**Do NOT revert to the recursive `GenealogyNode.parentUserId` cascade.** Binary ancestors who received the child through spillover are not entitled to the topline bonus. The bonus is tied to the sponsorship (recruiting) relationship, not to binary tree position.
+
 ### CORS
 Backend allows: `https://co-profit-global.vercel.app`, `https://coprofit-global.com`, `https://www.coprofit-global.com`, `http://localhost:5173`. Credentials are enabled for cookie handling.

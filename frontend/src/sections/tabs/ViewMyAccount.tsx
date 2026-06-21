@@ -83,7 +83,7 @@ function EditField({
 
 const FILE_SIZE_WARNING_BYTES = 2 * 1024 * 1024; // 2 MB
 
-/* ── File Too Large Modal ────────────────────────────────────── */
+/* ── Large File Warning Modal ────────────────────────────────── */
 function FileTooLargeModal({
   sizeMB,
   onProceed,
@@ -97,10 +97,10 @@ function FileTooLargeModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onCancel} />
       <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-6 py-5 border-b border-amber-100 flex items-center justify-between">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">File Too Large</h3>
-            <p className="text-xs text-slate-400 mt-0.5">This image exceeds the recommended size</p>
+            <h3 className="text-base font-semibold text-slate-900">Large Image Detected</h3>
+            <p className="text-xs text-slate-400 mt-0.5">This may slow things down</p>
           </div>
           <button
             onClick={onCancel}
@@ -111,17 +111,18 @@ function FileTooLargeModal({
         </div>
 
         <div className="px-6 py-6">
-          <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
             </svg>
           </div>
           <p className="text-sm text-slate-700 text-center font-medium mb-2">
             Your image is {sizeMB} MB
           </p>
-          <p className="text-xs text-slate-400 text-center leading-relaxed">
-            We recommend images under 2 MB for faster uploads. Large files may take longer to save.
-            You can still proceed if you'd like to use this image.
+          <p className="text-xs text-slate-500 text-center leading-relaxed">
+            Large images may cause slower upload times and affect system performance.
+            For the best experience, we recommend keeping images under 2 MB.
+            You can still upload this image if you'd like.
           </p>
         </div>
 
@@ -130,13 +131,13 @@ function FileTooLargeModal({
             onClick={onCancel}
             className="flex-1 text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
           >
-            Cancel
+            Choose Another
           </button>
           <button
             onClick={onProceed}
-            className="flex-1 text-sm px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+            className="flex-1 text-sm px-4 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors font-medium"
           >
-            Proceed Anyway
+            OK, Upload Anyway
           </button>
         </div>
       </div>
@@ -186,16 +187,6 @@ function ChangePhotoModal({
             }}
           >
             <img src={previewSrc} alt="Profile preview" className="w-full h-full object-cover" />
-          </div>
-          <div className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex gap-3 items-start">
-            <span className="text-amber-500 text-base mt-0.5 shrink-0">💡</span>
-            <div>
-              <p className="text-xs font-semibold text-amber-700 mb-0.5">Photo Tip</p>
-              <p className="text-xs text-amber-600 leading-relaxed">
-                Please upload a <span className="font-semibold">2×2 photo</span> or an image with{' '}
-                <span className="font-semibold">no background</span> for the best display experience.
-              </p>
-            </div>
           </div>
         </div>
 

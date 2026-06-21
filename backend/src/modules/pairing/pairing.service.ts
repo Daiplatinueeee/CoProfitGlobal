@@ -440,8 +440,12 @@ export class PairingService {
   // ── Topline bonus cascade ─────────────────────────────────────────────────
 
   /**
-   * After a pairing for `userId`, walks up the full ancestor chain and awards
-   * each upline a 5% PHP bonus from the child's payout.
+   * After a pairing for `userId`, credits a 5% PHP bonus to `userId`'s direct
+   * sponsor only (the user who recruited them via referral link — User.sponsorId).
+   *
+   * Binary tree ancestors who did NOT personally recruit the pairing user are
+   * intentionally excluded — only the sponsor earns from their direct referral's
+   * pairing. No recursive cascade up the ancestor chain.
    *
    * Volume points are NOT cascaded here — uplines receive package points only
    * when a new user is placed below them (handled in VolumeService).
@@ -452,33 +456,31 @@ export class PairingService {
     payoutPhp: number,
     periodKey: string,
   ): Promise<void> {
-    const node = await this.genealogyNodeModel
-      .findOne({ userId })
-      .select('parentUserId position')
+    const user = await this.userModel
+      .findById(userId)
+      .select('sponsorId')
       .lean();
 
-    if (!node?.parentUserId) return; // root — no parent to credit
+    const sponsorId = (user as any)?.sponsorId as Types.ObjectId | null | undefined;
+    if (!sponsorId) return; // no sponsor — nothing to credit
 
-    const parentId    = node.parentUserId as Types.ObjectId;
-    const parentIdStr = parentId.toString();
-    const leg         = (node as any).position === 'left' ? VolumeLeg.LEFT : VolumeLeg.RIGHT;
+    const sponsorIdStr = sponsorId.toString();
 
-    // 5% PHP topline bonus — direct wallet credit, no GC passed up
+    // 5% PHP topline bonus to the direct sponsor only
     const bonusPhp = Math.floor(payoutPhp * 0.05);
     if (bonusPhp > 0) {
       await this.walletService.credit({
-        userId:   parentIdStr,
+        userId:   sponsorIdStr,
         currency: WalletCurrency.PHP,
         amount:   bonusPhp,
         source:   WalletTxnSource.LEADERSHIP,
-        refKey:   `pairing:topline5pct:${parentIdStr}:from:${userId}:${periodKey}`,
-        note:     `Pairing topline bonus (5%) — downline pairing ${periodKey}`,
-        meta:     { pairedPoints, childPayoutPhp: payoutPhp, bonusPhp, leg, periodKey },
+        refKey:   `pairing:topline5pct:${sponsorIdStr}:from:${userId}:${periodKey}`,
+        note:     `Pairing topline bonus (5%) — direct referral pairing ${periodKey}`,
+        meta:     { pairedPoints, childPayoutPhp: payoutPhp, bonusPhp, periodKey },
       });
     }
 
-    // Continue up the chain to grandparent and above
-    await this.cascadeToParent(parentId, pairedPoints, payoutPhp, periodKey);
+    // No recursion — only the immediate sponsor earns from their direct referral's pairing
   }
 
   // ── Manual / admin trigger ────────────────────────────────────────────────

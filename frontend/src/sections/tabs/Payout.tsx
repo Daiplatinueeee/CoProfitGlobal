@@ -29,6 +29,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash:   'Cash',
   wallet: 'GCash',
   crypto: 'Paymaya',
+  bank:   'Bank Transfer',
 };
 
 function formatPaymentMethod(method: string) {
@@ -38,6 +39,7 @@ function formatPaymentMethod(method: string) {
 const ACCOUNT_LABELS: Record<string, { name: string; number: string; namePlaceholder: string; numberPlaceholder: string }> = {
   wallet: { name: 'GCash Name', number: 'GCash Number', namePlaceholder: 'Enter GCash account name', numberPlaceholder: 'e.g. 09XX XXX XXXX' },
   crypto: { name: 'Paymaya Name', number: 'Paymaya Number', namePlaceholder: 'Enter Paymaya account name', numberPlaceholder: 'e.g. 09XX XXX XXXX' },
+  bank:   { name: 'Account Name', number: 'Account Number', namePlaceholder: 'Enter bank account holder name', numberPlaceholder: 'Enter bank account number' },
 };
 
 interface WithdrawalFormProps {
@@ -53,7 +55,7 @@ interface WithdrawalFormProps {
 
 function WithdrawalForm({ formData, submitting, submitError, submitSuccess, isEditing, onChange, onSubmit, onCancelEdit }: WithdrawalFormProps) {
   const isCash = formData.paymentMethod === 'cash';
-  const needsAccountFields = formData.paymentMethod === 'wallet' || formData.paymentMethod === 'crypto';
+  const needsAccountFields = formData.paymentMethod === 'wallet' || formData.paymentMethod === 'crypto' || formData.paymentMethod === 'bank';
   const labels = ACCOUNT_LABELS[formData.paymentMethod];
 
   return (
@@ -118,6 +120,7 @@ function WithdrawalForm({ formData, submitting, submitError, submitSuccess, isEd
           <option value="cash">Cash</option>
           <option value="wallet">GCash</option>
           <option value="crypto">Paymaya</option>
+          <option value="bank">Bank Transfer</option>
         </select>
       </div>
 
@@ -304,7 +307,7 @@ function Payout() {
 
     try {
       const isCashMethod = formData.paymentMethod === 'cash';
-      const needsAccount = formData.paymentMethod === 'wallet' || formData.paymentMethod === 'crypto';
+      const needsAccount = formData.paymentMethod === 'wallet' || formData.paymentMethod === 'crypto' || formData.paymentMethod === 'bank';
       const url = editingId
         ? `${API_BASE_URL}/withdrawal/${editingId}`
         : `${API_BASE_URL}/withdrawal`;
@@ -462,11 +465,21 @@ function Payout() {
 
                   <div className="space-y-2.5 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-xs">Deducted from Balance</span>
+                      <span className="text-slate-400 text-xs">Amount Requested</span>
                       <span className="font-semibold text-slate-900">₱{pendingRequest.amount.toLocaleString()}</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-xs">Net Cash Payout (after fees)</span>
+                    <div className="border-t border-slate-100 pt-2 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 text-xs">Processing Fee (10%)</span>
+                        <span className="text-xs text-red-500">−₱{(pendingRequest.vat ?? 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 text-xs">Admin Fee</span>
+                        <span className="text-xs text-red-500">−₱50</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+                      <span className="text-slate-400 text-xs font-medium">Net Cash Payout</span>
                       <span className="font-semibold text-emerald-700">₱{pendingRequest.totalAmount.toLocaleString()}</span>
                     </div>
                     <div className="flex items-center justify-between">
