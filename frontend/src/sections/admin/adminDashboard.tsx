@@ -437,7 +437,7 @@ export default function AdminDashboard() {
           {/* logo */}
           <div className="p-6 border-b border-gray-100 flex items-center justify-between min-w-[256px]">
             <h1 className={`text-xl text-gray-900 ${sidebarOpen ? 'block' : 'hidden'}`}>
-              CoProfitGlobal.
+              CoProfitGlobalCorp.
             </h1>
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
