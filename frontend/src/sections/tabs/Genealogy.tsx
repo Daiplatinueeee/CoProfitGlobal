@@ -46,20 +46,87 @@ interface NodePosition {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 // Layout constants
-const NODE_WIDTH          = 340
-const NODE_HEIGHT         = 420
-const VERTICAL_SPACING    = 560
-const ACTION_BTN_WIDTH    = 150
-const ACTION_BTN_HEIGHT   = 52
+const NODE_WIDTH          = 190
+const NODE_HEIGHT         = 230
+const VERTICAL_SPACING    = 300
+const ACTION_BTN_WIDTH    = 84
+const ACTION_BTN_HEIGHT   = 30
+
+// ── Search index ──────────────────────────────────────────────────────────
+// Member search used to be a plain array `.filter(...).includes(...)` scan,
+// re-run against every member on every search. That's fine at small scale,
+// but it means cost grows linearly with the size of the downline network —
+// on a large org this is genuinely slow (the "an hour" report), and it's
+// the client-side scan, not just the network fetch, that scales badly.
+//
+// Instead we build a hashmap once per data change (memoized below) rather
+// than once per search: every member's username/email/referralCode is
+// tokenized, and every prefix of every token is a key pointing at the set of
+// member ids that match it. A search is then a single O(1) Map lookup
+// instead of an O(n) scan — the tradeoff is that a query now has to match
+// the *start* of a token (e.g. "eagle" finds "EagleHunter99"), rather than
+// anywhere inside a field.
+interface SearchIndex {
+  byId: Map<string, Member>
+  prefixIndex: Map<string, Set<string>>
+}
+
+function buildSearchIndex(memberLists: Member[][]): SearchIndex {
+  const byId = new Map<string, Member>()
+  const prefixIndex = new Map<string, Set<string>>()
+
+  const addToken = (token: string, id: string) => {
+    const t = token.toLowerCase()
+    for (let i = 1; i <= t.length; i++) {
+      const prefix = t.slice(0, i)
+      let bucket = prefixIndex.get(prefix)
+      if (!bucket) {
+        bucket = new Set<string>()
+        prefixIndex.set(prefix, bucket)
+      }
+      bucket.add(id)
+    }
+  }
+
+  for (const list of memberLists) {
+    for (const m of list) {
+      if (byId.has(m.id)) continue
+      byId.set(m.id, m)
+      for (const field of [m.username, m.email, m.referralCode]) {
+        if (!field) continue
+        // Split on non-alphanumeric boundaries so e.g. "eagle_hunter99@mail.com"
+        // indexes as ["eagle", "hunter99", "mail", "com"].
+        for (const token of field.split(/[^a-z0-9]+/i)) {
+          if (token) addToken(token, m.id)
+        }
+      }
+    }
+  }
+
+  return { byId, prefixIndex }
+}
+
+function searchWithIndex(value: string, index: SearchIndex): Member[] {
+  const keyword = value.toLowerCase().trim()
+  if (!keyword) return []
+  const ids = index.prefixIndex.get(keyword)
+  if (!ids || ids.size === 0) return []
+  const results: Member[] = []
+  for (const id of ids) {
+    const m = index.byId.get(id)
+    if (m) results.push(m)
+  }
+  return results
+}
 
 function computeTreeLayout(
   root: Member | null | undefined,
   maxDepth: number,
 ): { positions: Map<string, NodePosition>; viewBox: string } {
   const positions = new Map<string, NodePosition>()
-  if (!root) return { positions, viewBox: '0 -60 1720 1000' }
+  if (!root) return { positions, viewBox: '0 -40 960 560' }
 
-  const leafSlotW  = maxDepth <= 2 ? 590 : 300
+  const leafSlotW  = maxDepth <= 2 ? 320 : 170
   const numSlots   = Math.pow(2, maxDepth)
   const contentW   = numSlots * leafSlotW
 
@@ -84,11 +151,11 @@ function computeTreeLayout(
     if (p.x < minX) minX = p.x
     if (p.x + NODE_WIDTH > maxX) maxX = p.x + NODE_WIDTH
   }
-  const PAD     = 60
+  const PAD     = 36
   const vbX     = minX - PAD
   const vbW     = maxX - minX + PAD * 2
-  const vbH     = maxDepth * VERTICAL_SPACING + NODE_HEIGHT + 140
-  const viewBox = `${vbX} -60 ${vbW} ${vbH}`
+  const vbH     = maxDepth * VERTICAL_SPACING + NODE_HEIGHT + 90
+  const viewBox = `${vbX} -40 ${vbW} ${vbH}`
 
   return { positions, viewBox }
 }
@@ -148,7 +215,9 @@ function Genealogy() {
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState<Member[]>([])
   const [allDownlines, setAllDownlines] = useState<Member[]>([])
+  const downlinesLoadedRef = useRef(false)
   const [navigationHistory, setNavigationHistory] = useState<Member[]>([])
+  const [navigatingId, setNavigatingId] = useState<string | null>(null)
 
   const [chooserModal, setChooserModal] = useState<{ parent: Member; leg: 'left' | 'right' } | null>(null)
   const [modal, setModal] = useState<{ parent: Member; leg: 'left' | 'right' } | null>(null)
@@ -189,34 +258,98 @@ function Genealogy() {
     return data
   }, [])
 
-  const fetchAllDownlines = useCallback(async (userId: string) => {
+  // Dedupes concurrent callers (e.g. a background refresh firing while a
+  // search is also waiting on the same fetch) so they all await one request
+  // instead of racing separate ones.
+  const downlinesInFlightRef = useRef<Promise<Member[]> | null>(null)
+
+  const fetchAllDownlinesOnce = useCallback(async (userId: string, retry = true): Promise<Member[]> => {
     try {
       const response = await apiFetch(`${API_BASE_URL}/genealogy/downlines/${userId}`)
-      if (!response.ok) return
+      if (!response.ok) throw new Error('downlines fetch failed')
       const data = await response.json()
-      if (Array.isArray(data)) setAllDownlines(data)
+      if (Array.isArray(data)) {
+        setAllDownlines(data)
+        downlinesLoadedRef.current = true
+        return data
+      }
+      return []
     } catch {
-      // silently fail — search will fall back to visible nodes
+      if (retry) {
+        // One retry after a short delay — a single flaky request shouldn't
+        // permanently cripple search for the rest of the session.
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        return fetchAllDownlinesOnce(userId, false)
+      }
+      return []
     }
   }, [])
+
+  const fetchAllDownlines = useCallback((userId: string): Promise<Member[]> => {
+    if (!downlinesInFlightRef.current) {
+      downlinesInFlightRef.current = fetchAllDownlinesOnce(userId).finally(() => {
+        downlinesInFlightRef.current = null
+      })
+    }
+    return downlinesInFlightRef.current
+  }, [fetchAllDownlinesOnce])
 
   const treeRootRef = React.useRef<Member | null>(null)
   treeRootRef.current = treeRoot
 
-  const navigateTo = useCallback(async (member: Member) => {
+  // Cache of previously-fetched subtrees, keyed by member id/userId — lets a
+  // revisited node render instantly instead of re-hitting the network.
+  const treeCacheRef = useRef<Map<string, Member>>(new Map())
+  // Aborts a stale in-flight navigation fetch so an old response can never
+  // clobber a newer one when the user clicks around quickly.
+  const navigateAbortRef = useRef<AbortController | null>(null)
+
+  const navigateTo = useCallback((member: Member) => {
     const targetId = member.userId || member.id
+
+    // Cancel whatever navigation fetch was previously in flight — its
+    // response no longer matters and shouldn't be allowed to land late.
+    if (navigateAbortRef.current) navigateAbortRef.current.abort()
+
+    const prev = treeRootRef.current
+    if (prev) setNavigationHistory(h => [...h, prev])
     setCurrentDepth(2)
-    try {
-      const response = await apiFetch(`${API_BASE_URL}/genealogy/root/${targetId}?depth=2`)
-      const data = await response.json()
-      if (response.ok) {
-        const prev = treeRootRef.current
-        if (prev) setNavigationHistory(h => [...h, prev])
-        setTreeRoot(data)
-      }
-    } catch {
-      // silently keep current view on failure
+
+    // Instant path: we already have this node's own data (from the tree the
+    // user was just looking at, or the cache), so show it immediately —
+    // no spinner, no wait. `member` already carries its own children/flags,
+    // and a cache hit carries the full authoritative subtree.
+    const cached = treeCacheRef.current.get(targetId)
+    setTreeRoot(cached || member)
+    if (cached) {
+      setNavigatingId(null)
+      navigateAbortRef.current = null
+      return
     }
+
+    // Background refresh: fills in anything the optimistic view was missing
+    // (e.g. grandchildren) without blocking the UI that's already showing.
+    const controller = new AbortController()
+    navigateAbortRef.current = controller
+    setNavigatingId(member.id)
+    ;(async () => {
+      try {
+        const response = await apiFetch(`${API_BASE_URL}/genealogy/root/${targetId}?depth=2`, { signal: controller.signal })
+        const data = await response.json()
+        if (controller.signal.aborted) return
+        if (response.ok) {
+          treeCacheRef.current.set(targetId, data)
+          setTreeRoot(data)
+        }
+      } catch {
+        // stale/aborted or network error — keep the optimistic view
+      } finally {
+        if (navigateAbortRef.current === controller) {
+          setNavigatingId(null)
+          navigateAbortRef.current = null
+        }
+      }
+    })()
   }, [])
 
   useEffect(() => {
@@ -230,7 +363,7 @@ function Genealogy() {
         const treeData = await fetchRootTree(userId)
         setOriginalRoot(treeData)
         setTreeRoot(treeData)
-        fetchAllDownlines(userId)
+        treeCacheRef.current.set(userId, treeData)
       } catch (err: any) {
         setError(err.message || 'Failed to load genealogy tree')
       } finally {
@@ -251,12 +384,18 @@ function Genealogy() {
   useEffect(() => {
     const handleRefresh = () => {
       if (!currentUserId) return
+      treeCacheRef.current.clear()
       fetchRootTree(currentUserId)
         .then((treeData) => {
           setOriginalRoot(treeData)
           setTreeRoot(treeData)
+          treeCacheRef.current.set(currentUserId, treeData)
         })
         .catch(() => {})
+      // Only refresh the full downline list if it was already lazily loaded
+      // (i.e. the user has searched before) — otherwise stay lazy and don't
+      // fetch it just because something changed elsewhere.
+      if (downlinesLoadedRef.current) fetchAllDownlines(currentUserId)
     }
     window.addEventListener('genealogy:refresh', handleRefresh)
     window.addEventListener('cycle:changed', handleRefresh)
@@ -264,7 +403,13 @@ function Genealogy() {
       window.removeEventListener('genealogy:refresh', handleRefresh)
       window.removeEventListener('cycle:changed', handleRefresh)
     }
-  }, [currentUserId, fetchRootTree])
+  }, [currentUserId, fetchRootTree, fetchAllDownlines])
+
+  // Note: subtrees for nodes the user hasn't clicked into are intentionally
+  // NOT pre-fetched — only the currently visible depth-2 tree loads. Clicking
+  // a node fetches its own subtree on demand (see navigateTo), and the cache
+  // there still makes a *revisited* node instant without ever loading data
+  // for nodes that are still off-screen.
 
   // Member map built from the currently visible tree (up to 7 nodes)
   const memberMap = useMemo(() => {
@@ -338,6 +483,9 @@ function Genealogy() {
       const refreshedTree = await fetchRootTree(currentUserId)
       setOriginalRoot(refreshedTree)
       setTreeRoot(refreshedTree)
+      treeCacheRef.current.clear()
+      treeCacheRef.current.set(currentUserId, refreshedTree)
+      if (downlinesLoadedRef.current) fetchAllDownlines(currentUserId)
       resetModalState()
       setSuccessModal({ title: 'Member Added!', message: 'The new member has been successfully added to the genealogy tree.' })
     } catch (err: any) {
@@ -371,6 +519,9 @@ function Genealogy() {
       const refreshedTree = await fetchRootTree(currentUserId)
       setOriginalRoot(refreshedTree)
       setTreeRoot(refreshedTree)
+      treeCacheRef.current.clear()
+      treeCacheRef.current.set(currentUserId, refreshedTree)
+      if (downlinesLoadedRef.current) fetchAllDownlines(currentUserId)
       resetModalState()
       setSuccessModal({ title: 'Member Placed!', message: 'The existing member has been successfully placed in the genealogy tree.' })
     } catch (err: any) {
@@ -393,14 +544,21 @@ function Genealogy() {
   }
 
   const handleReset = useCallback(() => {
+    if (navigateAbortRef.current) navigateAbortRef.current.abort()
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchRequestIdRef.current += 1
+    setNavigatingId(null)
     setTreeRoot(originalRoot)
     setCurrentDepth(2)
     setSearch('')
     setSearchResults([])
+    setSearchLoading(false)
     setNavigationHistory([])
   }, [originalRoot])
 
   const handleBack = useCallback(() => {
+    if (navigateAbortRef.current) navigateAbortRef.current.abort()
+    setNavigatingId(null)
     setNavigationHistory(h => {
       if (h.length === 0) return h
       const prev = h[h.length - 1]
@@ -410,21 +568,54 @@ function Genealogy() {
     })
   }, [])
 
+  // Built once whenever the underlying member data changes (initial load,
+  // downlines fetched, a member added, a tree refresh) — NOT on every
+  // keystroke or every search. Every search after the first one that
+  // triggers a fetch reuses this for an O(1) lookup.
+  const searchIndex = useMemo(
+    () => buildSearchIndex([allDownlines, allMembers]),
+    [allDownlines, allMembers],
+  )
+
+  const [searchLoading, setSearchLoading] = useState(false)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Guards against a stale, slower search resolving after a newer one and
+  // clobbering its results.
+  const searchRequestIdRef = useRef(0)
+
   const handleSearch = (value: string) => {
     setSearch(value)
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchRequestIdRef.current += 1
     if (!value.trim()) {
+      setSearchLoading(false)
       setSearchResults([])
       return
     }
-    const keyword = value.toLowerCase()
-    const searchPool = allDownlines.length > 0 ? allDownlines : allMembers
-    const results = searchPool.filter(
-      (m) =>
-        m.username.toLowerCase().includes(keyword) ||
-        m.email.toLowerCase().includes(keyword) ||
-        m.referralCode.toLowerCase().includes(keyword),
-    )
-    setSearchResults(results)
+    // Show the loader immediately; results only render once we're done
+    // typing AND have the full (possibly not-yet-fetched) downline network.
+    setSearchLoading(true)
+    const requestId = searchRequestIdRef.current
+    searchDebounceRef.current = setTimeout(async () => {
+      // Load the full downline network on first use only — no need to pull
+      // down (potentially thousands of) records before the user ever
+      // searches. Subsequent searches reuse whatever's already in state,
+      // and therefore reuse the memoized `searchIndex` above too.
+      let index = searchIndex
+      if (!downlinesLoadedRef.current && currentUserId) {
+        const fetched = await fetchAllDownlines(currentUserId)
+        if (requestId !== searchRequestIdRef.current) return // superseded by a newer keystroke
+        // One-time build from the data we just fetched — `searchIndex`
+        // itself will pick this up via useMemo on the next render, so this
+        // manual build only ever happens for this first search.
+        index = buildSearchIndex([fetched, allMembers])
+      }
+
+      if (requestId !== searchRequestIdRef.current) return
+
+      setSearchResults(searchWithIndex(value, index))
+      setSearchLoading(false)
+    }, 300)
   }
 
   const renderTree = (member: Member | null | undefined, level = 0): React.ReactNode[] => {
@@ -480,35 +671,35 @@ function Genealogy() {
           y={pos.y}
           width={NODE_WIDTH}
           height={NODE_HEIGHT}
-          rx="16"
+          rx="10"
           fill="white"
           stroke="#e5e7eb"
-          strokeWidth="2"
+          strokeWidth="1.5"
         />
 
         <circle
           cx={pos.x + NODE_WIDTH / 2}
-          cy={pos.y + 90}
-          r="58"
+          cy={pos.y + 50}
+          r="32"
           fill="#f3f4f6"
           stroke="#d1d5db"
         />
 
         <image
           href={member.profileImage || logo}
-          x={pos.x + NODE_WIDTH / 2 - 56}
-          y={pos.y + 34}
-          width="112"
-          height="112"
+          x={pos.x + NODE_WIDTH / 2 - 30}
+          y={pos.y + 20}
+          width="60"
+          height="60"
           preserveAspectRatio="xMidYMid slice"
-          clipPath="circle(56px at 56px 56px)"
+          clipPath="circle(30px at 30px 30px)"
         />
 
         <text
           x={pos.x + NODE_WIDTH / 2}
-          y={pos.y + 200}
+          y={pos.y + 108}
           textAnchor="middle"
-          fontSize="24"
+          fontSize="14"
           fontWeight="700"
           fill="#7c3aed"
         >
@@ -517,32 +708,63 @@ function Genealogy() {
 
         <text
           x={pos.x + NODE_WIDTH / 2}
-          y={pos.y + 244}
+          y={pos.y + 130}
           textAnchor="middle"
-          fontSize="22"
+          fontSize="11"
           fill="#9ca3af"
         >
           <tspan x={pos.x + NODE_WIDTH / 2} dy="0">
             {member.email.split('@')[0]}
           </tspan>
-          <tspan x={pos.x + NODE_WIDTH / 2} dy="34">
+          <tspan x={pos.x + NODE_WIDTH / 2} dy="16">
             @{member.email.split('@')[1]}
           </tspan>
         </text>
 
         <text
           x={pos.x + NODE_WIDTH / 2}
-          y={pos.y + 368}
+          y={pos.y + 202}
           textAnchor="middle"
-          fontSize="22"
+          fontSize="12"
           fontWeight="600"
           fill="#6b7280"
         >
           Points ( L {member.leftAvailablePoints ?? 0} • R {member.rightAvailablePoints ?? 0} )
         </text>
 
-        <circle cx={pos.x + 18}              cy={pos.y + 18} r="5" fill="#10b981" />
-        <circle cx={pos.x + NODE_WIDTH - 18} cy={pos.y + 18} r="5" fill="#f59e0b" />
+        <circle cx={pos.x + 12}              cy={pos.y + 12} r="4" fill="#10b981" />
+        <circle cx={pos.x + NODE_WIDTH - 12} cy={pos.y + 12} r="4" fill="#f59e0b" />
+
+        {navigatingId === member.id && (
+          <g pointerEvents="none">
+            <circle
+              cx={pos.x + NODE_WIDTH - 14}
+              cy={pos.y + NODE_HEIGHT - 14}
+              r="10"
+              fill="white"
+              stroke="#e5e7eb"
+            />
+            <circle
+              cx={pos.x + NODE_WIDTH - 14}
+              cy={pos.y + NODE_HEIGHT - 14}
+              r="7"
+              fill="none"
+              stroke="#7c3aed"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeDasharray="28 16"
+            >
+              <animateTransform
+                attributeName="transform"
+                type="rotate"
+                from={`0 ${pos.x + NODE_WIDTH - 14} ${pos.y + NODE_HEIGHT - 14}`}
+                to={`360 ${pos.x + NODE_WIDTH - 14} ${pos.y + NODE_HEIGHT - 14}`}
+                dur="0.7s"
+                repeatCount="indefinite"
+              />
+            </circle>
+          </g>
+        )}
 
         {level < 2 && !member.leftChild && !member.hasLeftChild && (
           <g
@@ -553,18 +775,18 @@ function Genealogy() {
             style={{ cursor: 'pointer' }}
           >
             <rect
-              x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH - 6}
-              y={pos.y + NODE_HEIGHT + 12}
+              x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH - 4}
+              y={pos.y + NODE_HEIGHT + 8}
               width={ACTION_BTN_WIDTH}
               height={ACTION_BTN_HEIGHT}
-              rx="8"
+              rx="6"
               fill="#10b981"
             />
             <text
-              x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 6}
-              y={pos.y + NODE_HEIGHT + 44}
+              x={pos.x + NODE_WIDTH / 2 - ACTION_BTN_WIDTH / 2 - 4}
+              y={pos.y + NODE_HEIGHT + 27}
               textAnchor="middle"
-              fontSize="20"
+              fontSize="12"
               fill="white"
               fontWeight="600"
             >
@@ -582,18 +804,18 @@ function Genealogy() {
             style={{ cursor: 'pointer' }}
           >
             <rect
-              x={pos.x + NODE_WIDTH / 2 + 6}
-              y={pos.y + NODE_HEIGHT + 12}
+              x={pos.x + NODE_WIDTH / 2 + 4}
+              y={pos.y + NODE_HEIGHT + 8}
               width={ACTION_BTN_WIDTH}
               height={ACTION_BTN_HEIGHT}
-              rx="8"
+              rx="6"
               fill="#f59e0b"
             />
             <text
-              x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 6}
-              y={pos.y + NODE_HEIGHT + 44}
+              x={pos.x + NODE_WIDTH / 2 + ACTION_BTN_WIDTH / 2 + 4}
+              y={pos.y + NODE_HEIGHT + 27}
               textAnchor="middle"
-              fontSize="20"
+              fontSize="12"
               fill="white"
               fontWeight="600"
             >
@@ -670,18 +892,45 @@ function Genealogy() {
           </button>
         </div>
 
-        {searchResults.length > 0 && (
+        {search.trim() && searchLoading && (
+          <div className="bg-white shadow-lg rounded-lg mt-2 border border-gray-200 max-w-sm">
+            <div className="px-3 py-3 flex items-center gap-2 text-sm text-gray-500">
+              <svg
+                className="w-4 h-4 animate-spin text-indigo-500"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              Searching all members…
+            </div>
+          </div>
+        )}
+
+        {!searchLoading && searchResults.length > 0 && (
           <div className="bg-white shadow-lg rounded-lg mt-2 max-h-56 overflow-auto border border-gray-200 max-w-sm">
-            {searchResults.map((m) => (
+            {searchResults.slice(0, 30).map((m) => (
               <div
                 key={m.id}
                 className="px-3 py-2 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition"
                 onClick={() => { setSearch(''); setSearchResults([]); navigateTo(m) }}
               >
                 <p className="font-semibold text-gray-800 text-sm">{m.username}</p>
-                <p className="text-xs text-gray-500">{m.referralCode}</p>
               </div>
             ))}
+            {searchResults.length > 30 && (
+              <p className="px-3 py-2 text-xs text-gray-400">
+                +{searchResults.length - 30} more — refine your search
+              </p>
+            )}
+          </div>
+        )}
+
+        {!searchLoading && search.trim() && searchResults.length === 0 && (
+          <div className="bg-white shadow-lg rounded-lg mt-2 border border-gray-200 max-w-sm">
+            <p className="px-3 py-3 text-sm text-gray-400">No members found</p>
           </div>
         )}
       </div>
