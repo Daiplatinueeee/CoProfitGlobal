@@ -23,6 +23,7 @@ import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
 import { WithdrawalModule } from './modules/withdrawal/withdrawal.module';
 import { PeriodsModule } from './modules/periods/periods.module';
 import { UnilevelProductsModule } from './modules/unilevel-products/unilevel-products.module';
+import { OrderOnlineModule } from './modules/order-online/order-online.module';
 
 require('node:dns/promises').setServers(['1.1.1.1', '8.8.8.8']);
 
@@ -56,6 +57,7 @@ require('node:dns/promises').setServers(['1.1.1.1', '8.8.8.8']);
     WithdrawalModule,
     PeriodsModule,
     UnilevelProductsModule,
+    OrderOnlineModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -10,6 +10,7 @@ import {
   HandCoins,
   User,
   Trophy,
+  ShoppingBag,
 } from 'lucide-react';
 
 import Genealogy from '../tabs/Genealogy';
@@ -20,6 +21,7 @@ import ReferalsHierarchy from '../tabs/ReferalsHierarchy';
 import WithdrawGC from '../tabs/WithdrawGC';
 import UnilevelProducts from '../tabs/UnilevelProducts';
 import StairstepProgram from '../tabs/StairstepProgram';
+import OrderOnline from '../tabs/OrderOnline';
 import Transactions from '../tabs/Transactions'
 import ViewMyAccount from '../tabs/ViewMyAccount';
 
@@ -423,6 +425,7 @@ export default function UserDashboard() {
     { id: 'payout-system', label: 'Payout System', icon: Wallet  },
     { id: 'subscription', label: 'Subscription', icon: Leaf, underDevelopment: false },
     { id: 'unilevel-package', label: 'Unilevel Products', icon: Combine },
+    { id: 'order-online', label: 'Order Online', icon: ShoppingBag },
     { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown },
     { id: 'transactions', label: 'Transactions', icon: HandCoins},
     { id: 'viewaccount', label: 'View Account', icon: User, },
@@ -1132,6 +1135,7 @@ export default function UserDashboard() {
       'withdraw-gc': <WithdrawGC />,
       'subscription': <Subscription />,
       'unilevel-package': <UnilevelProducts />,
+      'order-online': <OrderOnline />,
       'transactions': <Transactions />,
       'viewaccount': <ViewMyAccount />,
       'stairstep': <StairstepProgram />,

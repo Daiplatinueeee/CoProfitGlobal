@@ -1,6 +1,7 @@
 import { Body, Controller, Post, Req, Res, UseGuards, HttpCode } from '@nestjs/common';
 import type { Response, Request } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 import { AuthService } from './auth.service';
 import { SignUpDto } from './dto/signup.dto';
@@ -36,6 +37,11 @@ export class AuthController {
     return body;
   }
 
+  // Rate-limited to 5 attempts/minute per IP — protects against credential
+  // brute-forcing. Only this route is guarded; other endpoints are
+  // unaffected since ThrottlerGuard isn't registered globally.
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const meta = { userAgent: req.headers['user-agent'], ip: req.ip };

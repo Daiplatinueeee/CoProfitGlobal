@@ -232,6 +232,34 @@ function Genealogy() {
   // Scroll container ref — used to auto-center the tree horizontally on load
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // On narrow screens the tree is scaled down to fit the viewport width so it
+  // renders fully "zoomed out" by default (no forced horizontal scroll, and
+  // pinch-zoom can then zoom IN from that fit state instead of being stuck
+  // beyond it with no way back). Desktop keeps the natural pixel size +
+  // horizontal scroll behavior since there's usually room to spare.
+  const [containerWidth, setContainerWidth] = useState(0)
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+  )
+
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 767px)')
+    const handleChange = () => setIsMobile(mql.matches)
+    handleChange()
+    mql.addEventListener('change', handleChange)
+    return () => mql.removeEventListener('change', handleChange)
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const update = () => setContainerWidth(el.clientWidth)
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   const resetModalState = useCallback(() => {
     setChooserModal(null)
     setModal(null)
@@ -439,13 +467,21 @@ function Genealogy() {
     return { svgWidth: Math.ceil(parts[2]), svgHeight: Math.ceil(parts[3]) }
   }, [viewBox])
 
+  // Scale-to-fit on mobile so the tree's default view occupies the full
+  // screen width instead of overflowing and forcing a fixed, oversized
+  // render that only pinch-zoom-in (never back out) could escape.
+  const fitScale = isMobile && containerWidth > 0 ? Math.min(1, containerWidth / svgWidth) : 1
+  const renderWidth = Math.round(svgWidth * fitScale)
+  const renderHeight = Math.round(svgHeight * fitScale)
+
   // Auto-center the tree horizontally whenever the tree or its width changes
+  // (only relevant when the render isn't already scaled to fit the container)
   useEffect(() => {
     const el = scrollRef.current
-    if (!el || !svgWidth) return
+    if (!el || !svgWidth || fitScale < 1) return
     const target = Math.max(0, (svgWidth - el.clientWidth) / 2)
     el.scrollLeft = target
-  }, [svgWidth, treeRoot])
+  }, [svgWidth, treeRoot, fitScale])
 
   const attachMember = async (parent: Member, leg: 'left' | 'right', data: AddMemberFormData) => {
     try {
@@ -946,10 +982,10 @@ function Genealogy() {
           overflow-auto parent can scroll horizontally. Without this the flexbox
           parent would constrain the SVG and it would appear scaled-down on narrow screens.
         */}
-        <div style={{ minWidth: svgWidth, paddingBottom: 24 }}>
+        <div style={{ minWidth: renderWidth, paddingBottom: 24 }}>
           <svg
-            width={svgWidth}
-            height={svgHeight}
+            width={renderWidth}
+            height={renderHeight}
             viewBox={viewBox}
             preserveAspectRatio="xMidYMin meet"
             className="block"

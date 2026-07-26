@@ -26,6 +26,7 @@ import {
   WalletTxnType,
   WalletTxnSource,
 } from '../wallet/schemas/wallet-transaction.schema';
+import { VolumeService } from '../volume/volume.service';
 
 @Injectable()
 export class UsersService {
@@ -33,6 +34,7 @@ export class UsersService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(ProductPin.name) private pinModel: Model<ProductPinDocument>,
     @InjectModel(WalletTransaction.name) private txnModel: Model<WalletTransactionDocument>,
+    private readonly volumeService: VolumeService,
   ) {}
 
   async lookupPin(pin: string): Promise<{ found: boolean; status?: string; tier?: string }> {
@@ -72,7 +74,8 @@ export class UsersService {
     const user = await this.userModel.findById(uid).select('membershipTier').lean();
     if (!user) throw new NotFoundException('User not found');
 
-    const currentRank = UsersService.TIER_RANK[(user as any).membershipTier?.toLowerCase()] ?? 0;
+    const previousTier = (user as any).membershipTier as MembershipTier;
+    const currentRank = UsersService.TIER_RANK[previousTier?.toLowerCase()] ?? 0;
     const newRank     = UsersService.TIER_RANK[newTier.toLowerCase()] ?? 0;
 
     if (newRank <= currentRank) {
@@ -93,7 +96,6 @@ export class UsersService {
       { $set: { status: PinStatus.USED, usedByUserId: uid, usedAt: new Date() } },
     );
 
-    const previousTier = (user as any).membershipTier as string;
     await this.txnModel.create({
       userId:   uid,
       currency: WalletCurrency.PHP,
@@ -105,6 +107,11 @@ export class UsersService {
       meta:     { previousTier, newTier, pin: clean },
       postedAt: new Date(),
     }).catch(() => {});
+
+    // Push the tier's point delta up to ancestors and attempt pairing —
+    // previously missing here, so upgrading an already-placed member's
+    // package never generated volume or triggered a pairing check.
+    await this.volumeService.awardUpgradeVolume(uid.toString(), previousTier, newTier);
 
     return { newTier };
   }

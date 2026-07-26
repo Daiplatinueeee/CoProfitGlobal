@@ -6,6 +6,7 @@ import { UsersController } from './users.controller';
 import { User, UserSchema } from './schemas/user.schema';
 import { ProductPin, ProductPinSchema } from '../product-pins/schema/product-pins.schema';
 import { WalletTransaction, WalletTransactionSchema } from '../wallet/schemas/wallet-transaction.schema';
+import { VolumeModule } from '../volume/volume.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { WalletTransaction, WalletTransactionSchema } from '../wallet/schemas/wa
       { name: ProductPin.name, schema: ProductPinSchema },
       { name: WalletTransaction.name, schema: WalletTransactionSchema },
     ]),
+    VolumeModule,
   ],
   controllers: [UsersController],
   providers: [UsersService],

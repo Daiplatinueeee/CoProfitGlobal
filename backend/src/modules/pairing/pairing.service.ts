@@ -82,12 +82,39 @@ export class PairingService {
     return new Types.ObjectId(id);
   }
 
+  // AM/PM cycles and day boundaries are pinned to Taipei time regardless of
+  // the server's own system timezone — previously `todayDateKey()` used UTC
+  // (via toISOString) while `getCurrentCycle()` used the server's local
+  // `getHours()`, so on a non-Taipei/non-UTC host the two could disagree
+  // about where the day/cycle boundary actually falls.
+  private readonly TIMEZONE = 'Asia/Taipei';
+
+  private getTaipeiParts(date: Date = new Date()): { dateKey: string; hour: number } {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: this.TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+
+    const map: Record<string, string> = {};
+    for (const part of parts) map[part.type] = part.value;
+
+    // Some environments format midnight as hour "24" instead of "00".
+    let hour = parseInt(map.hour, 10);
+    if (hour === 24) hour = 0;
+
+    return { dateKey: `${map.year}-${map.month}-${map.day}`, hour };
+  }
+
   private todayDateKey(): string {
-    return new Date().toISOString().slice(0, 10);
+    return this.getTaipeiParts().dateKey;
   }
 
   private getCurrentCycle(): PairingCycle {
-    return new Date().getHours() < 12 ? PairingCycle.AM : PairingCycle.PM;
+    return this.getTaipeiParts().hour < 12 ? PairingCycle.AM : PairingCycle.PM;
   }
 
   private getCapForTier(tier: MembershipTier): number {
@@ -744,9 +771,8 @@ export class PairingService {
    * the cap is hit. Those are already cleared to 0 by the time this runs.
    */
   async flushAllAvailablePoints(): Promise<void> {
-    const now      = new Date();
-    const dateKey  = now.toISOString().slice(0, 10);
-    const cycle    = now.getHours() < 12 ? PairingCycle.AM : PairingCycle.PM;
+    const { dateKey, hour } = this.getTaipeiParts();
+    const cycle    = hour < 12 ? PairingCycle.AM : PairingCycle.PM;
     const cycleKey = `${dateKey}-${cycle}`;
 
     // Snapshot non-zero buckets BEFORE resetting
@@ -791,8 +817,8 @@ export class PairingService {
   }
 
   getCurrentPeriodKey(): string {
-    const dateKey = new Date().toISOString().slice(0, 10);
-    const cycle   = new Date().getHours() < 12 ? PairingCycle.AM : PairingCycle.PM;
+    const { dateKey, hour } = this.getTaipeiParts();
+    const cycle = hour < 12 ? PairingCycle.AM : PairingCycle.PM;
     return `${dateKey}-${cycle}`;
   }
 
@@ -843,13 +869,12 @@ export class PairingService {
       .lean();
     if (!user) throw new BadRequestException('User not found');
 
-    const now     = new Date();
-    const dateKey = now.toISOString().slice(0, 10);
+    const dateKey = this.todayDateKey();
     const cycle   = this.getCurrentCycle();
     const cyclePeriodPrefix = `${dateKey}-${cycle}`;
 
     const tier     = (user as any).membershipTier as MembershipTier;
-    const capLimit = (user as any).isFree ? 0 : (this.TIER_CAP_MAP[tier] ?? this.TIER_CAP_MAP[MembershipTier.BRONZE]);
+    const capLimit = this.getCapForTier(tier);
     const tierUpgradedAt: Date | null = (user as any).tierUpgradedAt ?? null;
 
     const capUsed = await this.getDailyCapUsed(userId, cyclePeriodPrefix, tierUpgradedAt);

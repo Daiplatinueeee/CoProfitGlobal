@@ -61,6 +61,7 @@ import {
 
 import { AdminRestrictUserDto } from './dto/admin-restrict-user.dto';
 import { WalletService } from '../wallet/wallet.service';
+import { VolumeService } from '../volume/volume.service';
 
 @Injectable()
 export class AdminService {
@@ -84,6 +85,7 @@ export class AdminService {
     private readonly usersService: UsersService,
     private readonly pairingService: PairingService,
     private readonly walletService: WalletService,
+    private readonly volumeService: VolumeService,
   ) {}
 
   private isValidObjectId(id: string) {
@@ -332,7 +334,7 @@ export class AdminService {
       },
     );
 
-    const previousTier = (user as any).membershipTier as string;
+    const previousTier = (user as any).membershipTier as MembershipTier;
     await this.txnModel
       .create({
         userId: uid,
@@ -346,6 +348,11 @@ export class AdminService {
         postedAt: new Date(),
       })
       .catch(() => {});
+
+    // Push the tier's point delta up to ancestors and attempt pairing —
+    // previously missing here, so admin-upgrading an already-placed
+    // member's package never generated volume or triggered a pairing check.
+    await this.volumeService.awardUpgradeVolume(uid.toString(), previousTier, newTier);
 
     return {
       id: (user as any)._id.toString(),

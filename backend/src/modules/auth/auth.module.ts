@@ -3,6 +3,7 @@ import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
@@ -22,6 +23,12 @@ import {
       { name: ForgotPasswordRequest.name, schema: ForgotPasswordRequestSchema },
     ]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
+
+    // Backs the ThrottlerGuard applied to POST /auth/login only (see
+    // auth.controller.ts) — 5 attempts/minute per IP against credential
+    // brute-forcing. Not registered globally, so it has no effect on any
+    // other route in the app.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 5 }]),
 
     JwtModule.registerAsync({
       imports: [ConfigModule],

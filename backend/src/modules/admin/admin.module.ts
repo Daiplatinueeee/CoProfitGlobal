@@ -29,6 +29,7 @@ import {
 import { RolesGuard } from '../auth/roles.guard';
 import { PairingModule } from '../pairing/pairing.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { VolumeModule } from '../volume/volume.module';
 import { WalletTransaction, WalletTransactionSchema } from '../wallet/schemas/wallet-transaction.schema';
 import {
   ForgotPasswordRequest,
@@ -40,6 +41,7 @@ import {
     UsersModule,
     PairingModule,
     WalletModule,
+    VolumeModule,
     MongooseModule.forFeature([
       { name: User.name,          schema: UserSchema },
       { name: ProductPin.name,    schema: ProductPinSchema },
