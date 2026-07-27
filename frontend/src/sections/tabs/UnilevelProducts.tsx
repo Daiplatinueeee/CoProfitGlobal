@@ -25,15 +25,19 @@ import redeem8 from '../../assets/lifestyle rewards/house.webp';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // ─── Reward Images ────────────────────────────────────────────────────────────
+// Keyed by reward NAME, not _id — real backend-seeded LifestyleReward
+// documents get a genuine MongoDB ObjectId (not the "lr-00X" placeholder ids
+// used only by the local sample JSON fallback), so matching on the stable
+// name keeps images working once real data replaces the sample fallback.
 const rewardImages: Record<string, string> = {
-  'lr-001': redeem1,
-  'lr-002': redeem2,
-  'lr-003': redeem3,
-  'lr-004': redeem4,
-  'lr-005': redeem5,
-  'lr-006': redeem6,
-  'lr-007': redeem7,
-  'lr-008': redeem8
+  'Eat All You Can':  redeem1,
+  'Staycation for 2': redeem2,
+  'Android Phone':    redeem3,
+  'Macbook':          redeem4,
+  'Motorcycle':       redeem5,
+  'Sedan Car':        redeem6,
+  'SUV Car':          redeem7,
+  'House and Lot':    redeem8,
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -53,6 +57,7 @@ interface PvStatus {
   monthKey: string;
   totalPv: number;
   availablePv: number;
+  totalPrice: number;
   threshold: number;
   qualified: boolean;
 }
@@ -410,9 +415,12 @@ export default function UnilevelProducts() {
 
   const currentPv = pvStatus?.totalPv ?? 0;
   const availablePv = pvStatus?.availablePv ?? 0;
+  // ₱ actually spent this month (product price, not PV) — price and PV are not
+  // 1:1 per product, so PV alone can't stand in for the peso amount required.
+  const currentSpend = pvStatus?.totalPrice ?? 0;
 
   // ── Monthly requirement ───────────────────────────────────────────────────
-  const MONTHLY_PV_REQUIRED = 1500;
+  const MONTHLY_PRICE_REQUIRED = 1500;
   const DEADLINE_DAY = 15;
   const today = new Date();
   const dayOfMonth = today.getDate();
@@ -421,18 +429,30 @@ export default function UnilevelProducts() {
   const isFirstPurchaseMonth = purchaseMonthKey === currentMonthKey;
   const isPastDeadline = dayOfMonth > DEADLINE_DAY && !isFirstPurchaseMonth;
   const daysUntilDeadline = DEADLINE_DAY - dayOfMonth;
-  const monthlyPvMet = currentPv >= MONTHLY_PV_REQUIRED;
+  const monthlyRequirementMet = currentSpend >= MONTHLY_PRICE_REQUIRED;
   const monthName = today.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
+  // Past the 15th without hitting the ₱ requirement — collapses the whole store
+  // down to just the product catalogue + Redeem Product PIN (see LockedStoreView
+  // below). PIN redemption stays fully active since it's the only mechanism that
+  // increases this month's ₱ total — locking it too would make recovery
+  // impossible. The lock lifts automatically the moment currentSpend crosses
+  // MONTHLY_PRICE_REQUIRED.
+  const isLockedOut = isPastDeadline && !monthlyRequirementMet;
 
   // ── Closest lifestyle reward goal ─────────────────────────────────────────
-  const inStockRewardsSorted = [...rewards].filter(r => r.stock > 0).sort((a, b) => a.pointsCost - b.pointsCost);
-  const closestReward = inStockRewardsSorted.find(r => r.pointsCost >= availablePv) ?? inStockRewardsSorted[0] ?? null;
+  // Stock is unlimited — every reward is always available, so no stock filter here.
+  const rewardsSortedByCost = [...rewards].sort((a, b) => a.pointsCost - b.pointsCost);
+  const closestReward = rewardsSortedByCost.find(r => r.pointsCost >= availablePv) ?? rewardsSortedByCost[0] ?? null;
   const rewardGoal = closestReward?.pointsCost ?? 0;
   const pctProgress = rewardGoal > 0 ? Math.min(100, Math.round((availablePv / rewardGoal) * 100)) : 0;
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
   const handleRedeemPin = async () => {
+    // Intentionally NOT gated on isLockedOut — PIN redemption is the only
+    // mechanism that increases this month's ₱ total, so it must stay active
+    // even while the rest of the store is restricted; otherwise recovery
+    // from the locked state would be impossible.
     const pin = pinInput.trim().toUpperCase();
     if (!isPinValid(pin)) {
       setPinError('PIN must be 3 uppercase letters followed by 3 digits (e.g. ABC123).');
@@ -460,6 +480,7 @@ export default function UnilevelProducts() {
   };
 
   const handleRedeemReward = async (rewardId: string) => {
+    if (isLockedOut) return;
     if (!isValidObjectId(rewardId)) {
       setRewardError(prev => ({ ...prev, [rewardId]: 'This reward is not yet available for redemption. Please contact your admin.' }));
       return;
@@ -766,30 +787,22 @@ export default function UnilevelProducts() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {rewards.map(reward => {
             const canAfford = availablePv >= reward.pointsCost;
-            const inStock = reward.stock > 0;
             const isRedeeming = redeemingReward === reward._id;
             const err = rewardError[reward._id];
 
             return (
               <div key={reward._id} className="bg-white rounded-xl border border-slate-100 overflow-hidden flex flex-col">
                 <div className="aspect-video overflow-hidden bg-linear-to-br from-amber-50 to-orange-100 relative flex items-center justify-center">
-                  {rewardImages[reward._id] ? (
+                  {rewardImages[reward.name] ? (
                     <img
-                      src={rewardImages[reward._id]}
+                      src={rewardImages[reward.name]}
                       alt={reward.name}
-                      className={`w-full h-full object-cover ${!inStock ? 'opacity-40' : ''}`}
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="flex flex-col items-center gap-1 text-orange-300">
                       <Gift size={40} />
                       <span className="text-xs font-medium text-orange-400">{reward.category}</span>
-                    </div>
-                  )}
-                  {!inStock && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/60">
-                      <span className="text-xs font-semibold bg-white/90 text-slate-600 px-2 py-1 rounded-full shadow">
-                        Out of stock
-                      </span>
                     </div>
                   )}
                   <span className="absolute top-2 right-2 text-xs font-semibold text-violet-700 bg-white/90 px-2 py-0.5 rounded-full shadow-sm">
@@ -823,17 +836,17 @@ export default function UnilevelProducts() {
                     </span>
                   )}
                   {err && <p className="text-xs text-red-600">{err}</p>}
-                  {!canAfford && inStock && (
+                  {!canAfford && (
                     <p className="text-xs text-amber-600">
                       Need {(reward.pointsCost - availablePv).toLocaleString()} more PV
                     </p>
                   )}
                   <button
                     onClick={() => handleRedeemReward(reward._id)}
-                    disabled={!canAfford || !inStock || isRedeeming}
+                    disabled={!canAfford || isRedeeming}
                     className="mt-auto w-full bg-violet-600 hover:bg-violet-700 disabled:bg-slate-100 disabled:text-slate-400 text-white text-xs font-medium py-2.5 rounded-lg transition-colors disabled:cursor-not-allowed"
                   >
-                    {isRedeeming ? 'Redeeming…' : !inStock ? 'Out of Stock' : !canAfford ? 'Not Enough PV' : 'Redeem Coupon'}
+                    {isRedeeming ? 'Redeeming…' : !canAfford ? 'Not Enough PV' : 'Redeem Coupon'}
                   </button>
                 </div>
               </div>
@@ -910,6 +923,17 @@ export default function UnilevelProducts() {
         </button>
       </div>
 
+      {/* ── Claim reminder ── */}
+      <div className="mb-5 flex items-start gap-3 px-5 py-3.5 rounded-2xl bg-amber-50 border border-amber-200">
+        <MapPin size={15} className="text-amber-500 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <p className="text-xs font-semibold text-amber-700">Claim on-site</p>
+          <p className="text-xs text-amber-600 mt-0.5 leading-relaxed">
+            These coupons can only be claimed on-site. Visit the office and present your coupon code to redeem your reward in person.
+          </p>
+        </div>
+      </div>
+
       {rewardHistoryLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map(i => (
@@ -934,7 +958,7 @@ export default function UnilevelProducts() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {rewardRedemptions.map(r => {
             const matchedReward = rewards.find(rw => rw.name === r.rewardName);
-            const rewardImg = matchedReward ? rewardImages[matchedReward._id] : undefined;
+            const rewardImg = rewardImages[r.rewardName];
             return (
             <div
               key={r._id}
@@ -1029,7 +1053,12 @@ export default function UnilevelProducts() {
               <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
                 Unilevel Products
               </h1>
-              {hasPurchased ? (
+              {hasPurchased && isLockedOut ? (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-50 ring-1 ring-red-200 px-2.5 py-0.5 rounded-full">
+                  <Lock size={11} />
+                  Restricted
+                </span>
+              ) : hasPurchased ? (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 px-2.5 py-0.5 rounded-full">
                   <ShieldCheck size={11} />
                   Active
@@ -1042,7 +1071,9 @@ export default function UnilevelProducts() {
               )}
             </div>
             <p className="text-sm text-slate-400">
-              {hasPurchased
+              {hasPurchased && isLockedOut
+                ? 'Store restricted — redeem a Product PIN to reach ₱1,500 in purchases this month and restore full access'
+                : hasPurchased
                 ? 'Buy products to earn PV · Redeem PV for exclusive Lifestyle Rewards'
                 : 'Purchase the ₱1,500 package to unlock all Unilevel features'}
             </p>
@@ -1053,26 +1084,89 @@ export default function UnilevelProducts() {
         {/* ── Gate or main content ── */}
         {!hasPurchased ? (
           <PurchaseGate />
+        ) : isLockedOut ? (
+          <>
+            {/* ── Overdue notice ── */}
+            <div className="mb-4 flex items-start gap-3 px-5 py-3.5 rounded-2xl bg-red-50 border border-red-200">
+              <XCircle size={15} className="text-red-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-red-700">Monthly requirement overdue — store restricted</p>
+                <p className="text-xs text-red-600 mt-0.5 leading-relaxed">
+                  The {monthName} deadline (15th) has passed without reaching ₱1,500 in purchases. You need <span className="font-semibold">₱{(MONTHLY_PRICE_REQUIRED - currentSpend).toLocaleString()} more</span> to restore full access. Redeem a Product PIN below to catch up — everything else is locked until then.
+                </p>
+              </div>
+            </div>
+
+            {/* ── Simplified: product catalogue only ── */}
+            <div className="mb-6"><ShopPanel /></div>
+
+            {/* ── Redeem Product PIN — the only active action while locked ── */}
+            <div className="mb-6 bg-white border border-slate-200 rounded-2xl px-5 sm:px-6 py-5">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="shrink-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <KeyRound size={14} className="text-slate-500" />
+                    <p className="text-sm font-semibold text-slate-900">Redeem Product PIN</p>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex flex-col sm:flex-row gap-2.5">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={pinInput}
+                      onChange={e => {
+                        setPinInput(formatPinInput(e.target.value));
+                        setPinError('');
+                        setPinSuccess('');
+                      }}
+                      onKeyDown={e => e.key === 'Enter' && handleRedeemPin()}
+                      placeholder="AAA000"
+                      maxLength={6}
+                      className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-slate-900 font-mono text-sm tracking-[0.25em] placeholder:text-slate-300 placeholder:tracking-[0.25em] focus:outline-none focus:ring-2 transition-all uppercase ${pinError ? 'border-red-400 focus:ring-red-200' :
+                        pinSuccess ? 'border-emerald-400 focus:ring-emerald-200' :
+                          'border-slate-200 focus:ring-slate-300/50'
+                        }`}
+                    />
+                    {pinInput.length > 0 && pinInput.length < 6 && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-mono">
+                        {pinInput.length}/6
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleRedeemPin}
+                    disabled={!isPinValid(pinInput) || pinLoading}
+                    className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-700 disabled:bg-slate-100 disabled:text-slate-400 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    <KeyRound size={14} />
+                    {pinLoading ? 'Redeeming…' : 'Redeem PIN'}
+                  </button>
+                </div>
+              </div>
+
+              {(pinSuccess || pinError) && (
+                <div className={`mt-3 flex items-center gap-2 text-xs font-medium rounded-lg px-3 py-2 ${pinSuccess ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'
+                  }`}>
+                  {pinSuccess
+                    ? <CheckCircle size={13} className="shrink-0" />
+                    : <AlertCircle size={13} className="shrink-0" />
+                  }
+                  {pinSuccess || pinError}
+                </div>
+              )}
+            </div>
+          </>
         ) : (
           <>
             {/* ── Monthly Requirement Reminder ── */}
             {pvStatus && (
-              monthlyPvMet ? (
+              monthlyRequirementMet ? (
                 <div className="mb-4 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-emerald-50 border border-emerald-200">
                   <CheckCircle size={15} className="text-emerald-500 shrink-0" />
                   <p className="text-xs text-emerald-700 flex-1">
-                    <span className="font-semibold">Monthly requirement met</span> — You've reached {currentPv.toLocaleString()} PV this {monthName}. Keep it up!
+                    <span className="font-semibold">Monthly requirement met</span> — You've spent ₱{currentSpend.toLocaleString()} this {monthName}. Keep it up!
                   </p>
-                </div>
-              ) : isPastDeadline ? (
-                <div className="mb-4 flex items-start gap-3 px-5 py-3.5 rounded-2xl bg-red-50 border border-red-200">
-                  <XCircle size={15} className="text-red-500 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-red-700">Monthly requirement overdue</p>
-                    <p className="text-xs text-red-600 mt-0.5 leading-relaxed">
-                      The {monthName} deadline (15th) has passed. You need <span className="font-semibold">{(MONTHLY_PV_REQUIRED - currentPv).toLocaleString()} more PV</span> to avoid losing unilevel access next cycle.
-                    </p>
-                  </div>
                 </div>
               ) : (
                 <div className="mb-4 flex items-start gap-3 px-5 py-3.5 rounded-2xl bg-amber-50 border border-amber-200">
@@ -1080,7 +1174,7 @@ export default function UnilevelProducts() {
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-amber-700">Monthly purchase reminder</p>
                     <p className="text-xs text-amber-600 mt-0.5 leading-relaxed">
-                      Buy products worth at least <span className="font-semibold">₱1,500 (1,500 PV)</span> before the 15th of each month to keep your access active.
+                      Buy products worth at least <span className="font-semibold">₱1,500</span> before the 15th of each month to keep your access active.
                       {daysUntilDeadline > 0 && <> <span className="font-semibold">{daysUntilDeadline} day{daysUntilDeadline !== 1 ? 's' : ''} remaining.</span></>}
                     </p>
                   </div>
@@ -1159,7 +1253,6 @@ export default function UnilevelProducts() {
                   </div>
                 </div>
 
-                {/* Input + button */}
                 <div className="flex-1 flex flex-col sm:flex-row gap-2.5">
                   <div className="flex-1 relative">
                     <input

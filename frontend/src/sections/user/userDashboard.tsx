@@ -136,6 +136,10 @@ export default function UserDashboard() {
   // ── Pairing cap state ────────────────────────────────────────────────
   const [pairingCap, setPairingCap] = useState<{ capUsed: number; capLimit: number; cycle: string } | null>(null);
 
+  // ── Unilevel PV state ─────────────────────────────────────────────────
+  const [unilevelPvStatus, setUnilevelPvStatus] = useState<{ totalPv: number; availablePv: number } | null>(null);
+  const [unilevelPvLoading, setUnilevelPvLoading] = useState(true);
+
   // ── Reset loading states whenever the dashboard tab becomes active or refreshes ──
   useEffect(() => {
     if (activeTab !== 'dashboard') return;
@@ -143,6 +147,7 @@ export default function UserDashboard() {
     setBalancesLoading(true);
     setReferralLoading(true);
     setSign5StatusLoading(true);
+    setUnilevelPvLoading(true);
   }, [activeTab, refreshKey]);
 
   useEffect(() => {
@@ -299,6 +304,24 @@ export default function UserDashboard() {
       }
     };
     fetchPairingCap();
+  }, [activeTab, refreshKey]);
+
+  // ── Fetch current Unilevel PV status ──────────────────────────────────
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    const fetchUnilevelPv = async () => {
+      try {
+        const res = await apiFetch(`${API_BASE_URL}/unilevel-products/my/pv-status`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setUnilevelPvStatus({ totalPv: data.totalPv ?? 0, availablePv: data.availablePv ?? 0 });
+      } catch (err) {
+        console.error('Unilevel PV fetch error:', err);
+      } finally {
+        setUnilevelPvLoading(false);
+      }
+    };
+    fetchUnilevelPv();
   }, [activeTab, refreshKey]);
 
   // ── Evaluate + fetch Sign-5 status on dashboard load ────────────────────
@@ -1093,19 +1116,18 @@ export default function UserDashboard() {
           </div>
         </div>
 
-        {/* Unilevel PV — dynamic from wallet points balance */}
+        {/* Unilevel PV — dynamic from /unilevel-products/my/pv-status */}
         <div className="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Unilevel PV</h3>
-            <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">🚧 Under Development</span>
           </div>
           <div className="space-y-4">
             <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-200">
               <div className="flex items-baseline justify-between mb-2">
                 <p className="text-sm font-medium text-indigo-900">Current PV</p>
-                {balancesLoading
+                {unilevelPvLoading
                   ? <Skeleton className="h-8 w-24" />
-                  : <p className="text-3xl font-bold text-indigo-900">{formatPhp(walletBalances.points)}</p>
+                  : <p className="text-3xl font-bold text-indigo-900">{formatPhp(unilevelPvStatus?.totalPv ?? 0)}</p>
                 }
               </div>
               <p className="text-xs text-indigo-600">Resets every month</p>

@@ -5,6 +5,10 @@ export class GenerateProductPinDto {
   @Min(0)
   pv: number;
 
+  @IsNumber()
+  @Min(0)
+  price: number;
+
   @IsInt()
   @Min(1)
   @Max(50)

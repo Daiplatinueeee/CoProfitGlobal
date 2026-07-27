@@ -149,6 +149,9 @@ export class User {
   totalRoyaltyBonusIncome: number;
 
   @Prop({ type: Number, default: 0 })
+  totalUnilevelLevelBonus: number;
+
+  @Prop({ type: Number, default: 0 })
   unilevelPoints: number;
 
   @Prop({ type: [RefreshSessionSchema], default: [], select: false })

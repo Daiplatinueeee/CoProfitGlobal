@@ -767,6 +767,7 @@ export class AdminService {
             productId: productObjId,
             productName: product.name,
             pv: product.pv,
+            price: product.price,
             note: dto.note ?? '',
             status: UnilevelPinStatus.UNUSED,
             createdByAdminId: adminObjId,
@@ -796,6 +797,7 @@ export class AdminService {
 
     return {
       pv: product.pv,
+      price: product.price,
       productName: product.name,
       quantity: dto.quantity,
       pins,
@@ -822,6 +824,7 @@ export class AdminService {
             productId: null,
             productName: '',
             pv: dto.pv,
+            price: dto.price,
             note: dto.note ?? '',
             status: UnilevelPinStatus.UNUSED,
             createdByAdminId: adminObjId,
@@ -849,7 +852,7 @@ export class AdminService {
       }
     }
 
-    return { pv: dto.pv, quantity: dto.quantity, pins };
+    return { pv: dto.pv, price: dto.price, quantity: dto.quantity, pins };
   }
 
   async listUnilevelPins(status?: UnilevelPinStatus, limit = 50) {
@@ -868,6 +871,7 @@ export class AdminService {
       productId: r.productId ? r.productId.toString() : null,
       productName: r.productName ?? null,
       pv: r.pv,
+      price: r.price ?? 0,
       status: r.status,
       createdAt: r.createdAt,
       usedAt: r.usedAt ?? null,

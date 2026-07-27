@@ -20,6 +20,13 @@ export class UnilevelPin {
   @Prop({ required: true, min: 0 })
   pv: number;
 
+  // PHP price this pin represents — snapshotted at generation time (from the
+  // linked product, or entered directly for freeform pins). Used to compute
+  // the monthly ₱1,500 purchase requirement, which is tracked separately
+  // from PV since price and PV are not 1:1 per product.
+  @Prop({ required: true, min: 0, default: 0 })
+  price: number;
+
   @Prop({ required: false })
   productName: string;
 

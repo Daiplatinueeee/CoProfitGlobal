@@ -28,6 +28,7 @@ export enum WalletTxnSource {
   ADMIN_ADJUSTMENT    = 'admin_adjustment',
   WITHDRAWAL          = 'withdrawal',
   TIER_UPGRADE        = 'tier_upgrade',
+  UNILEVEL_LEVEL_BONUS = 'unilevel_level_bonus',
 }
 
 @Schema({ timestamps: true })

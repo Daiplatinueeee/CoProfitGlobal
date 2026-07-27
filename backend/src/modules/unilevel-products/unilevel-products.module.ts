@@ -12,6 +12,8 @@ import { LifestyleReward, LifestyleRewardSchema } from './schemas/lifestyle-rewa
 import { RewardRedemption, RewardRedemptionSchema } from './schemas/reward-redemption.schema';
 import { UnilevelPvDeduction, UnilevelPvDeductionSchema } from './schemas/unilevel-pv-deduction.schema';
 import { UnilevelPackageRequest, UnilevelPackageRequestSchema } from './schemas/unilevel-package-request.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
+import { WalletModule } from '../wallet/wallet.module';
 
 @Module({
   imports: [
@@ -24,7 +26,9 @@ import { UnilevelPackageRequest, UnilevelPackageRequestSchema } from './schemas/
       { name: RewardRedemption.name,       schema: RewardRedemptionSchema },
       { name: UnilevelPvDeduction.name,    schema: UnilevelPvDeductionSchema },
       { name: UnilevelPackageRequest.name, schema: UnilevelPackageRequestSchema },
+      { name: User.name,                   schema: UserSchema },
     ]),
+    WalletModule,
   ],
   controllers: [UnilevelProductsController],
   providers: [UnilevelProductsService],

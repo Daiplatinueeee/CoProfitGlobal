@@ -7,6 +7,7 @@ interface ProductPin {
   _id: string;
   pin: string;
   pv: number;
+  price: number;
   status: 'USED' | 'UNUSED' | 'VOID';
   createdAt: string;
 }
@@ -26,6 +27,7 @@ export default function GenerateProductPin() {
   const [showModal, setShowModal] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [pv, setPv] = useState('');
+  const [price, setPrice] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [successCount, setSuccessCount] = useState<number | null>(null);
@@ -64,6 +66,7 @@ export default function GenerateProductPin() {
   const openModal = () => {
     setQuantity(1);
     setPv('');
+    setPrice('');
     setModalError(null);
     setSuccessCount(null);
     setShowModal(true);
@@ -82,6 +85,10 @@ export default function GenerateProductPin() {
       setModalError('Please enter a valid PV value.');
       return;
     }
+    if (!price || isNaN(Number(price)) || Number(price) < 0) {
+      setModalError('Please enter a valid price (₱) value.');
+      return;
+    }
     if (quantity < 1) {
       setModalError('Quantity must be at least 1.');
       return;
@@ -93,7 +100,7 @@ export default function GenerateProductPin() {
       const res = await apiFetch(`${API_BASE}/admin/product-pins/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pv: Number(pv), quantity }),
+        body: JSON.stringify({ pv: Number(pv), price: Number(price), quantity }),
       });
 
       if (!res.ok) {
@@ -257,6 +264,9 @@ export default function GenerateProductPin() {
                   <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">
                     Unilevel PV
                   </th>
+                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">
+                    Price
+                  </th>
                   {/* NEW: Product PIN column */}
                   <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
                     Product PIN
@@ -309,6 +319,11 @@ export default function GenerateProductPin() {
                           <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 px-2 py-0.5 rounded-full">
                             {pin.pv ?? '—'} PV
                           </span>
+                        </td>
+
+                        {/* Price */}
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 hidden md:table-cell">
+                          <span className="text-xs font-medium text-slate-700">₱{(pin.price ?? 0).toLocaleString()}</span>
                         </td>
 
                         {/* Product PIN (randomized code) */}
@@ -433,7 +448,7 @@ export default function GenerateProductPin() {
                 </div>
               )}
 
-              {/* PV + Quantity row */}
+              {/* PV + Price + Quantity row */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">
@@ -452,6 +467,22 @@ export default function GenerateProductPin() {
                 </div>
 
                 <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Price (₱) <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    disabled={submitting}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all duration-150 disabled:opacity-50"
+                    placeholder="0"
+                  />
+                </div>
+
+                <div className="col-span-2">
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">
                     Quantity <span className="text-red-400">*</span>
                   </label>

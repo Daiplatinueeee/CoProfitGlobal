@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -49,10 +50,22 @@ import { RedeemPinDto } from './dto/redeem-pin.dto';
 import { RedeemRewardDto } from './dto/redeem-reward.dto';
 import { CreateLifestyleRewardDto } from '../admin/dto/create-lifestyle-reward.dto';
 
+import { User, UserDocument } from '../users/schemas/user.schema';
+import { WalletService } from '../wallet/wallet.service';
+import { WalletCurrency, WalletTxnSource } from '../wallet/schemas/wallet-transaction.schema';
+
 const PV_THRESHOLD = 1500;
+
+// Unilevel level-override rates on a PIN redemption's ₱ price — level 1 is the
+// redeemer's direct sponsor (User.sponsorId), level 2 their sponsor's sponsor,
+// etc. This walks the referral chain, not the binary placement tree, since
+// "unilevel" here means sponsorship depth, separate from pairing/volume.
+const UNILEVEL_LEVEL_RATES = [0.01, 0.02, 0.03, 0.04, 0.05];
 
 @Injectable()
 export class UnilevelProductsService implements OnModuleInit {
+  private readonly logger = new Logger(UnilevelProductsService.name);
+
   constructor(
     @InjectModel(UnilevelProduct.name)
     private readonly productModel: Model<UnilevelProductDocument>,
@@ -74,43 +87,81 @@ export class UnilevelProductsService implements OnModuleInit {
 
     @InjectModel(UnilevelPackageRequest.name)
     private readonly packageRequestModel: Model<UnilevelPackageRequestDocument>,
+
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
+
+    private readonly walletService: WalletService,
   ) {}
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
   async onModuleInit() {
     const count = await this.productModel.countDocuments();
+    if (count === 0) {
+      await this.productModel.insertMany([
+        {
+          name:        'Perfume',
+          description: 'Premium fragrance blend',
+          price:       1500,
+          pv:          500,
+          features:    ['Long-lasting scent', 'Premium ingredients'],
+          sortOrder:   1,
+          status:      ProductStatus.ACTIVE,
+        },
+        {
+          name:        'Soap',
+          description: 'Natural herbal cleansing bar',
+          price:       500,
+          pv:          150,
+          features:    ['Natural ingredients', 'Gentle on skin'],
+          sortOrder:   2,
+          status:      ProductStatus.ACTIVE,
+        },
+        {
+          name:        'Ointment Oil',
+          description: 'Therapeutic essential oil blend',
+          price:       800,
+          pv:          250,
+          features:    ['Pain relief', 'Aromatherapy grade'],
+          sortOrder:   3,
+          status:      ProductStatus.ACTIVE,
+        },
+      ]);
+    }
+
+    // Independent of the product-seed check above — a previous bug had this
+    // nested inside the product early-return, so it silently never ran once
+    // products were already seeded (which they always are on a live system).
+    await this.seedLifestyleRewards();
+  }
+
+  /**
+   * The LifestyleReward collection previously had no seed step at all (unlike
+   * UnilevelProduct above), so it was genuinely empty in the database. The
+   * frontend silently falls back to a local sample JSON whenever the API
+   * returns zero rewards — that sample data uses placeholder ids ("lr-001"
+   * etc.) that aren't real ObjectIds, so any redemption attempt against it
+   * fails with "This reward is not yet available for redemption." Seeding
+   * real documents here (same catalogue the frontend sample already shows)
+   * gives every reward a genuine ObjectId so redemption actually works.
+   */
+  private async seedLifestyleRewards() {
+    const count = await this.rewardModel.countDocuments();
     if (count > 0) return;
 
-    await this.productModel.insertMany([
-      {
-        name:        'Perfume',
-        description: 'Premium fragrance blend',
-        price:       1500,
-        pv:          500,
-        features:    ['Long-lasting scent', 'Premium ingredients'],
-        sortOrder:   1,
-        status:      ProductStatus.ACTIVE,
-      },
-      {
-        name:        'Soap',
-        description: 'Natural herbal cleansing bar',
-        price:       500,
-        pv:          150,
-        features:    ['Natural ingredients', 'Gentle on skin'],
-        sortOrder:   2,
-        status:      ProductStatus.ACTIVE,
-      },
-      {
-        name:        'Ointment Oil',
-        description: 'Therapeutic essential oil blend',
-        price:       800,
-        pv:          250,
-        features:    ['Pain relief', 'Aromatherapy grade'],
-        sortOrder:   3,
-        status:      ProductStatus.ACTIVE,
-      },
+    await this.rewardModel.insertMany([
+      { name: 'Eat All You Can',  description: 'Enjoy an unlimited eat-all-you-can dining experience at a partner restaurant.', pointsCost: 8,     category: 'Dining',      stock: 10, sortOrder: 1, status: RewardStatus.ACTIVE },
+      { name: 'Staycation for 2', description: 'A relaxing overnight staycation for two at a partner hotel or resort.',         pointsCost: 25,    category: 'Travel',      stock: 10, sortOrder: 2, status: RewardStatus.ACTIVE },
+      { name: 'Android Phone',    description: 'A brand-new Android smartphone. Exact model subject to availability.',         pointsCost: 60,    category: 'Electronics', stock: 10, sortOrder: 3, status: RewardStatus.ACTIVE },
+      { name: 'Macbook',          description: 'A brand-new Apple MacBook laptop. Specs subject to availability.',             pointsCost: 250,   category: 'Electronics', stock: 5,  sortOrder: 4, status: RewardStatus.ACTIVE },
+      { name: 'Motorcycle',       description: 'A brand-new motorcycle from our partner dealers.',                             pointsCost: 500,   category: 'Vehicle',     stock: 5,  sortOrder: 5, status: RewardStatus.ACTIVE },
+      { name: 'Sedan Car',        description: 'A brand-new sedan from our partner dealerships.',                              pointsCost: 5000,  category: 'Vehicle',     stock: 3,  sortOrder: 6, status: RewardStatus.ACTIVE },
+      { name: 'SUV Car',          description: 'A brand-new SUV from our partner dealerships.',                                pointsCost: 10000, category: 'Vehicle',     stock: 2,  sortOrder: 7, status: RewardStatus.ACTIVE },
+      { name: 'House and Lot',    description: 'A house and lot property from our partner developers.',                        pointsCost: 25000, category: 'Real Estate', stock: 1,  sortOrder: 8, status: RewardStatus.ACTIVE },
     ]);
+
+    this.logger.log('[unilevel-rewards] Seeded 8 default lifestyle rewards');
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -210,18 +261,41 @@ export class UnilevelProductsService implements OnModuleInit {
   async getMyPvStatus(userId: string, monthKey?: string) {
     const mk = monthKey ?? this.currentMonthKey();
     const uid = this.toObjectId(userId);
-    const [totalPv, availablePv] = await Promise.all([
+    const [totalPv, availablePv, totalPrice] = await Promise.all([
       this.computeMonthPv(uid, mk),
       this.computeAvailablePv(uid),
+      this.computeMonthPrice(uid, mk),
     ]);
 
     return {
       monthKey:     mk,
       totalPv,
       availablePv,
+      totalPrice,
       threshold:    PV_THRESHOLD,
       qualified:    totalPv >= PV_THRESHOLD,
     };
+  }
+
+  /**
+   * Monthly ₱ total for the "buy ≥₱1,500 by the 15th" access requirement.
+   * Sums approved purchases' totalPrice + redeemed pins' price for the month.
+   * Tracked separately from PV since price and PV are not 1:1 per product —
+   * a ₱1,500 product can be worth anywhere from ~150 to ~500 PV depending on
+   * the item, so PV alone can't stand in for the peso amount actually spent.
+   */
+  async computeMonthPrice(userId: Types.ObjectId, monthKey: string): Promise<number> {
+    const [purchaseResult, pinResult] = await Promise.all([
+      this.purchaseModel.aggregate([
+        { $match: { userId, monthKey, status: PurchaseStatus.APPROVED } },
+        { $group: { _id: null, total: { $sum: '$totalPrice' } } },
+      ]),
+      this.pinModel.aggregate([
+        { $match: { usedByUserId: userId, monthKey, status: { $ne: UnilevelPinStatus.VOID } } },
+        { $group: { _id: null, total: { $sum: '$price' } } },
+      ]),
+    ]);
+    return (purchaseResult[0]?.total ?? 0) + (pinResult[0]?.total ?? 0);
   }
 
   /**
@@ -290,6 +364,65 @@ export class UnilevelProductsService implements OnModuleInit {
     });
   }
 
+  // ─── Unilevel level-override bonuses ────────────────────────────────────────
+
+  /**
+   * Credits the 1%-5% level-override bonuses (levels 1-5) up the redeemer's
+   * SPONSOR chain (User.sponsorId — who recruited them), not the binary
+   * placement tree, after a PIN redemption.
+   *
+   * An upline only qualifies at their level if they have ever had an
+   * APPROVED package request (i.e. their own Unilevel access is unlocked).
+   * If not, that level is simply forfeited — NOT rolled up to the next
+   * level — and the chain walk continues upward regardless.
+   */
+  private async awardUnilevelLevelBonuses(
+    redeemerUserId: Types.ObjectId,
+    price: number,
+    refKeyBase: string,
+  ): Promise<void> {
+    if (price <= 0) return;
+
+    let currentUserId: Types.ObjectId | null = redeemerUserId;
+
+    for (let level = 1; level <= UNILEVEL_LEVEL_RATES.length; level++) {
+      const current = await this.userModel
+        .findById(currentUserId)
+        .select('sponsorId')
+        .lean();
+
+      const sponsorId = (current as any)?.sponsorId as Types.ObjectId | null | undefined;
+      if (!sponsorId) break; // chain ended — no more uplines
+
+      const isUnlocked = await this.packageRequestModel.exists({
+        userId: sponsorId,
+        status: PackageRequestStatus.APPROVED,
+      });
+
+      if (isUnlocked) {
+        const rate   = UNILEVEL_LEVEL_RATES[level - 1];
+        const amount = Math.round(price * rate * 100) / 100;
+        if (amount > 0) {
+          await this.walletService.credit({
+            userId:   sponsorId.toString(),
+            currency: WalletCurrency.PHP,
+            amount,
+            source:   WalletTxnSource.UNILEVEL_LEVEL_BONUS,
+            refKey:   `unilevel-level:${level}:${sponsorId.toString()}:${refKeyBase}`,
+            note:     `Unilevel Level ${level} bonus (${rate * 100}%) — ₱${price} PIN redemption`,
+            meta:     { level, rate, price, redeemerUserId: redeemerUserId.toString() },
+          });
+        }
+      } else {
+        this.logger.debug(
+          `[unilevel-level] level ${level} skipped — sponsor=${sponsorId.toString()} has no unlocked Unilevel access`,
+        );
+      }
+
+      currentUserId = sponsorId; // keep climbing regardless of this level's eligibility
+    }
+  }
+
   // ─── Product PIN redemption ──────────────────────────────────────────────────
 
   async redeemPin(userId: string, dto: RedeemPinDto) {
@@ -313,11 +446,22 @@ export class UnilevelProductsService implements OnModuleInit {
     pinDoc.monthKey      = this.currentMonthKey();
     await pinDoc.save();
 
+    try {
+      await this.awardUnilevelLevelBonuses(
+        this.toObjectId(userId),
+        pinDoc.price,
+        `pin:${pinDoc._id.toString()}`,
+      );
+    } catch (err: any) {
+      this.logger.error(`[unilevel-level] bonus award failed for pin ${pinDoc.pin}: ${err.message}`);
+    }
+
     return {
-      message:     `PIN redeemed! You earned ${pinDoc.pv} PV from ${pinDoc.productName}.`,
+      message:     `PIN redeemed! You earned ${pinDoc.pv} PV (₱${pinDoc.price}) from ${pinDoc.productName}.`,
       pin:         pinDoc.pin,
       productName: pinDoc.productName,
       pv:          pinDoc.pv,
+      price:       pinDoc.price,
       redeemedAt:  now,
     };
   }
@@ -334,6 +478,7 @@ export class UnilevelProductsService implements OnModuleInit {
       productId:   p.productId ? p.productId.toString() : null,
       productName: p.productName,
       pv:          p.pv,
+      price:       p.price ?? 0,
       redeemedAt:  p.usedAt,
       status:      p.status === UnilevelPinStatus.VOID ? 'void' : 'active',
     }));
@@ -357,9 +502,8 @@ export class UnilevelProductsService implements OnModuleInit {
     if (reward.status !== RewardStatus.ACTIVE) {
       throw new BadRequestException('This reward is no longer available');
     }
-    if (reward.stock <= 0) {
-      throw new BadRequestException('This reward is out of stock');
-    }
+    // Stock is unlimited by design — rewards are never blocked or decremented
+    // by quantity, only by status (active/inactive) and the user's PV.
 
     const available = await this.computeAvailablePv(uid);
     if (available < reward.pointsCost) {
@@ -367,8 +511,6 @@ export class UnilevelProductsService implements OnModuleInit {
         `Insufficient PV. You need ${reward.pointsCost} PV but have ${available} PV available.`,
       );
     }
-
-    await this.rewardModel.findByIdAndUpdate(reward._id, { $inc: { stock: -1 } });
 
     const couponCode = this.generateCouponCode();
     const redemption = await this.redemptionModel.create({

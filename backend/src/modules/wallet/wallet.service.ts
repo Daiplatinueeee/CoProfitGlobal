@@ -68,7 +68,7 @@ export class WalletService {
           'totalPairingBonus totalSign5Bonus totalLeadershipBonus ' +
           'totalDirectReferralIncome totalIndirectReferralIncome ' +
           'totalRepeatBinaryBonusIncome totalStairstepBonusIncome ' +
-          'totalRoyaltyBonusIncome',
+          'totalRoyaltyBonusIncome totalUnilevelLevelBonus',
         )
         .lean(),
       this.txnModel.aggregate([
@@ -82,7 +82,6 @@ export class WalletService {
         {
           $group: {
             _id: null,
-            grandTotal: { $sum: '$amount' },
             today:      { $sum: { $cond: [{ $gte: ['$postedAt', startOfToday] }, '$amount', 0] } },
             thisWeek:   { $sum: { $cond: [{ $gte: ['$postedAt', startOfWeek] },  '$amount', 0] } },
             thisMonth:  { $sum: { $cond: [{ $gte: ['$postedAt', startOfMonth] }, '$amount', 0] } },
@@ -102,18 +101,31 @@ export class WalletService {
     const repeatBinaryBonus     = u?.totalRepeatBinaryBonusIncome ?? 0;
     const stairstepBonus        = u?.totalStairstepBonusIncome  ?? 0;
     const royaltyBonus          = u?.totalRoyaltyBonusIncome    ?? 0;
+    const unilevelLevelBonus    = u?.totalUnilevelLevelBonus    ?? 0;
 
     const totalIncome =
       pairingBonus + sign5Bonus + leadershipBonus +
       directReferralBonus + indirectReferralBonus +
-      repeatBinaryBonus + stairstepBonus + royaltyBonus;
+      repeatBinaryBonus + stairstepBonus + royaltyBonus +
+      unilevelLevelBonus;
 
-    // Scale period sums proportionally when admin overrides bonus totals.
-    // grandTotal = sum of all raw credit transactions; totalIncome = admin-edited truth.
-    // Ratio < 1 when admin reduced income, > 1 when increased.
-    const grandTotal = t?.grandTotal ?? 0;
-    const ratio = grandTotal > 0 ? totalIncome / grandTotal : 1;
-
+    // Today/This Week/This Month report the real PHP actually credited in
+    // that window — a plain, unscaled sum straight from the wallet ledger.
+    //
+    // A previous version scaled these by (totalIncome / grandTotal) so they'd
+    // stay "proportionally consistent" whenever an admin manually overrode a
+    // total* field. That broke as soon as ANY wallet credit existed outside
+    // the 8 tracked categories — most commonly ADMIN_ADJUSTMENT, which is
+    // intentionally uncategorized (a lump-sum correction, not a dated
+    // "bonus"). There's no meaningful way to attribute an undated correction
+    // to a specific day/week/month, so trying to proportionally redistribute
+    // it across time periods just silently deflated (or inflated) every
+    // other real, correctly-timed transaction for that user — e.g. a
+    // brand-new Sign-5 bonus posted today would get crushed to a fraction of
+    // its real value just because an unrelated admin adjustment months
+    // earlier wasn't in totalIncome. Reporting the raw ledger sums directly
+    // avoids that entirely; totalIncome remains its own independent,
+    // admin-editable lifetime figure.
     return {
       userId,
       totalIncome,
@@ -123,9 +135,10 @@ export class WalletService {
       leadershipBonus,
       directReferralBonus,
       indirectReferralBonus,
-      today:     (t?.today     ?? 0) * ratio,
-      thisWeek:  (t?.thisWeek  ?? 0) * ratio,
-      thisMonth: (t?.thisMonth ?? 0) * ratio,
+      unilevelLevelBonus,
+      today:     t?.today     ?? 0,
+      thisWeek:  t?.thisWeek  ?? 0,
+      thisMonth: t?.thisMonth ?? 0,
     };
   }
 
@@ -264,6 +277,7 @@ export class WalletService {
         [WalletTxnSource.LEADERSHIP]:       'totalLeadershipBonus',
         [WalletTxnSource.SIGN5]:            'totalSign5Bonus',
         [WalletTxnSource.SPILLOVER]:        'totalStairstepBonusIncome',
+        [WalletTxnSource.UNILEVEL_LEVEL_BONUS]: 'totalUnilevelLevelBonus',
       };
       const field = SOURCE_TO_FIELD[params.source];
       if (field) {
