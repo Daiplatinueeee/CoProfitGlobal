@@ -256,6 +256,30 @@ export class UsersService {
     });
   }
 
+  // ✅ Create SUPER_ADMIN — the only role exempt from maintenance-mode login lockout
+  async createSuperAdmin(input: {
+    name: string;
+    username?: string;
+    email: string;
+    passwordHash: string;
+    packagePin?: string;
+  }): Promise<User> {
+    const packagePin =
+      input.packagePin?.trim() ||
+      (await this.generateUniquePackagePin('SUP'));
+
+    return this.createUserRecord({
+      name: input.name,
+      username: input.username,
+      email: input.email,
+      passwordHash: input.passwordHash,
+      role: SystemRole.SUPER_ADMIN,
+      membershipTier: MembershipTier.BRONZE,
+      sponsorId: null,
+      packagePin,
+    });
+  }
+
   // ✅ Update membership
   async updateMembershipTier(userId: string, membershipTier: MembershipTier) {
     if (!Types.ObjectId.isValid(userId)) {

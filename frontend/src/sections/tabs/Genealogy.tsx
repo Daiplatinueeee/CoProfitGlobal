@@ -250,14 +250,25 @@ function Genealogy() {
     return () => mql.removeEventListener('change', handleChange)
   }, [])
 
-  useEffect(() => {
-    const el = scrollRef.current
+  // Callback ref, NOT a useEffect(..., []) — the scrollable container only
+  // exists in the post-loading render tree (the loading state renders
+  // GenealogySkeletonLoader instead, which has no such element). A
+  // mount-once effect would see scrollRef.current as null while loading and
+  // never fire again once the real container mounts, permanently stranding
+  // containerWidth at 0 and fitScale at 1 (unscaled) — which is exactly why
+  // the mobile fit-to-width never actually took effect. A callback ref fires
+  // every time the node itself is attached/detached, surviving that
+  // loading → loaded swap.
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  const attachScrollRef = useCallback((el: HTMLDivElement | null) => {
+    resizeObserverRef.current?.disconnect()
+    resizeObserverRef.current = null
+    scrollRef.current = el
     if (!el) return
-    const update = () => setContainerWidth(el.clientWidth)
-    update()
-    const observer = new ResizeObserver(update)
+    setContainerWidth(el.clientWidth)
+    const observer = new ResizeObserver(() => setContainerWidth(el.clientWidth))
     observer.observe(el)
-    return () => observer.disconnect()
+    resizeObserverRef.current = observer
   }, [])
 
   const resetModalState = useCallback(() => {
@@ -973,7 +984,7 @@ function Genealogy() {
 
       {/* ── Tree scroll area — scrolls both axes; SVG renders at its natural pixel size ── */}
       <div
-        ref={scrollRef}
+        ref={attachScrollRef}
         className="flex-1 overflow-auto"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >

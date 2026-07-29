@@ -13,6 +13,7 @@ import Leaderboards from '../tabs/Leaderboards';
 import PendingRequests from '../tabs/PendingRequests';
 import PendingUnilevelPackages from '../tabs/PendingUnilevelPackages';
 import AdminOrders from '../tabs/AdminOrders';
+import MaintenanceControl from '../tabs/MaintenanceControl';
 
 const KEYFRAMES = `
   @keyframes crane-swing {
@@ -380,6 +381,8 @@ function UnderDevelopmentContent() {
 export default function AdminDashboard() {
   const { logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
+  // Only meaningful for regular ADMIN — SUPER_ADMIN uses the sidebar-free
+  // early-return render path below and never reads activeTab.
   const [activeTab, setActiveTab] = useState('dashboard');
 
   const lastPeriodKey = useRef<string | null>(null);
@@ -398,6 +401,20 @@ export default function AdminDashboard() {
     check();
     const id = setInterval(check, 30_000);
     return () => clearInterval(id);
+  }, []);
+
+  // Role isn't exposed via AuthContext in this app — every component that
+  // needs it reads the same localStorage 'user' blob Auth.tsx wrote at login
+  // (see Auth.tsx handleLogin). SUPER_ADMIN gets an entirely separate,
+  // sidebar-free render path below (just Maintenance Mode + logout) — the
+  // menuItems/renderTabContent below are only ever reached by regular ADMIN,
+  // even though RolesGuard grants SUPER_ADMIN full ADMIN API access underneath.
+  const isSuperAdmin = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}')?.role === 'super_admin';
+    } catch {
+      return false;
+    }
   }, []);
 
   const menuItems = useMemo(() => [
@@ -429,6 +446,28 @@ export default function AdminDashboard() {
   };
 
   const handleLogout = logout;
+
+  // Super admin gets a dedicated, sidebar-free layout — just the Maintenance
+  // Mode panel and a logout button, since it's a single-purpose account.
+  if (isSuperAdmin) {
+    return (
+      <div className="flex flex-col h-screen bg-white">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 shrink-0">
+          <h1 className="text-lg sm:text-xl text-gray-900">CoProfitGlobalCorp.</h1>
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition font-medium text-sm"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <MaintenanceControl />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-white">

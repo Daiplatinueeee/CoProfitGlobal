@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Mail, Eye, EyeOff, ArrowRight, CircleUserRound, Asterisk } from 'lucide-react';
+import { Mail, Eye, EyeOff, ArrowRight, CircleUserRound, Asterisk, AlertTriangle } from 'lucide-react';
 import { useNavigate } from "react-router-dom"
 
 import bg from "../../assets/video refs/5c6e4f6f-0d2a-45fc-84a0-ad879be5d6b3.mp4";
@@ -36,6 +36,29 @@ export default function AuthPage() {
         }
     }, []);
 
+    // Maintenance-mode banner — proactively warns regular users before they
+    // even try logging in. The backend is still the real enforcement point
+    // (returns 403 on /auth/login while active, for SUPER_ADMIN-exempt
+    // reasons); this is just so people aren't left guessing why login fails.
+    // Super admins can still submit the form below — the backend lets them
+    // through regardless of this banner.
+    const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        const checkMaintenance = () => {
+            fetch(`${API_BASE_URL}/maintenance/status`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (cancelled) return;
+                    setMaintenanceMessage(data?.active ? (data.message || 'The system is currently under maintenance. Please check back later.') : null);
+                })
+                .catch(() => {});
+        };
+        checkMaintenance();
+        const interval = setInterval(checkMaintenance, 30_000);
+        return () => { cancelled = true; clearInterval(interval); };
+    }, []);
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
@@ -51,7 +74,8 @@ export default function AuthPage() {
     useEffect(() => {
         if (accessToken) {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
-            navigate(user?.role === 'admin' ? '/admin' : '/user', { replace: true });
+            const isAdminLike = user?.role === 'admin' || user?.role === 'super_admin';
+            navigate(isAdminLike ? '/admin' : '/user', { replace: true });
         }
     }, [accessToken, navigate]);
 
@@ -98,7 +122,7 @@ export default function AuthPage() {
             }
 
             // Navigate based on role — replace so /auth is removed from history
-            if (data.user.role === 'admin') {
+            if (data.user.role === 'admin' || data.user.role === 'super_admin') {
                 navigate('/admin', { replace: true });
             } else {
                 navigate('/user', { replace: true });
@@ -186,6 +210,17 @@ export default function AuthPage() {
                             {isSignIn ? 'Sign in to your account' : 'Join us to get started'}
                         </p>
                     </div>
+
+                    {/* Maintenance-mode notice */}
+                    {maintenanceMessage && (
+                        <div className="mb-6 flex items-start gap-3 bg-amber-500/15 border border-amber-500/40 text-amber-200 px-4 py-3 rounded-lg text-sm animate-fade-in">
+                            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="font-semibold">Under maintenance</p>
+                                <p className="text-amber-200/80 mt-0.5">{maintenanceMessage}</p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-4 animate-fade-in-delay-2">

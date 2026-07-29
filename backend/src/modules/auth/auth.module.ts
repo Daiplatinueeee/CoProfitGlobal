@@ -6,6 +6,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 import { UsersModule } from '../users/users.module';
+import { MaintenanceModule } from '../maintenance/maintenance.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
@@ -18,6 +19,7 @@ import {
   exports: [MongooseModule],
   imports: [
     UsersModule,
+    MaintenanceModule, // gives AuthService.login() access to MaintenanceService for the login lockout check
     ConfigModule,
     MongooseModule.forFeature([
       { name: ForgotPasswordRequest.name, schema: ForgotPasswordRequestSchema },

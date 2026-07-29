@@ -12,7 +12,8 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
 import { UsersService } from '../users/users.service';
-import { MembershipTier } from '../users/schemas/user.schema';
+import { MembershipTier, SystemRole } from '../users/schemas/user.schema';
+import { MaintenanceService } from '../maintenance/maintenance.service';
 import {
   ForgotPasswordRequest,
   ForgotPasswordRequestDocument,
@@ -27,6 +28,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly maintenanceService: MaintenanceService,
     @InjectModel(ForgotPasswordRequest.name)
     private readonly forgotPasswordRequestModel: Model<ForgotPasswordRequestDocument>,
   ) {}
@@ -155,8 +157,16 @@ export class AuthService {
     return { body, refresh_token };
   }
 
+  // Login shortcut for the seeded super-admin account — see scripts/seed-superadmin.ts.
+  // LoginDto exempts this exact string from the email-format check.
+  private static readonly SUPER_ADMIN_SHORTCUT = 'superadmin';
+  private static readonly SUPER_ADMIN_EMAIL = 'superadmin@coprofitglobal.com';
+
   async login(input: { email: string; password: string }, meta?: { userAgent?: string; ip?: string }) {
-    const email = input.email.trim().toLowerCase();
+    let email = input.email.trim().toLowerCase();
+    if (email === AuthService.SUPER_ADMIN_SHORTCUT) {
+      email = AuthService.SUPER_ADMIN_EMAIL;
+    }
     const user = await this.usersService.findByEmailWithPassword(email);
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
@@ -170,6 +180,20 @@ export class AuthService {
           ? `Your account has been restricted: ${reason}`
           : 'Your account has been restricted. Please contact support.',
       );
+    }
+
+    // Maintenance-mode login lockout — only regular USER accounts are
+    // blocked. ADMIN and SUPER_ADMIN can always sign in, so the team can
+    // keep working (and SUPER_ADMIN specifically can manage/end the window).
+    const role = (user as any).role;
+    if (role !== SystemRole.SUPER_ADMIN && role !== SystemRole.ADMIN) {
+      const maintenanceActive = await this.maintenanceService.isActiveNow();
+      if (maintenanceActive) {
+        const status = await this.maintenanceService.getStatus();
+        throw new ForbiddenException(
+          status.message?.trim() || 'The system is currently under maintenance. Please check back later.',
+        );
+      }
     }
 
     const { refresh_token } = await this.issueRefreshSession(user as any, meta);

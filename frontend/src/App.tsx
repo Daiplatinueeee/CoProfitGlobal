@@ -9,6 +9,7 @@ import AdminDashboard from './sections/admin/adminDashboard';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import SessionExpiredModal from './sections/modals/SessionExpiredModal';
+import { useDevToolsGuard } from './hooks/useDevToolsGuard';
 
 function SessionExpiredModalBridge() {
   const { showSessionExpiredModal, resolveSessionExpired } = useAuth();
@@ -22,6 +23,8 @@ function SessionExpiredModalBridge() {
 }
 
 const App: React.FC = () => {
+  useDevToolsGuard();
+
   return (
     <CartProvider>
       <BrowserRouter>

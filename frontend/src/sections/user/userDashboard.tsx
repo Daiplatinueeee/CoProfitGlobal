@@ -1124,13 +1124,13 @@ export default function UserDashboard() {
           <div className="space-y-4">
             <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-200">
               <div className="flex items-baseline justify-between mb-2">
-                <p className="text-sm font-medium text-indigo-900">Current PV</p>
+                <p className="text-sm font-medium text-indigo-900">Available PV</p>
                 {unilevelPvLoading
                   ? <Skeleton className="h-8 w-24" />
-                  : <p className="text-3xl font-bold text-indigo-900">{formatPhp(unilevelPvStatus?.totalPv ?? 0)}</p>
+                  : <p className="text-3xl font-bold text-indigo-900">{formatPhp(unilevelPvStatus?.availablePv ?? 0)}</p>
                 }
               </div>
-              <p className="text-xs text-indigo-600">Resets every month</p>
+              <p className="text-xs text-indigo-600">Redeemable for Lifestyle Rewards — doesn't reset monthly</p>
             </div>
             <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
               <div className="flex items-start gap-2">

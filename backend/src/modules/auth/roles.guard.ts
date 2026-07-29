@@ -24,6 +24,16 @@ export class RolesGuard implements CanActivate {
       return false;
     }
 
+    // SUPER_ADMIN implicitly has every ADMIN privilege — without this, adding
+    // SUPER_ADMIN as a distinct role would 403 it out of every existing
+    // @Roles(SystemRole.ADMIN) endpoint across the app (AdminController,
+    // etc.), since those don't list SUPER_ADMIN explicitly. Endpoints that
+    // require SUPER_ADMIN specifically (e.g. maintenance mode) are unaffected
+    // by this — regular ADMIN still can't reach those.
+    if (user.role === SystemRole.SUPER_ADMIN && requiredRoles.includes(SystemRole.ADMIN)) {
+      return true;
+    }
+
     return requiredRoles.includes(user.role);
   }
 }

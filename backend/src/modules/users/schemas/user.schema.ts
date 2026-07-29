@@ -15,6 +15,12 @@ export enum MembershipTier {
 export enum SystemRole {
   USER = 'user',
   ADMIN = 'admin',
+  // Only role exempt from maintenance-mode login lockout — see
+  // MaintenanceModule / AuthService.login(). Implicitly has every ADMIN
+  // privilege too (RolesGuard treats SUPER_ADMIN as satisfying any
+  // @Roles(SystemRole.ADMIN) check), plus SUPER_ADMIN-only endpoints like
+  // maintenance mode that ADMIN cannot reach.
+  SUPER_ADMIN = 'super_admin',
 }
 
 @Schema({ _id: false })
