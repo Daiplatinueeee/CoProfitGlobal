@@ -82,6 +82,17 @@ export class PairingService {
     return new Types.ObjectId(id);
   }
 
+  /** Tier → binary volume points (bronze=1, silver=3, gold=5, platinum=7). */
+  private pointsForTier(tier: MembershipTier): number {
+    switch (tier) {
+      case MembershipTier.BRONZE:   return 1;
+      case MembershipTier.SILVER:   return 3;
+      case MembershipTier.GOLD:     return 5;
+      case MembershipTier.PLATINUM: return 7;
+      default:                      return 0; // FREE / unknown → no volume
+    }
+  }
+
   // AM/PM cycles and day boundaries are pinned to Taipei time regardless of
   // the server's own system timezone — previously `todayDateKey()` used UTC
   // (via toISOString) while `getCurrentCycle()` used the server's local
@@ -654,11 +665,18 @@ export class PairingService {
    * Repeat Binary pairing — fires after regular pairing each sweep.
    *
    * Evaluated per-user. The user with ≥ 80 Available PV (Unilevel POINTS wallet)
-   * is the one who benefits:
+   * is the one who benefits. It is a genuine binary pairing: the user's PV is
+   * converted into bronze-equivalent points and paired against the tier volume
+   * of the member on the OPPOSITE side of the same parent — the smaller side
+   * decides how many pairs fire ("silver pairs bronze" → min(3, 1) = 1 pair).
+   *
    *   1. Check the user's own Available PV ≥ 80.
-   *   2. Find the user's position in the genealogy (left or right child of parent).
-   *   3. Check if a sibling exists on the OPPOSITE side of the same parent.
-   *   4. If a sibling is present → user earns ₱400 per 80 PV, PV resets toward 0.
+   *   2. Convert PV to points: 80 PV = 1 bronze point (≈ ₱400).
+   *   3. Find the user's position in the genealogy (left or right child of parent).
+   *   4. Find the sibling on the OPPOSITE side and read their tier points
+   *      (bronze=1, silver=3, gold=5, platinum=7; FREE = 0).
+   *   5. pairs = min(user PV points, opposite-side tier points).
+   *      Each pair pays ₱400 and consumes 80 PV; unpaired PV is kept.
    *
    * Bypasses the regular binary daily cap — Unilevel PV is a separate income stream.
    * Shows on the user's own dashboard as "Total Income of Repeat Binary Bonus".
@@ -678,7 +696,10 @@ export class PairingService {
 
     if (userPV < 80) return { skipped: true, reason: 'Insufficient Available PV (need ≥ 80)' };
 
-    // 2. Find user's own genealogy node to know parent + position
+    // 2. Convert PV to bronze-equivalent points — 80 PV = 1 point (₱400)
+    const userPvPoints = Math.floor(userPV / 80);
+
+    // 3. Find user's own genealogy node to know parent + position
     const ownNode = await this.genealogyNodeModel
       .findOne({ userId })
       .select('parentUserId position')
@@ -692,19 +713,40 @@ export class PairingService {
     const ownPosition    = (ownNode as any).position as string; // 'left' | 'right'
     const siblingPos     = ownPosition === 'left' ? 'right' : 'left';
 
-    // 3. Check if a sibling exists on the opposite side of the same parent
+    // 4. Find the sibling on the opposite side of the same parent + read their tier
     const sibling = await this.genealogyNodeModel
       .findOne({ parentUserId: parentId, position: siblingPos })
-      .select('_id')
+      .select('userId')
       .lean();
 
-    if (!sibling) {
+    if (!sibling?.userId) {
       return { skipped: true, reason: `No member on the ${siblingPos} side of parent — no pair` };
     }
 
-    // 4. Calculate pairs: each 80 PV = 1 pair = ₱400 (no binary cap applies)
-    const pairsCount  = Math.floor(userPV / 80);
-    const pvToConsume = pairsCount * 80;
+    const siblingUser = await this.userModel
+      .findById(sibling.userId)
+      .select('membershipTier isFree')
+      .lean();
+
+    const oppositePoints = (siblingUser && !(siblingUser as any).isFree)
+      ? this.pointsForTier((siblingUser as any).membershipTier as MembershipTier)
+      : 0;
+
+    if (oppositePoints <= 0) {
+      return { skipped: true, reason: `Opposite side (${siblingPos}) has no tier volume to pair against` };
+    }
+
+    // 5. Pair the smaller side — the 80-PV (bronze) side pairs against ANY
+    //    opposite package (bronze/silver/gold/platinum) → min(userPvPoints,
+    //    oppositePoints). Each pair pays ₱400 and DEDUCTS 80 PV. Only the paired
+    //    PV is deducted — any unpaired PV is kept for a later pairing event.
+    const pairsCount  = Math.min(userPvPoints, oppositePoints);
+
+    if (pairsCount <= 0) {
+      return { skipped: true, reason: 'No pairs — one side has zero points' };
+    }
+
+    const pvToConsume = pairsCount * 80;                     // deduct 80 PV per pair
     const payoutPhp   = pairsCount * this.RATE_PHP_PER_POINT;
 
     const tier      = (user as any).membershipTier as MembershipTier ?? MembershipTier.BRONZE;
@@ -726,8 +768,8 @@ export class PairingService {
         amount:   payoutPhp,
         source:   WalletTxnSource.REPEAT_BINARY,
         refKey:   `repeat_binary:${userIdStr}:${periodKey}`,
-        note:     `Repeat Binary bonus — ${periodKey} | ${pairsCount} pairs × ₱400 | ${pvToConsume} PV consumed`,
-        meta:     { periodKey, pairsCount, pvToConsume, payoutPhp, ownPosition, siblingPos },
+        note:     `Repeat Binary bonus — ${periodKey} | ${pairsCount} pair(s) × ₱400 (min of ${userPvPoints} PV pts vs ${oppositePoints} ${siblingPos}-side pts) | ${pvToConsume} PV deducted (${userPV} → ${userPV - pvToConsume})`,
+        meta:     { periodKey, pairsCount, pvToConsume, pvBefore: userPV, pvAfter: userPV - pvToConsume, payoutPhp, userPvPoints, oppositePoints, ownPosition, siblingPos },
       });
 
       await this.awardModel.create({
@@ -752,8 +794,8 @@ export class PairingService {
 
     this.logger.log(
       `[repeatBinary] ${userIdStr} ${periodKey} — ` +
-      `${pairsCount} pairs → ₱${payoutPhp} | PV consumed: ${pvToConsume} | ` +
-      `position=${ownPosition}, sibling on ${siblingPos}`,
+      `${pairsCount} pairs (min: ${userPvPoints} PV pts vs ${oppositePoints} ${siblingPos}-side pts) → ₱${payoutPhp} | ` +
+      `PV consumed: ${pvToConsume} | position=${ownPosition}`,
     );
 
     return { skipped: false, pairsCount, totalPayoutPhp: payoutPhp, pvConsumed: pvToConsume };

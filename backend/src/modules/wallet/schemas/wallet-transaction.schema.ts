@@ -29,6 +29,7 @@ export enum WalletTxnSource {
   WITHDRAWAL          = 'withdrawal',
   TIER_UPGRADE        = 'tier_upgrade',
   UNILEVEL_LEVEL_BONUS = 'unilevel_level_bonus',
+  GC_REWARD_REDEMPTION = 'gc_reward_redemption',
 }
 
 @Schema({ timestamps: true })

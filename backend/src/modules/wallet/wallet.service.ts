@@ -135,6 +135,8 @@ export class WalletService {
       leadershipBonus,
       directReferralBonus,
       indirectReferralBonus,
+      stairstepBonus,
+      royaltyBonus,
       unilevelLevelBonus,
       today:     t?.today     ?? 0,
       thisWeek:  t?.thisWeek  ?? 0,

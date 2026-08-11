@@ -3,10 +3,12 @@ import {
   ShoppingBag, ShoppingCart, Plus, Minus, X, Trash2,
   CheckCircle, MapPin, Phone, User, CreditCard, Truck,
   Package, History, Clock, XCircle, CalendarClock, AlertCircle, Search,
+  ImageIcon, Building2, Copy,
 } from 'lucide-react';
 
 import { apiFetch } from '../../lib/apiFetch';
 import { useCart } from '../landingSections/cartContents/cartContext';
+import unilevelProducts from './json/unilevel.products.data.json';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -19,6 +21,7 @@ import pk6 from '../../assets/pk6.jpg';
 import pk7 from '../../assets/pk8.jpg';
 import pk8 from '../../assets/pk7.jpg';
 import prod1 from '../../assets/prod2.jpeg';
+import defaultProductImg from '../../assets/logoWithName.png';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,6 +54,7 @@ interface Order {
   paymentMethod: PaymentMethodId;
   paymentAccountName: string;
   paymentAccountNumber: string;
+  proofImageUrl: string;
   status: OrderStatus;
   createdAt: string;
 }
@@ -58,6 +62,21 @@ interface Order {
 type MainTab = 'shop' | 'current' | 'history';
 
 // ─── Catalogue ────────────────────────────────────────────────────────────────
+
+// Unilevel catalogue products, surfaced here so they can be ordered online too.
+// They ship without dedicated photos, so they fall back to a shared placeholder image.
+const UNILEVEL_PRODUCTS: Perfume[] = (unilevelProducts as Array<{
+  _id: string; name: string; price: number; description: string; status: string;
+}>)
+  .filter(p => p.status === 'active')
+  .map(p => ({
+    id: p._id,
+    name: p.name,
+    price: p.price,
+    image: defaultProductImg,
+    category: 'Product',
+    description: p.description,
+  }));
 
 const PERFUMES: Perfume[] = [
   { id: 'pk-bronze-a', name: 'Bronze Package A', price: 1998, image: pk4, category: 'Bronze', description: 'Entry-level fragrance set — a great starting collection.' },
@@ -69,6 +88,7 @@ const PERFUMES: Perfume[] = [
   { id: 'pk-gold-b', name: 'Gold Package B', price: 8998, image: pk5, category: 'Gold', description: 'Premium fragrance bundle with signature scents.' },
   { id: 'pk-platinum-b', name: 'Platinum Package B', price: 12998, image: pk2, category: 'Platinum', description: 'Our top-tier fragrance collection, fully loaded.' },
   { id: 'relieflex-oil', name: 'RelieFlex Liniment Oil', price: 1500, image: prod1, category: 'Individual', description: 'Best-selling standalone item from our catalogue.' },
+  ...UNILEVEL_PRODUCTS,
 ];
 
 const CATEGORY_STYLES: Record<string, string> = {
@@ -77,12 +97,13 @@ const CATEGORY_STYLES: Record<string, string> = {
   Gold: 'bg-yellow-50 text-yellow-700 ring-yellow-200',
   Platinum: 'bg-violet-50 text-violet-700 ring-violet-200',
   Individual: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  Product: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
 };
 
 const PAYMENT_METHODS = [
   { id: 'gcash', label: 'GCash' },
   { id: 'paymaya', label: 'PayMaya' },
-  { id: 'cod', label: 'Cash on Delivery' },
+  { id: 'bank', label: 'Bank Transfer' },
 ] as const;
 
 type PaymentMethodId = typeof PAYMENT_METHODS[number]['id'];
@@ -90,12 +111,22 @@ type PaymentMethodId = typeof PAYMENT_METHODS[number]['id'];
 const PAYMENT_METHOD_LABELS: Record<PaymentMethodId, string> = {
   gcash: 'GCash',
   paymaya: 'PayMaya',
-  cod: 'Cash on Delivery',
+  bank: 'Bank Transfer',
 };
 
 const PAYMENT_ACCOUNT_LABELS: Partial<Record<PaymentMethodId, { name: string; number: string }>> = {
   gcash: { name: 'GCash Name', number: 'GCash Number' },
   paymaya: { name: 'PayMaya Name', number: 'PayMaya Number' },
+  bank: { name: 'Bank Account Name', number: 'Bank Account Number' },
+};
+
+// ⚠️ PLACEHOLDER — replace with the company's real payment details.
+const COMPANY_PAYMENT_DETAILS = {
+  gcashName: 'Glende P.',
+  gcashNumber: '091 9325 6579',
+  bankName: 'BPI',
+  bankAccountName: 'Celso Lagancia',
+  bankAccountNumber: '3619102796',
 };
 
 function formatPrice(n: number) {
@@ -130,6 +161,8 @@ export default function OrderOnline() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>('gcash');
   const [paymentAccountName, setPaymentAccountName] = useState('');
   const [paymentAccountNumber, setPaymentAccountNumber] = useState('');
+  const [proofImage, setProofImage] = useState('');
+  const [proofError, setProofError] = useState('');
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
@@ -170,11 +203,32 @@ export default function OrderOnline() {
     }, e);
   };
 
-  const needsPaymentAccount = paymentMethod === 'gcash' || paymentMethod === 'paymaya';
+  // Every remaining method (GCash / PayMaya / Bank Transfer) is paid online up
+  // front, so all require the sender's account details and a proof of payment.
+  const needsPaymentAccount = true;
+
+  const handleProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setProofError('Please upload an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setProofError('Image must be 5MB or smaller.');
+      return;
+    }
+    setProofError('');
+    const reader = new FileReader();
+    reader.onload = () => setProofImage(reader.result as string);
+    reader.onerror = () => setProofError('Could not read that file. Please try another.');
+    reader.readAsDataURL(file);
+  };
 
   const handlePlaceOrder = async () => {
     if (!fullName.trim() || !contactNumber.trim() || !address.trim()) return;
     if (needsPaymentAccount && (!paymentAccountName.trim() || !paymentAccountNumber.trim())) return;
+    if (!proofImage) return;
 
     setPlacingOrder(true);
     setCheckoutError('');
@@ -194,6 +248,7 @@ export default function OrderOnline() {
           contactNumber: contactNumber.trim(),
           address: address.trim(),
           paymentMethod,
+          proofImageUrl: proofImage,
           ...(needsPaymentAccount && {
             paymentAccountName: paymentAccountName.trim(),
             paymentAccountNumber: paymentAccountNumber.trim(),
@@ -225,6 +280,8 @@ export default function OrderOnline() {
     setPaymentMethod('gcash');
     setPaymentAccountName('');
     setPaymentAccountNumber('');
+    setProofImage('');
+    setProofError('');
   };
 
   const markAsReceived = async (id: string) => {
@@ -735,6 +792,56 @@ export default function OrderOnline() {
                     </div>
                   </div>
 
+                  {/* Where to send payment — company account details */}
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 space-y-3">
+                    <div className="flex items-center gap-1.5">
+                      <Building2 size={13} className="text-indigo-600 shrink-0" />
+                      <p className="text-xs font-semibold text-indigo-900">Send your payment to</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-semibold text-indigo-700 uppercase tracking-wide">GCash</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-slate-500">Name</span>
+                        <span className="text-xs font-medium text-slate-800">{COMPANY_PAYMENT_DETAILS.gcashName}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-slate-500">Number</span>
+                        <button
+                          type="button"
+                          onClick={() => navigator.clipboard?.writeText(COMPANY_PAYMENT_DETAILS.gcashNumber)}
+                          className="flex items-center gap-1 text-xs font-semibold text-slate-800 hover:text-indigo-700 transition-colors"
+                        >
+                          {COMPANY_PAYMENT_DETAILS.gcashNumber}
+                          <Copy size={11} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 border-t border-indigo-100 pt-3">
+                      <p className="text-[11px] font-semibold text-indigo-700 uppercase tracking-wide">Bank Transfer — {COMPANY_PAYMENT_DETAILS.bankName}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-slate-500">Account Name</span>
+                        <span className="text-xs font-medium text-slate-800">{COMPANY_PAYMENT_DETAILS.bankAccountName}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-slate-500">Account Number</span>
+                        <button
+                          type="button"
+                          onClick={() => navigator.clipboard?.writeText(COMPANY_PAYMENT_DETAILS.bankAccountNumber)}
+                          className="flex items-center gap-1 text-xs font-semibold text-slate-800 hover:text-indigo-700 transition-colors"
+                        >
+                          {COMPANY_PAYMENT_DETAILS.bankAccountNumber}
+                          <Copy size={11} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-indigo-600/80 leading-relaxed">
+                      Pay the total of <span className="font-semibold">{formatPrice(cartTotal)}</span>, then upload your proof of payment below.
+                    </p>
+                  </div>
+
                   {needsPaymentAccount && (
                     <>
                       <div>
@@ -764,6 +871,35 @@ export default function OrderOnline() {
                       </div>
                     </>
                   )}
+
+                  {/* Proof of payment upload */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                      <ImageIcon size={11} /> Proof of Payment
+                    </label>
+                    {proofImage ? (
+                      <div className="relative rounded-xl border border-slate-200 overflow-hidden">
+                        <img src={proofImage} alt="Proof of payment" className="w-full max-h-56 object-contain bg-slate-50" />
+                        <button
+                          type="button"
+                          onClick={() => setProofImage('')}
+                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/90 text-slate-500 hover:text-red-500 shadow-sm transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center gap-1.5 py-6 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-slate-300 hover:bg-slate-50 transition-colors">
+                        <ImageIcon size={20} className="text-slate-300" />
+                        <span className="text-xs font-medium text-slate-500">Tap to upload a screenshot / receipt</span>
+                        <span className="text-[11px] text-slate-400">PNG or JPG, up to 5MB</span>
+                        <input type="file" accept="image/*" onChange={handleProofChange} className="hidden" />
+                      </label>
+                    )}
+                    {proofError && (
+                      <p className="mt-1.5 text-[11px] text-red-500">{proofError}</p>
+                    )}
+                  </div>
                 </div>
 
                 {checkoutError && (
@@ -780,7 +916,7 @@ export default function OrderOnline() {
                   <button
                     onClick={handlePlaceOrder}
                     disabled={
-                      !fullName.trim() || !contactNumber.trim() || !address.trim() || placingOrder ||
+                      !fullName.trim() || !contactNumber.trim() || !address.trim() || placingOrder || !proofImage ||
                       (needsPaymentAccount && (!paymentAccountName.trim() || !paymentAccountNumber.trim()))
                     }
                     className="flex-1 bg-slate-900 hover:bg-slate-700 disabled:bg-slate-300 text-white text-sm font-medium py-2.5 rounded-xl transition-colors"
@@ -796,7 +932,7 @@ export default function OrderOnline() {
                 </div>
                 <h3 className="text-base font-semibold text-slate-900 mb-1">Order Placed!</h3>
                 <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
-                  Thank you, {fullName}. Our team will reach out to {contactNumber} shortly to confirm your {paymentMethod === 'cod' ? 'delivery' : 'payment'} and delivery details. Track it under <span className="font-semibold text-slate-600">Current Orders</span>.
+                  Thank you, {fullName}. Our team will verify your payment and reach out to {contactNumber} shortly to confirm your delivery details. Track it under <span className="font-semibold text-slate-600">Current Orders</span>.
                 </p>
                 <button
                   onClick={() => { closeCheckout(); setActiveTab('current'); }}

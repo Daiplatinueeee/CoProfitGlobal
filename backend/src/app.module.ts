@@ -24,6 +24,7 @@ import { WithdrawalModule } from './modules/withdrawal/withdrawal.module';
 import { PeriodsModule } from './modules/periods/periods.module';
 import { UnilevelProductsModule } from './modules/unilevel-products/unilevel-products.module';
 import { OrderOnlineModule } from './modules/order-online/order-online.module';
+import { GcRewardsModule } from './modules/gc-rewards/gc-rewards.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 
 require('node:dns/promises').setServers(['1.1.1.1', '8.8.8.8']);
@@ -59,6 +60,7 @@ require('node:dns/promises').setServers(['1.1.1.1', '8.8.8.8']);
     PeriodsModule,
     UnilevelProductsModule,
     OrderOnlineModule,
+    GcRewardsModule,
     MaintenanceModule,
   ],
   controllers: [AppController],

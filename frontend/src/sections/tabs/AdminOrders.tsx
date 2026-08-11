@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Package, Clock, Truck, CheckCircle, XCircle, CalendarClock,
-  MapPin, Phone, CreditCard, ShoppingBag, Search, X,
+  MapPin, Phone, CreditCard, ShoppingBag, Search, X, ImageIcon,
 } from 'lucide-react';
 import { apiFetch } from '../../lib/apiFetch';
 
@@ -28,6 +28,7 @@ interface Order {
   paymentMethod: string;
   paymentAccountName: string;
   paymentAccountNumber: string;
+  proofImageUrl: string;
   status: OrderStatus;
   createdAt: string;
 }
@@ -37,6 +38,7 @@ type FilterTab = 'pending' | 'shipping' | 'completed';
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   gcash: 'GCash',
   paymaya: 'PayMaya',
+  bank: 'Bank Transfer',
   cod: 'Cash on Delivery',
 };
 
@@ -67,6 +69,7 @@ export default function AdminOrders() {
   const [search, setSearch] = useState('');
   const [actionError, setActionError] = useState('');
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [proofModalUrl, setProofModalUrl] = useState<string | null>(null);
 
   const fetchOrders = useCallback(() => {
     setLoading(true);
@@ -180,6 +183,27 @@ export default function AdminOrders() {
             )}
           </span>
         </div>
+        {order.proofImageUrl ? (
+          <button
+            type="button"
+            onClick={() => setProofModalUrl(order.proofImageUrl)}
+            className="flex items-center gap-2 mt-1 group"
+          >
+            <img
+              src={order.proofImageUrl}
+              alt="Proof of payment"
+              className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0 group-hover:ring-2 group-hover:ring-indigo-300 transition"
+            />
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 group-hover:text-indigo-700">
+              <ImageIcon size={11} /> View proof of payment
+            </span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+            <ImageIcon size={11} className="shrink-0" />
+            <span>No proof of payment attached</span>
+          </div>
+        )}
       </div>
 
       <div className="px-5 pb-4 flex items-center justify-between">
@@ -313,6 +337,44 @@ export default function AdminOrders() {
           </div>
         )}
       </div>
+
+      {/* Proof of payment lightbox */}
+      {proofModalUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setProofModalUrl(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <ImageIcon size={15} className="text-indigo-600" />
+                Proof of Payment
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={proofModalUrl}
+                  download="proof-of-payment"
+                  className="text-xs font-medium text-indigo-600 hover:text-indigo-700 border border-indigo-100 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Download
+                </a>
+                <button
+                  onClick={() => setProofModalUrl(null)}
+                  className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="overflow-auto p-4 bg-slate-50 flex items-center justify-center">
+              <img src={proofModalUrl} alt="Proof of payment" className="max-w-full max-h-[75vh] object-contain rounded-lg" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

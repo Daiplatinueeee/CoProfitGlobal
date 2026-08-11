@@ -33,6 +33,7 @@ export class OrderOnlineService {
       paymentMethod:        dto.paymentMethod,
       paymentAccountName:   dto.paymentAccountName ?? '',
       paymentAccountNumber: dto.paymentAccountNumber ?? '',
+      proofImageUrl:        dto.proofImageUrl ?? '',
       status:               OrderStatus.PENDING,
     });
 
@@ -126,6 +127,7 @@ export class OrderOnlineService {
       paymentMethod:        doc.paymentMethod,
       paymentAccountName:   doc.paymentAccountName ?? '',
       paymentAccountNumber: doc.paymentAccountNumber ?? '',
+      proofImageUrl:        doc.proofImageUrl ?? '',
       status:               doc.status,
       createdAt:            doc.createdAt,
       updatedAt:            doc.updatedAt,

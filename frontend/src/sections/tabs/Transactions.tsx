@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/apiFetch';
-import { ChevronDown, ChevronLeft, ChevronRight, TrendingUp, Gift, Users, Award, Zap, AlertTriangle, ArrowUpCircle } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, TrendingUp, Gift, Users, Award, Zap, AlertTriangle, ArrowUpCircle, Repeat } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface PayoutTransaction {
   id: string;
-  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus' | 'pairing_flush' | 'pairing_cap_reached' | 'gc_reward' | 'tier_upgrade';
+  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus' | 'repeat_binary' | 'pairing_flush' | 'pairing_cap_reached' | 'gc_reward' | 'tier_upgrade';
   amount: number;
   currency: 'php' | 'gc_points' | string;
   date: string;
@@ -23,6 +23,7 @@ const payoutTypeConfig: Record<PayoutTransaction['type'], { label: string; icon:
   direct_referral:     { label: 'Direct Referral',     icon: Users,         badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
   indirect_referral:   { label: 'Indirect Referral',   icon: Users,         badge: 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200' },
   pairing_bonus:       { label: 'Pairing Bonus',       icon: Zap,           badge: 'bg-pink-50 text-pink-700 ring-1 ring-pink-200' },
+  repeat_binary:       { label: 'Repeat Binary',       icon: Repeat,        badge: 'bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-200' },
   pairing_flush:       { label: 'Points Flushed',      icon: AlertTriangle, badge: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' },
   pairing_cap_reached: { label: 'Pairing Cap Reached', icon: AlertTriangle, badge: 'bg-red-50 text-red-700 ring-1 ring-red-200' },
   gc_reward:           { label: 'GC Reward',            icon: Gift,          badge: 'bg-teal-50 text-teal-700 ring-1 ring-teal-200' },
@@ -38,6 +39,7 @@ function mapTransaction(t: any): PayoutTransaction | null {
 
   const SOURCE_MAP: Record<string, PayoutTransaction['type']> = {
     pairing:              'pairing_bonus',
+    repeat_binary:        'repeat_binary',
     pairing_flush:        'pairing_flush',
     pairing_cap_reached:  'pairing_cap_reached',
     sign5:                'sign5_bonus',
@@ -123,6 +125,7 @@ export default function Transactions() {
     { value: 'direct_referral',   label: 'Direct Ref.' },
     { value: 'indirect_referral', label: 'Indirect Ref.' },
     { value: 'pairing_bonus',     label: 'Pairing' },
+    { value: 'repeat_binary',     label: 'Repeat Binary' },
     { value: 'gc_reward',         label: 'GC Reward' },
     { value: 'pairing_flush',        label: 'Flushed' },
     { value: 'pairing_cap_reached',  label: 'Cap Reached' },

@@ -59,6 +59,9 @@ export class Order {
   @Prop({ default: '' })
   paymentAccountNumber: string;
 
+  @Prop({ default: '' })
+  proofImageUrl: string;
+
   @Prop({
     type: String,
     enum: Object.values(OrderStatus),

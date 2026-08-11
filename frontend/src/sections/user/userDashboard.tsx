@@ -20,6 +20,7 @@ import Subscription from '../tabs/Subscription';
 import ReferalsHierarchy from '../tabs/ReferalsHierarchy';
 import WithdrawGC from '../tabs/WithdrawGC';
 import UnilevelProducts from '../tabs/UnilevelProducts';
+import LifestyleRewards from '../tabs/LifestyleRewards';
 import StairstepProgram from '../tabs/StairstepProgram';
 import OrderOnline from '../tabs/OrderOnline';
 import Transactions from '../tabs/Transactions'
@@ -56,6 +57,8 @@ interface IncomeBreakdown {
   leadershipBonus: number;
   directReferralBonus: number;
   indirectReferralBonus: number;
+  stairstepBonus: number;
+  royaltyBonus: number;
   today: number;
   thisWeek: number;
   thisMonth: number;
@@ -86,6 +89,23 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const formatPhp = (amount: number) =>
   amount.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+
+// ── Stairstep Program ranks (mirrors StairstepProgram.tsx; both thresholds
+//    must be met, checked highest → lowest) ─────────────────────────────────
+const STAIRSTEP_RANKS = [
+  { rank: 1, title: 'Global Ambassador', directSponsors: 60, income: 1_000_000 },
+  { rank: 2, title: 'Diamond Executive', directSponsors: 35, income: 599_000 },
+  { rank: 3, title: 'Elite Builder',     directSponsors: 20, income: 299_000 },
+  { rank: 4, title: 'Rising Star',       directSponsors: 10, income: 99_000 },
+  { rank: 5, title: 'Distributor',       directSponsors: 0,  income: 0 },
+] as const;
+
+function getStairstepRank(directSponsors: number, totalIncome: number) {
+  for (const r of STAIRSTEP_RANKS) {
+    if (directSponsors >= r.directSponsors && totalIncome >= r.income) return r;
+  }
+  return STAIRSTEP_RANKS[STAIRSTEP_RANKS.length - 1];
+}
 
 // ── Auth helper ───────────────────────────────────────────────────────────
 
@@ -224,6 +244,8 @@ export default function UserDashboard() {
           leadershipBonus: summary.leadershipBonus ?? 0,
           directReferralBonus: summary.directReferralBonus ?? 0,
           indirectReferralBonus: summary.indirectReferralBonus ?? 0,
+          stairstepBonus: summary.stairstepBonus ?? 0,
+          royaltyBonus: summary.royaltyBonus ?? 0,
           today: summary.today ?? 0,
           thisWeek: summary.thisWeek ?? 0,
           thisMonth: summary.thisMonth ?? 0,
@@ -448,6 +470,7 @@ export default function UserDashboard() {
     { id: 'payout-system', label: 'Payout System', icon: Wallet  },
     { id: 'subscription', label: 'Subscription', icon: Leaf, underDevelopment: false },
     { id: 'unilevel-package', label: 'Unilevel Products', icon: Combine },
+    { id: 'lifestyle-rewards', label: 'Lifestyle Rewards', icon: Gift },
     { id: 'order-online', label: 'Order Online', icon: ShoppingBag },
     { id: 'withdraw-gc', label: 'Withdraw GC', icon: BanknoteArrowDown },
     { id: 'transactions', label: 'Transactions', icon: HandCoins},
@@ -773,34 +796,53 @@ export default function UserDashboard() {
           }
         </div>
 
-        {[
-          'Total Income of Stairstep Bonus (PHP)',
-        ].map((label) => (
-          <div key={label} className="relative bg-white rounded-2xl p-6 border border-amber-100 shadow-sm overflow-hidden">
-            <div className="flex items-start justify-between mb-3">
-              <h3 className="text-sm font-medium text-gray-500">{label}</h3>
-              <span className="shrink-0 ml-2 flex items-center gap-1 text-xs font-semibold tracking-wide text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                🚧 Under Development
-              </span>
-            </div>
-            <p className="text-3xl text-gray-900 mb-2">₱0.00</p>
-          </div>
-        ))}
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Stairstep Bonus (PHP)</h3>
+          {incomeLoading
+            ? <Skeleton className="h-9 w-32 mb-2" />
+            : <p className="text-3xl text-gray-900 mb-2">
+              ₱{formatPhp(income?.stairstepBonus ?? 0)}
+            </p>
+          }
+        </div>
 
-        {[
-          { label: 'Total Income of Royalty Bonus (PHP)', value: '₱0.00' },
-          { label: 'Total Income of Unilevel Bonus (Points Value = 1 PHP)', value: '0 PV' },
-        ].map(({ label, value }) => (
-          <div key={label} className="relative bg-white rounded-2xl p-6 border border-amber-100 shadow-sm overflow-hidden">
-            <div className="flex items-start justify-between mb-3">
-              <h3 className="text-sm font-medium text-gray-500">{label}</h3>
-              <span className="shrink-0 ml-2 flex items-center gap-1 text-xs font-semibold tracking-wide text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                🚧 Under Development
-              </span>
-            </div>
-            <p className="text-3xl text-gray-900 mb-2">{value}</p>
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Total Income of Royalty Bonus (PHP)</h3>
+          {incomeLoading
+            ? <Skeleton className="h-9 w-32 mb-2" />
+            : <p className="text-3xl text-gray-900 mb-2">
+              ₱{formatPhp(income?.royaltyBonus ?? 0)}
+            </p>
+          }
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('stairstep')}
+          className="text-left bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-500">Stairstep Program Ranking</h3>
+            <span className="text-xs font-medium text-indigo-600">View program →</span>
           </div>
-        ))}
+          {(incomeLoading || referralLoading)
+            ? <Skeleton className="h-9 w-40 mb-2" />
+            : (() => {
+              const rank = getStairstepRank(
+                referralData?.counts.direct ?? 0,
+                income?.totalIncome ?? 0,
+              );
+              return (
+                <>
+                  <p className="text-3xl text-gray-900 mb-1">{rank.title}</p>
+                  <p className="text-xs text-gray-500">
+                    Rank {rank.rank} · {referralData?.counts.direct ?? 0} direct sponsors · ₱{formatPhp(income?.totalIncome ?? 0)}
+                  </p>
+                </>
+              );
+            })()
+          }
+        </button>
 
       </div>
 
@@ -1157,6 +1199,7 @@ export default function UserDashboard() {
       'withdraw-gc': <WithdrawGC />,
       'subscription': <Subscription />,
       'unilevel-package': <UnilevelProducts />,
+      'lifestyle-rewards': <LifestyleRewards />,
       'order-online': <OrderOnline />,
       'transactions': <Transactions />,
       'viewaccount': <ViewMyAccount />,

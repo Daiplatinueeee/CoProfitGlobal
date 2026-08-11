@@ -48,4 +48,8 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   paymentAccountNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  proofImageUrl?: string;
 }
