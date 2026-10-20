@@ -32,6 +32,9 @@ const getStatusIcon = (status: string) => {
 export default function WithdrawGC() {
   const [gcBalance, setGcBalance]               = useState<number>(0);
   const [withdrawalAmount, setWithdrawalAmount] = useState<string>('');
+  const [fullName, setFullName]                 = useState('');
+  const [contactNumber, setContactNumber]       = useState('');
+  const [notes, setNotes]                       = useState('');
   const [submitting, setSubmitting]             = useState(false);
   const [submitError, setSubmitError]           = useState('');
   const [submitSuccess, setSubmitSuccess]       = useState('');
@@ -63,14 +66,34 @@ export default function WithdrawGC() {
 
   useEffect(() => { fetchData(); }, []);
 
+  // Prefill the requester's name/contact from their profile — they can still edit both.
+  useEffect(() => {
+    apiFetch(`${API_BASE_URL}/users/me`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((me) => {
+        if (!me) return;
+        setFullName((prev) => prev || me.name || '');
+        setContactNumber((prev) => prev || me.contact || '');
+      })
+      .catch(() => {});
+  }, []);
+
   const handleWithdraw = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     setSubmitError('');
     setSubmitSuccess('');
 
     const amount = parseFloat(withdrawalAmount);
-    if (!amount || amount <= 0) {
-      setSubmitError('Please enter a valid amount');
+    if (!amount || amount <= 0 || !Number.isInteger(amount)) {
+      setSubmitError('Please enter a valid whole number of GC');
+      return;
+    }
+    if (amount > gcBalance) {
+      setSubmitError(`Insufficient GC balance. You have ${gcBalance.toLocaleString()} GC.`);
+      return;
+    }
+    if (!fullName.trim() || !contactNumber.trim()) {
+      setSubmitError('Full name and contact number are required');
       return;
     }
 
@@ -79,14 +102,21 @@ export default function WithdrawGC() {
       const res = await apiFetch(`${API_BASE_URL}/withdrawal`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, currency: 'gc_points' }),
+        body: JSON.stringify({
+          amount,
+          currency: 'gc_points',
+          accountName: fullName.trim(),
+          contactNumber: contactNumber.trim(),
+          ...(notes.trim() && { notes: notes.trim() }),
+        }),
       });
       const json = await res.json();
       if (!res.ok) {
-        setSubmitError(json?.message ?? 'Failed to submit request.');
+        setSubmitError(Array.isArray(json?.message) ? json.message.join(', ') : json?.message ?? 'Failed to submit request.');
       } else {
         setSubmitSuccess('GC withdrawal request submitted successfully.');
         setWithdrawalAmount('');
+        setNotes('');
         setShowFormSheet(false);
         await fetchData();
       }
@@ -100,24 +130,69 @@ export default function WithdrawGC() {
   const completedTotal = withdrawals.filter((w) => w.status === 'completed').reduce((sum, w) => sum + w.amount, 0);
   const pendingTotal   = withdrawals.filter((w) => w.status === 'pending').reduce((sum, w) => sum + w.amount, 0);
 
-  /* ─── Withdrawal Form (shared) ─── */
-  const WithdrawalForm = () => (
+  const inputClass = 'w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300 disabled:bg-slate-50 disabled:cursor-not-allowed';
+  const labelClass = 'block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5';
+
+  /* ─── Withdrawal Form (shared) ───
+   * Rendered as a JSX value, not an inner component — an inner component is
+   * re-created every render, which remounts the inputs and drops focus per keystroke. */
+  const withdrawalForm = (
     <form onSubmit={handleWithdraw} className="px-4 sm:px-6 py-5 space-y-4">
       <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
-          Withdrawal Amount
-        </label>
+        <label className={labelClass}>Quantity (GC)</label>
         <input
           type="number"
           value={withdrawalAmount}
           onChange={(e) => setWithdrawalAmount(e.target.value)}
-          placeholder="Enter amount"
+          placeholder="Enter number of GC"
           disabled={submitting}
           max={gcBalance}
           min={1}
-          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-transparent text-slate-900 placeholder-slate-300 disabled:bg-slate-50 disabled:cursor-not-allowed"
+          step={1}
+          className={inputClass}
         />
         <p className="text-xs text-slate-400 mt-1.5">Max: {gcBalance.toLocaleString()} GC</p>
+      </div>
+
+      <div>
+        <label className={labelClass}>Full Name</label>
+        <input
+          type="text"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          placeholder="Name of the person claiming the GC"
+          disabled={submitting}
+          required
+          className={inputClass}
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>Contact Number</label>
+        <input
+          type="tel"
+          value={contactNumber}
+          onChange={(e) => setContactNumber(e.target.value)}
+          placeholder="e.g. 09XX XXX XXXX"
+          disabled={submitting}
+          required
+          className={inputClass}
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>
+          Notes <span className="normal-case text-slate-300">(optional)</span>
+        </label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="e.g. preferred claim date, pickup branch, or delivery address"
+          disabled={submitting}
+          rows={3}
+          maxLength={500}
+          className={`${inputClass} resize-none`}
+        />
       </div>
 
       {submitError && (
@@ -186,7 +261,7 @@ export default function WithdrawGC() {
                 <h2 className="text-base font-semibold text-slate-900">Initiate Withdrawal</h2>
                 <p className="text-xs text-slate-400 mt-0.5">Enter the amount you want to withdraw</p>
               </div>
-              <WithdrawalForm />
+              {withdrawalForm}
             </div>
           </div>
 
@@ -316,7 +391,7 @@ export default function WithdrawGC() {
               </button>
             </div>
             <div className="overflow-y-auto overscroll-contain flex-1">
-              <WithdrawalForm />
+              {withdrawalForm}
             </div>
           </div>
         </div>

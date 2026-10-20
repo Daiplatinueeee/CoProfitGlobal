@@ -2,6 +2,9 @@ import { Body, Controller, Get, Param, Patch, Post, Query, Request, UseGuards } 
 import { WithdrawalService } from './withdrawal.service';
 import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { SystemRole } from '../users/schemas/user.schema';
 import { WithdrawalStatus } from './schemas/withdrawal-request.schema';
 
 @Controller('withdrawal')
@@ -12,19 +15,11 @@ export class WithdrawalController {
   /**
    * POST /withdrawal
    * User submits a withdrawal request. userId taken from JWT.
+   * Each request is a separate transaction — requests cannot be edited afterwards.
    */
   @Post()
   submit(@Request() req: any, @Body() dto: CreateWithdrawalDto) {
     return this.withdrawalService.submitRequest(req.user.sub, dto);
-  }
-
-  /**
-   * PATCH /withdrawal/:id
-   * User updates their own pending request (re-locks the new amount).
-   */
-  @Patch(':id')
-  update(@Request() req: any, @Param('id') id: string, @Body() dto: CreateWithdrawalDto) {
-    return this.withdrawalService.updateRequest(req.user.sub, id, dto);
   }
 
   /**
@@ -46,32 +41,45 @@ export class WithdrawalController {
   }
 
   /**
-   * GET /withdrawal/all?status=pending&currency=gc_points
-   * Admin: list all withdrawal requests, optionally filtered by status and currency.
+   * GET /withdrawal/all?status=pending&currency=gc_points&from=2026-10-01&to=2026-10-31
+   * Admin: list all withdrawal requests, optionally filtered by status, currency and date range.
    */
   @Get('all')
-  allRequests(@Query('status') status?: string, @Query('currency') currency?: string) {
+  @UseGuards(RolesGuard)
+  @Roles(SystemRole.ADMIN)
+  allRequests(
+    @Query('status') status?: string,
+    @Query('currency') currency?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
     return this.withdrawalService.getAllRequests(
       status as WithdrawalStatus | undefined,
       currency as any,
+      from,
+      to,
     );
   }
 
   /**
    * PATCH /withdrawal/:id/approve
-   * Admin: approve a pending request and debit wallet.
+   * Admin: approve a pending request (wallet was already debited at request time).
    */
   @Patch(':id/approve')
-  approve(@Param('id') id: string, @Body('adminNote') adminNote?: string) {
-    return this.withdrawalService.approve(id, adminNote);
+  @UseGuards(RolesGuard)
+  @Roles(SystemRole.ADMIN)
+  approve(@Request() req: any, @Param('id') id: string, @Body('adminNote') adminNote?: string) {
+    return this.withdrawalService.approve(id, req.user.sub, adminNote);
   }
 
   /**
    * PATCH /withdrawal/:id/reject
-   * Admin: reject a pending request.
+   * Admin: reject a pending request and refund the locked amount.
    */
   @Patch(':id/reject')
-  reject(@Param('id') id: string, @Body('adminNote') adminNote?: string) {
-    return this.withdrawalService.reject(id, adminNote);
+  @UseGuards(RolesGuard)
+  @Roles(SystemRole.ADMIN)
+  reject(@Request() req: any, @Param('id') id: string, @Body('adminNote') adminNote?: string) {
+    return this.withdrawalService.reject(id, req.user.sub, adminNote);
   }
 }

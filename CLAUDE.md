@@ -284,6 +284,8 @@ The admin pending payouts table was a single responsive table with most columns 
 
 **Changes made (2026-06-14) — Payout: one-request-only UX, immediate balance deduction visibility:**
 
+> **SUPERSEDED by 2026-10-20** — the one-pending-request rule and the "Update Payout Request" flow below were removed. See the 2026-10-20 section. Immediate deduction on submit still applies.
+
 ### Payout — one active request enforced, balance deducted on submit
 
 The backend already debits the wallet immediately when `submitRequest` is called (not on approval) and blocks a second pending request per currency. The frontend UX was not reflecting this — the form always showed blank on desktop even with a pending request, and there was no indication that the balance locks on submit.
@@ -387,6 +389,36 @@ The 5% "leadership" topline bonus was being recursively cascaded up the **entire
 | `pairing.service.ts` `cascadeToParent` | Removed the `GenealogyNode` query and `leg` (VolumeLeg) meta field — only `User.sponsorId` is looked up | Unnecessary DB query; `leg` was only relevant for volume, not the cash credit |
 
 **Do NOT revert to the recursive `GenealogyNode.parentUserId` cascade.** Binary ancestors who received the child through spillover are not entitled to the topline bonus. The bonus is tied to the sponsorship (recruiting) relationship, not to binary tree position.
+
+**Changes made (2026-10-20) — Payout rules, payout report, GC request fields, repeat binary PV, unilevel visibility, locked names:**
+
+### Payouts (PHP)
+- **Minimum ₱500** per request (`MIN_PHP_PAYOUT` in `withdrawal.service.ts`, `MIN_PAYOUT` in `Payout.tsx`).
+- **Multiple pending requests allowed.** Each request is its own transaction: 10% processing fee + ₱50 admin fee per request; `amount` is debited from the wallet immediately on submit.
+- **Requests cannot be edited.** `updateRequest` and `PATCH /withdrawal/:id` were removed; users may only cancel a pending request (refunds the amount). Do not re-add an Update/Edit button.
+- `GET /withdrawal/all`, `PATCH /withdrawal/:id/approve|reject` are now `@Roles(SystemRole.ADMIN)` (they were previously open to any logged-in user).
+- `WithdrawalRequest.processedBy` stores the admin who approved/rejected; `getAllRequests` populates `user` (requester) and `processedBy`, and accepts `from`/`to` (YYYY-MM-DD, PH time).
+- New admin tab **Payout Report** (`PayoutReport.tsx`): all PHP payouts with requested date/time, requester, method/account, fees, net, status, processed date/time and processed-by admin; filters + CSV export.
+
+### GC withdrawals
+- User form (`WithdrawGC.tsx`) collects Quantity, Full Name, Contact Number (both required, prefilled from profile) and optional Notes; stored in `accountName` / `contactNumber` / `notes`. Backend requires name + contact for `gc_points`.
+- Admin `PendingWithdrawGC.tsx` shows requester name/username, quantity, claimant/contact, notes, date/time.
+
+### Repeat Binary PV
+- `PV_PER_REPEAT_BINARY_POINT = 1` in `pairing.service.ts` — **1 PV = 1 point = ₱400 pair** (was 80 PV). Product PVs come from `unilevel.products.data.json` (100ml perfume 1, 60ml 0.50, 10ml 0.10, 5ml vial 0.05, RelieFleX 0.25, roll-on 0.10, coffee/choco barley 0.50, BiramaXXX 0.50, liptint 0.10, Viz-ionz 0.25).
+- `computeAvailablePv` rounds to 2 decimals so fractional PV sums (10 × 0.10) reach whole points.
+- Admin "Generate Product PIN" has a product preset dropdown that fills PV + price and stores `productName` on the pin.
+
+### Unilevel (1%–5%, levels 1–5 by sponsor chain)
+- Already paid on PIN redemption; now also paid on admin-approved `UnilevelPurchase`. Transaction note includes buyer username and product.
+- `Transactions.tsx` now maps `unilevel_level_bonus` → "Unilevel Bonus" (previously these transactions were silently dropped from the user's list).
+
+### Leadership (unchanged — already 1st level only)
+- The 5% topline from `cascadeToParent` goes to the direct sponsor only (Bronze ₱400→₱20, Silver ₱1,200→₱60, Gold ₱1,600→₱80, Platinum ₱2,400→₱120).
+
+### Profile name locked
+- Members cannot change their full name: `ViewMyAccount.tsx` shows a locked field that opens a "contact the admin" modal; `PATCH /users/me` returns 403 if `name` differs from the current value.
+- Admins rename via `PATCH /admin/users/:id/name` ("Change Name" button in Users Overview detail modal).
 
 ### CORS
 Backend allows: `https://co-profit-global.vercel.app`, `https://coprofit-global.com`, `https://www.coprofit-global.com`, `http://localhost:5173`. Credentials are enabled for cookie handling.

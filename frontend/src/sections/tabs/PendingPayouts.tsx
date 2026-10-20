@@ -12,6 +12,7 @@ interface WithdrawalRecord {
   paymentMethod: string;
   accountName: string;
   contactNumber: string;
+  user?: { name: string; username: string } | null;
   notes: string;
   status: string;
   createdAt: string;
@@ -89,7 +90,7 @@ function PendingPayouts() {
     }
   };
 
-  const totalHeld  = records.reduce((sum, r) => sum + r.totalAmount, 0);
+  const totalHeld  = records.reduce((sum, r) => sum + r.amount, 0);
   const totalVat   = records.reduce((sum, r) => sum + r.vat, 0);
   const oldestDate = records.length
     ? new Date(records[records.length - 1].createdAt).toLocaleDateString('en-US', {
@@ -118,7 +119,7 @@ function PendingPayouts() {
             {
               label: 'Total Amount Held',
               value: `₱${totalHeld.toLocaleString()}`,
-              sub: `Incl. ₱${totalVat.toLocaleString()} VAT`,
+              sub: `Incl. ₱${(totalVat + records.length * 50).toLocaleString()} fees (10% + ₱50 each)`,
             },
             {
               label: 'Oldest Request',
@@ -190,6 +191,13 @@ function PendingPayouts() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-3">
+                    <div className="col-span-2">
+                      <span className="text-slate-400">Requester</span>
+                      <p className="text-slate-900 font-medium mt-0.5">
+                        {w.user?.name || '—'}
+                        {w.user?.username && <span className="text-slate-400 font-normal"> · @{w.user.username}</span>}
+                      </p>
+                    </div>
                     <div>
                       <span className="text-slate-400">Method</span>
                       <p className="text-slate-700 font-medium mt-0.5">{formatPaymentMethod(w.paymentMethod) || '—'}</p>
@@ -247,6 +255,7 @@ function PendingPayouts() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date</th>
+                  <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Requester</th>
                   <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Method</th>
                   <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Account</th>
                   <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden lg:table-cell">Contact</th>
@@ -260,11 +269,11 @@ function PendingPayouts() {
               <tbody className="divide-y divide-slate-50">
                 {loading ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">Loading…</td>
+                    <td colSpan={10} className="px-6 py-12 text-center text-sm text-slate-400">Loading…</td>
                   </tr>
                 ) : records.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-16 text-center">
+                    <td colSpan={10} className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 text-lg">✦</div>
                         <p className="text-slate-400 text-sm">No pending payouts</p>
@@ -286,6 +295,10 @@ function PendingPayouts() {
                             hour: '2-digit', minute: '2-digit',
                           })}
                         </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-slate-900 font-medium">{w.user?.name || '—'}</p>
+                        {w.user?.username && <p className="text-xs text-slate-400 mt-0.5">@{w.user.username}</p>}
                       </td>
                       <td className="px-6 py-4 text-slate-500">{formatPaymentMethod(w.paymentMethod) || '—'}</td>
                       <td className="px-6 py-4">

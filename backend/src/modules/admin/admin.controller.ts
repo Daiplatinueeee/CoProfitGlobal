@@ -201,6 +201,16 @@ export class AdminController {
     return this.adminService.changeUserPassword(id, body.newPassword);
   }
 
+  // ─── User full name (admin-only — members cannot rename themselves) ─────────
+
+  @Patch('users/:id/name')
+  changeUserName(
+    @Param('id') id: string,
+    @Body() body: { name: string },
+  ) {
+    return this.adminService.changeUserName(id, body.name);
+  }
+
   // ─── ADD THIS ENDPOINT to AdminController in admin.controller.ts ─────────────
 
   @Delete('users/:id')

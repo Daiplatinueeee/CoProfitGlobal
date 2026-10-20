@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { apiFetch } from '../../lib/apiFetch';
 import { useAuth } from '../../contexts/AuthContext';
-import { Lock, LogOut, ChevronLeft, Users, ClipboardClock, Tag, Trophy, PackageCheck, ShoppingBag } from 'lucide-react';
+import { Lock, LogOut, ChevronLeft, Users, ClipboardClock, Tag, Trophy, PackageCheck, ShoppingBag, FileText } from 'lucide-react';
 
 import GeneratePin from '../tabs/GeneratePin';
 import GenerateProductPin from '../tabs/GenerateProductPin';
 import UsersOverview from '../tabs/UsersOverview';
 import PendingPayouts from '../tabs/PendingPayouts';
+import PayoutReport from '../tabs/PayoutReport';
 import PendingWithdrawGC from '../tabs/PendingWithdrawGC';
 import Leaderboards from '../tabs/Leaderboards';
 import PendingRequests from '../tabs/PendingRequests';
@@ -59,6 +60,7 @@ export default function AdminDashboard() {
     { id: 'product-pins', label: 'Generate Product PIN', icon: Tag },
     { id: 'users', label: 'Users Overview', icon: Users },
     { id: 'pendingPayouts', label: 'Pending Payouts', icon: ClipboardClock },
+    { id: 'payoutReport', label: 'Payout Report', icon: FileText },
     { id: 'pendingWithdrawGC', label: 'Pending Withdrawals (GC)', icon: ClipboardClock },
     { id: 'pendingRequests', label: 'Pending Requests', icon: ClipboardClock },
     { id: 'leaderboards', label: 'Leaderboards', icon: Trophy },
@@ -72,6 +74,7 @@ export default function AdminDashboard() {
       'product-pins': <GenerateProductPin />,
       'users': <UsersOverview />,
       'pendingPayouts': <PendingPayouts />,
+      'payoutReport': <PayoutReport />,
       'pendingWithdrawGC': <PendingWithdrawGC />,
       'pendingRequests': <PendingRequests />,
       'leaderboards': <Leaderboards />,

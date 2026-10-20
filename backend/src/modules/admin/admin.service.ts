@@ -822,7 +822,7 @@ export class AdminService {
           const doc = new this.unilevelPinModel({
             pin,
             productId: null,
-            productName: '',
+            productName: dto.productName?.trim() ?? '',
             pv: dto.pv,
             price: dto.price,
             note: dto.note ?? '',
@@ -852,7 +852,7 @@ export class AdminService {
       }
     }
 
-    return { pv: dto.pv, price: dto.price, quantity: dto.quantity, pins };
+    return { pv: dto.pv, price: dto.price, productName: dto.productName ?? '', quantity: dto.quantity, pins };
   }
 
   async listUnilevelPins(status?: UnilevelPinStatus, limit = 50) {
@@ -1030,6 +1030,22 @@ export class AdminService {
     if (result.matchedCount === 0)
       throw new NotFoundException('User not found');
     return { message: 'Password updated successfully' };
+  }
+
+  async changeUserName(userId: string, name: string) {
+    if (!this.isValidObjectId(userId))
+      throw new BadRequestException('Invalid userId');
+    const trimmed = (name ?? '').trim();
+    if (trimmed.length < 2) {
+      throw new BadRequestException('Name must be at least 2 characters');
+    }
+    const result = await this.userModel.updateOne(
+      { _id: new Types.ObjectId(userId) },
+      { $set: { name: trimmed } },
+    );
+    if (result.matchedCount === 0)
+      throw new NotFoundException('User not found');
+    return { message: 'Name updated successfully', name: trimmed };
   }
 
   // ── Delete user ─────────────────────────────────────────────────────────────

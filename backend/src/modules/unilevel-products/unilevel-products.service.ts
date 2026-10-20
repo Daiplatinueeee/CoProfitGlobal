@@ -343,7 +343,9 @@ export class UnilevelProductsService implements OnModuleInit {
     const earned   = (purchaseResult[0]?.total ?? 0) + (pinResult[0]?.total ?? 0);
     const spent    = spentResult[0]?.total ?? 0;
     const deducted = deductionResult[0]?.total ?? 0;
-    return Math.max(0, earned - spent - deducted);
+    // Product PVs are fractional (0.05 / 0.10 / 0.25 / 0.50 / 1), so round off
+    // floating-point drift — 10 × 0.10 must read as exactly 1 PV, not 0.9999….
+    return Math.max(0, Math.round((earned - spent - deducted) * 100) / 100);
   }
 
   /**
@@ -380,8 +382,13 @@ export class UnilevelProductsService implements OnModuleInit {
     redeemerUserId: Types.ObjectId,
     price: number,
     refKeyBase: string,
+    productName = '',
   ): Promise<void> {
     if (price <= 0) return;
+
+    const redeemer = await this.userModel.findById(redeemerUserId).select('username').lean();
+    const buyerLabel = (redeemer as any)?.username ? `@${(redeemer as any).username}` : 'downline';
+    const productLabel = productName ? `${productName} ` : '';
 
     let currentUserId: Types.ObjectId | null = redeemerUserId;
 
@@ -409,8 +416,8 @@ export class UnilevelProductsService implements OnModuleInit {
             amount,
             source:   WalletTxnSource.UNILEVEL_LEVEL_BONUS,
             refKey:   `unilevel-level:${level}:${sponsorId.toString()}:${refKeyBase}`,
-            note:     `Unilevel Level ${level} bonus (${rate * 100}%) — ₱${price} PIN redemption`,
-            meta:     { level, rate, price, redeemerUserId: redeemerUserId.toString() },
+            note:     `Unilevel Level ${level} bonus (${rate * 100}%) — ${buyerLabel} purchased ${productLabel}₱${price}`,
+            meta:     { level, rate, price, productName, redeemerUserId: redeemerUserId.toString() },
           });
         }
       } else {
@@ -451,6 +458,7 @@ export class UnilevelProductsService implements OnModuleInit {
         this.toObjectId(userId),
         pinDoc.price,
         `pin:${pinDoc._id.toString()}`,
+        pinDoc.productName ?? '',
       );
     } catch (err: any) {
       this.logger.error(`[unilevel-level] bonus award failed for pin ${pinDoc.pin}: ${err.message}`);
@@ -619,6 +627,19 @@ export class UnilevelProductsService implements OnModuleInit {
     doc.reviewedByAdminId  = this.toObjectId(adminId);
     doc.reviewedAt         = new Date();
     await doc.save();
+
+    // An approved purchase earns the buyer PV just like a PIN redemption, so it
+    // pays the same 1%-5% level bonuses up the sponsor chain.
+    try {
+      await this.awardUnilevelLevelBonuses(
+        doc.userId as Types.ObjectId,
+        doc.totalPrice,
+        `purchase:${doc._id.toString()}`,
+        doc.quantity > 1 ? `${doc.quantity}× ${doc.productName}` : doc.productName,
+      );
+    } catch (err: any) {
+      this.logger.error(`[unilevel-level] bonus award failed for purchase ${doc._id.toString()}: ${err.message}`);
+    }
 
     return this.formatPurchase(doc.toObject());
   }

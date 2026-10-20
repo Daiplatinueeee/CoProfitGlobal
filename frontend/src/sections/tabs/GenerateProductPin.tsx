@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Clock, Hash, Plus, X, RefreshCw, AlertTriangle, KeyRound, Trash2 } from 'lucide-react';
 import { API_BASE } from "./GeneratePin";
 import { apiFetch } from '../../lib/apiFetch';
+import productCatalog from './json/unilevel.products.data.json';
+
+/** Repeat Binary PV table — selecting a product fills PV + price so admins don't type them by hand. */
+const PRODUCT_PRESETS = (productCatalog as { _id: string; name: string; price: number; pv: number; status: string }[])
+  .filter((p) => p.status === 'active');
 
 interface ProductPin {
   _id: string;
@@ -28,6 +33,7 @@ export default function GenerateProductPin() {
   const [quantity, setQuantity] = useState(1);
   const [pv, setPv] = useState('');
   const [price, setPrice] = useState('');
+  const [productId, setProductId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [successCount, setSuccessCount] = useState<number | null>(null);
@@ -67,6 +73,7 @@ export default function GenerateProductPin() {
     setQuantity(1);
     setPv('');
     setPrice('');
+    setProductId('');
     setModalError(null);
     setSuccessCount(null);
     setShowModal(true);
@@ -77,6 +84,17 @@ export default function GenerateProductPin() {
     setShowModal(false);
     setModalError(null);
     setSuccessCount(null);
+  };
+
+  const selectedProduct = PRODUCT_PRESETS.find((p) => p._id === productId) ?? null;
+
+  const handleProductChange = (id: string) => {
+    setProductId(id);
+    const product = PRODUCT_PRESETS.find((p) => p._id === id);
+    if (product) {
+      setPv(String(product.pv));
+      setPrice(String(product.price));
+    }
   };
 
   /* ── create PIN ── */
@@ -100,7 +118,12 @@ export default function GenerateProductPin() {
       const res = await apiFetch(`${API_BASE}/admin/product-pins/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pv: Number(pv), price: Number(price), quantity }),
+        body: JSON.stringify({
+          pv: Number(pv),
+          price: Number(price),
+          quantity,
+          ...(selectedProduct && { productName: selectedProduct.name }),
+        }),
       });
 
       if (!res.ok) {
@@ -448,6 +471,24 @@ export default function GenerateProductPin() {
                 </div>
               )}
 
+              {/* Product preset — fills PV + price from the Repeat Binary PV table */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Product</label>
+                <select
+                  value={productId}
+                  onChange={(e) => handleProductChange(e.target.value)}
+                  disabled={submitting}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all duration-150 disabled:opacity-50"
+                >
+                  <option value="">Custom (enter PV and price manually)</option>
+                  {PRODUCT_PRESETS.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.name} — {p.pv} PV · ₱{p.price.toLocaleString()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* PV + Price + Quantity row */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -459,7 +500,7 @@ export default function GenerateProductPin() {
                     min={0}
                     step="0.01"
                     value={pv}
-                    onChange={(e) => setPv(e.target.value)}
+                    onChange={(e) => { setPv(e.target.value); setProductId(''); }}
                     disabled={submitting}
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all duration-150 disabled:opacity-50"
                     placeholder="0"
@@ -475,7 +516,7 @@ export default function GenerateProductPin() {
                     min={0}
                     step="0.01"
                     value={price}
-                    onChange={(e) => setPrice(e.target.value)}
+                    onChange={(e) => { setPrice(e.target.value); setProductId(''); }}
                     disabled={submitting}
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all duration-150 disabled:opacity-50"
                     placeholder="0"

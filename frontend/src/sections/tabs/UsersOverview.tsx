@@ -86,6 +86,7 @@ function UserDetailModal({
   onEditBonuses,
   onUpgrade,
   onChangePassword,
+  onChangeName,
   onRestrict,
   onDelete,
 }: {
@@ -96,6 +97,7 @@ function UserDetailModal({
   onEditBonuses: (user: User) => void;
   onUpgrade: (user: User) => void;
   onChangePassword: (user: User) => void;
+  onChangeName: (user: User) => void;
   onRestrict: (user: User) => void;
   onDelete: (user: User) => void;
 }) {
@@ -285,6 +287,13 @@ function UserDetailModal({
             {!isAdmin && (
               <>
                 <button
+                  onClick={() => onChangeName(user)}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3 py-2 rounded-lg transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Change Name
+                </button>
+                <button
                   onClick={() => onChangePassword(user)}
                   className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors"
                 >
@@ -348,6 +357,12 @@ function UsersOverview() {
   const [newPassword, setNewPassword] = useState('');
   const [changePasswordLoading, setChangePasswordLoading] = useState(false);
   const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+
+  // ── Change Name state ─────────────────────────────────────────────────────
+  const [changeNameUser, setChangeNameUser] = useState<User | null>(null);
+  const [newName, setNewName] = useState('');
+  const [changeNameLoading, setChangeNameLoading] = useState(false);
+  const [changeNameError, setChangeNameError] = useState<string | null>(null);
 
   // ── Restrict User state
   const [restrictUser, setRestrictUser] = useState<User | null>(null);
@@ -634,6 +649,52 @@ const handleDeleteAllUsers = async () => {
       setChangePasswordError('An unexpected error occurred.');
     } finally {
       setChangePasswordLoading(false);
+    }
+  };
+
+  // Members can't rename themselves (profile shows "contact the admin"), so the
+  // admin applies verified name changes here.
+  const openChangeName = (user: User) => {
+    setSelectedUser(null);
+    setNewName(user.name);
+    setChangeNameError(null);
+    setChangeNameUser(user);
+  };
+
+  const closeChangeName = () => {
+    setChangeNameUser(null);
+    setNewName('');
+    setChangeNameError(null);
+  };
+
+  const handleChangeName = async () => {
+    if (!changeNameUser) return;
+    const trimmed = newName.trim();
+    if (trimmed.length < 2) {
+      setChangeNameError('Name must be at least 2 characters.');
+      return;
+    }
+    setChangeNameLoading(true);
+    setChangeNameError(null);
+    try {
+      const response = await apiFetch(`${API_BASE}/admin/users/${changeNameUser.id}/name`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setChangeNameError(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Failed to update name.');
+        return;
+      }
+      setUsers((prev) => prev.map((u) => (u.id === changeNameUser.id ? { ...u, name: trimmed } : u)));
+      setSuccessMessage(`Name updated for @${changeNameUser.username}`);
+      setTimeout(() => setSuccessMessage(null), 3000);
+      closeChangeName();
+    } catch {
+      setChangeNameError('An unexpected error occurred.');
+    } finally {
+      setChangeNameLoading(false);
     }
   };
 
@@ -1146,6 +1207,7 @@ const handleDeleteAllUsers = async () => {
             onEditBonuses={openEditBonuses}
             onUpgrade={openUpgrade}
             onChangePassword={openChangePassword}
+            onChangeName={openChangeName}
             onRestrict={openRestrict}
             onDelete={openDeleteUser}
           />
@@ -1521,6 +1583,73 @@ const handleDeleteAllUsers = async () => {
                       {restrictUser.isRestricted ? 'Lift Restriction' : 'Confirm Restrict'}
                     </>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Change Name Modal */}
+        {changeNameUser && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={closeChangeName} />
+            <div className="relative z-10 w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+                    <Pencil className="w-4 h-4 text-slate-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Change Name</h3>
+                    <p className="text-xs text-slate-400 mt-0.5 truncate max-w-45">@{changeNameUser.username}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={closeChangeName}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-6 py-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={(e) => { setNewName(e.target.value); setChangeNameError(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleChangeName(); }}
+                    autoFocus
+                    className={`w-full px-4 py-2.5 border rounded-lg text-sm text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 transition-colors ${changeNameError ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-slate-200'}`}
+                  />
+                  {changeNameError && (
+                    <p className="mt-2 text-xs text-red-600 flex items-start gap-1">
+                      <span className="mt-0.5 shrink-0">⚠</span>
+                      {changeNameError}
+                    </p>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400">
+                  Members cannot change their own name. Only apply a change after verifying the member's request.
+                </p>
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
+                <button
+                  onClick={closeChangeName}
+                  className="text-sm px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleChangeName}
+                  disabled={changeNameLoading || newName.trim().length < 2 || newName.trim() === changeNameUser.name}
+                  className="text-sm px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700 transition-colors disabled:opacity-50"
+                >
+                  {changeNameLoading ? 'Saving…' : 'Save Name'}
                 </button>
               </div>
             </div>

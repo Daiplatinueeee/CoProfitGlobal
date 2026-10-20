@@ -9,6 +9,7 @@ import {
   UseGuards,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UsersService } from './users.service';
@@ -47,8 +48,18 @@ export class UsersController {
   @Patch('me')
   async updateMe(@Req() req: any, @Body() body: any) {
     const userId = req.user.sub;
+
+    // Full name is admin-managed (PATCH /admin/users/:id/name). Members may resend
+    // their current name unchanged, but any actual change is refused.
+    if (body.name !== undefined) {
+      const current = await this.usersService.findById(userId);
+      if (!current) throw new NotFoundException('User not found');
+      if (String(body.name).trim() !== current.name) {
+        throw new ForbiddenException('Your name cannot be changed here. Please contact the admin to request a name change.');
+      }
+    }
+
     await this.usersService.updateProfile(userId, {
-      name: body.name,
       username: body.username,
       email: body.email,
       contact: body.contact,

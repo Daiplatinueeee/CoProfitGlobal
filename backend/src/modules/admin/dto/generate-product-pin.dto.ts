@@ -17,4 +17,10 @@ export class GenerateProductPinDto {
   @IsString()
   @IsOptional()
   note?: string;
+
+  // Set when the admin picks a product preset (e.g. "100ml Perfume") — shown in
+  // the redeemer's PIN history and in the unilevel bonus transaction notes.
+  @IsString()
+  @IsOptional()
+  productName?: string;
 }

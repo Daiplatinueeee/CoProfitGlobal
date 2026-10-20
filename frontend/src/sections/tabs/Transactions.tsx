@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/apiFetch';
-import { ChevronDown, ChevronLeft, ChevronRight, TrendingUp, Gift, Users, Award, Zap, AlertTriangle, ArrowUpCircle, Repeat } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, TrendingUp, Gift, Users, Award, Zap, AlertTriangle, ArrowUpCircle, Repeat, Layers } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface PayoutTransaction {
   id: string;
-  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus' | 'repeat_binary' | 'pairing_flush' | 'pairing_cap_reached' | 'gc_reward' | 'tier_upgrade';
+  type: 'withdraw' | 'sign5_bonus' | 'leadership_bonus' | 'direct_referral' | 'indirect_referral' | 'pairing_bonus' | 'repeat_binary' | 'pairing_flush' | 'pairing_cap_reached' | 'gc_reward' | 'tier_upgrade' | 'unilevel_bonus';
   amount: number;
   currency: 'php' | 'gc_points' | string;
   date: string;
@@ -28,6 +28,7 @@ const payoutTypeConfig: Record<PayoutTransaction['type'], { label: string; icon:
   pairing_cap_reached: { label: 'Pairing Cap Reached', icon: AlertTriangle, badge: 'bg-red-50 text-red-700 ring-1 ring-red-200' },
   gc_reward:           { label: 'GC Reward',            icon: Gift,          badge: 'bg-teal-50 text-teal-700 ring-1 ring-teal-200' },
   tier_upgrade:        { label: 'Package Upgrade',      icon: ArrowUpCircle, badge: 'bg-violet-50 text-violet-700 ring-1 ring-violet-200' },
+  unilevel_bonus:      { label: 'Unilevel Bonus',       icon: Layers,        badge: 'bg-lime-50 text-lime-700 ring-1 ring-lime-200' },
 };
 
 function mapTransaction(t: any): PayoutTransaction | null {
@@ -48,6 +49,7 @@ function mapTransaction(t: any): PayoutTransaction | null {
     referral_indirect:    'indirect_referral',
     withdrawal:           'withdraw',
     tier_upgrade:         'tier_upgrade',
+    unilevel_level_bonus: 'unilevel_bonus',
   };
 
   const type = SOURCE_MAP[t.source];
@@ -129,6 +131,7 @@ export default function Transactions() {
     { value: 'gc_reward',         label: 'GC Reward' },
     { value: 'pairing_flush',        label: 'Flushed' },
     { value: 'pairing_cap_reached',  label: 'Cap Reached' },
+    { value: 'unilevel_bonus',    label: 'Unilevel' },
     { value: 'tier_upgrade',      label: 'Upgrade' },
   ];
 
@@ -323,13 +326,15 @@ export default function Transactions() {
               { type: 'direct_referral',   desc: 'Commission from your direct downline members' },
               { type: 'indirect_referral', desc: 'Commissions from network members below your direct referrals' },
               { type: 'pairing_bonus',     desc: 'Bonus earned when left and right legs are balanced' },
-              { type: 'leadership_bonus',  desc: 'Monthly bonus for maintaining your team structure and tier level' },
+              { type: 'repeat_binary',     desc: 'Product PV paired against your opposite-side member: every 1 PV pairs as 1 point = ₱400 (100ml perfume 1 PV, 60ml 0.50, Coffee/Choco Barley 0.50, BiramaXXX 0.50, RelieFleX 0.25, Viz-ionz 0.25, 10ml perfume / roll-on / liptint 0.10, 5ml vial 0.05)' },
+              { type: 'leadership_bonus',  desc: '5% of every pairing bonus earned by your direct (1st level) referrals — e.g. Bronze ₱400 → ₱20, Silver ₱1,200 → ₱60, Gold ₱1,600 → ₱80, Platinum ₱2,400 → ₱120' },
               { type: 'sign5_bonus',       desc: 'Special bonus when you complete 5 successful pairings' },
               { type: 'withdraw',          desc: 'Your cash withdrawals from your available balance' },
               { type: 'pairing_flush',        desc: 'Volume points cleared at the end of an AM/PM cycle (midnight or noon) when leftover points were not paired' },
               { type: 'pairing_cap_reached',  desc: 'Points discarded because the pairing cap for the current cycle was already exhausted — no PHP payout was issued' },
               { type: 'gc_reward',         desc: 'Gift Certificate earned at every 5th cumulative paired point (1, 2, 3, 4, GC, 6, 7, 8, 9, GC…)' },
               { type: 'tier_upgrade',      desc: 'Recorded when you upgrade your membership package to a higher tier' },
+              { type: 'unilevel_bonus',    desc: 'Earned when your downline buys products: Level 1 = 1%, Level 2 = 2%, Level 3 = 3%, Level 4 = 4%, Level 5 = 5% of the purchase price (e.g. a ₱288 purchase by your Level 1 pays you ₱2.88)' },
             ] as { type: PayoutTransaction['type']; desc: string }[]).map(({ type, desc }) => {
               const config = payoutTypeConfig[type];
               return (

@@ -59,8 +59,13 @@ export class WithdrawalRequest {
 
   @Prop({ type: Date, default: null })
   processedAt: Date | null;
+
+  // Admin who approved/rejected the request — audit trail for the payout report.
+  @Prop({ type: Types.ObjectId, ref: 'User', default: null })
+  processedBy: Types.ObjectId | null;
 }
 
 export const WithdrawalRequestSchema = SchemaFactory.createForClass(WithdrawalRequest);
 WithdrawalRequestSchema.index({ userId: 1, createdAt: -1 });
 WithdrawalRequestSchema.index({ currency: 1, status: 1 });
+WithdrawalRequestSchema.index({ currency: 1, createdAt: -1 });

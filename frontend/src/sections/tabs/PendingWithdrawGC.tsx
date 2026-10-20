@@ -6,15 +6,29 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface WithdrawalRecord {
   id: string;
+  user: { name: string; username: string; email: string; contact: string } | null;
   amount: number;
+  accountName: string;
+  contactNumber: string;
+  notes: string;
   status: string;
   createdAt: string;
 }
+
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+const formatTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+/** Claimant name entered on the request, falling back to the account name for older requests. */
+const claimantName = (r: WithdrawalRecord) => r.accountName || r.user?.name || '—';
+const claimantContact = (r: WithdrawalRecord) => r.contactNumber || r.user?.contact || '—';
 
 function PendingWithdrawGC() {
   const [records, setRecords]   = useState<WithdrawalRecord[]>([]);
   const [loading, setLoading]   = useState(true);
   const [actionError, setActionError] = useState('');
+  const [busyId, setBusyId]     = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -31,44 +45,49 @@ function PendingWithdrawGC() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const handleApprove = async (id: string) => {
+  const handleAction = async (id: string, action: 'approve' | 'reject') => {
     setActionError('');
+    setBusyId(id);
     try {
-      const res = await apiFetch(`${API_BASE_URL}/withdrawal/${id}/approve`, {
+      const res = await apiFetch(`${API_BASE_URL}/withdrawal/${id}/${action}`, {
         method:  'PATCH',
       });
       if (!res.ok) {
         const json = await res.json();
-        setActionError(json?.message ?? 'Failed to approve request.');
+        setActionError(json?.message ?? `Failed to ${action} request.`);
       } else {
         await fetchData();
       }
     } catch {
       setActionError('Network error. Please try again.');
-    }
-  };
-
-  const handleDecline = async (id: string) => {
-    setActionError('');
-    try {
-      const res = await apiFetch(`${API_BASE_URL}/withdrawal/${id}/reject`, {
-        method:  'PATCH',
-      });
-      if (!res.ok) {
-        const json = await res.json();
-        setActionError(json?.message ?? 'Failed to reject request.');
-      } else {
-        await fetchData();
-      }
-    } catch {
-      setActionError('Network error. Please try again.');
+    } finally {
+      setBusyId(null);
     }
   };
 
   const totalPendingGC = records.reduce((sum, r) => sum + r.amount, 0);
-  const oldestDate = records.length
-    ? new Date(records[records.length - 1].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : '—';
+  const oldestDate = records.length ? formatDate(records[records.length - 1].createdAt) : '—';
+
+  const actionButtons = (record: WithdrawalRecord, fullWidth: boolean) => (
+    <div className={`flex gap-2 ${fullWidth ? '' : 'items-center justify-center'}`}>
+      <button
+        onClick={() => handleAction(record.id, 'approve')}
+        disabled={busyId === record.id}
+        className={`${fullWidth ? 'flex-1' : ''} inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50`}
+      >
+        <Check className="w-3 h-3" />
+        Approve
+      </button>
+      <button
+        onClick={() => handleAction(record.id, 'reject')}
+        disabled={busyId === record.id}
+        className={`${fullWidth ? 'flex-1' : ''} inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200 hover:bg-red-100 transition-colors disabled:opacity-50`}
+      >
+        <X className="w-3 h-3" />
+        Decline
+      </button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-white">
@@ -84,7 +103,7 @@ function PendingWithdrawGC() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
           {[
             { label: 'Pending Requests', value: `${records.length}`,              valueSuffix: '',   sub: 'Awaiting admin approval' },
-            { label: 'Total GC Held',    value: totalPendingGC.toLocaleString(),  valueSuffix: 'GC', sub: 'Combined pending amount' },
+            { label: 'Total GC Held',    value: totalPendingGC.toLocaleString(),  valueSuffix: 'GC', sub: 'Combined pending quantity' },
             { label: 'Oldest Request',   value: oldestDate,                        valueSuffix: '',   sub: 'Earliest pending submission' },
           ].map((stat) => (
             <div key={stat.label} className="bg-white rounded-xl border border-slate-100 px-5 py-4">
@@ -120,16 +139,52 @@ function PendingWithdrawGC() {
             </span>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile: Card List */}
+          <div className="block md:hidden divide-y divide-slate-50">
+            {loading ? (
+              <div className="px-4 py-12 text-center text-sm text-slate-400">Loading…</div>
+            ) : records.length === 0 ? (
+              <div className="px-4 py-16 text-center">
+                <p className="text-slate-400 text-sm">No pending GC withdrawals</p>
+                <p className="text-slate-300 text-xs mt-1">All requests have been processed</p>
+              </div>
+            ) : (
+              records.map((r) => (
+                <div key={r.id} className="px-4 py-4 text-xs">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{r.user?.name || '—'}</p>
+                      {r.user?.username && <p className="text-slate-400">@{r.user.username}</p>}
+                    </div>
+                    <p className="text-lg font-semibold text-slate-900">
+                      {r.amount.toLocaleString()} <span className="text-xs font-normal text-slate-400">GC</span>
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-3">
+                    <div><span className="text-slate-400">Claimant</span><p className="text-slate-700 font-medium">{claimantName(r)}</p></div>
+                    <div><span className="text-slate-400">Contact</span><p className="text-slate-700 font-medium">{claimantContact(r)}</p></div>
+                    <div className="col-span-2"><span className="text-slate-400">Requested</span><p className="text-slate-700">{formatDate(r.createdAt)} · {formatTime(r.createdAt)}</p></div>
+                    {r.notes && (
+                      <div className="col-span-2"><span className="text-slate-400">Notes</span><p className="text-slate-700 whitespace-pre-wrap">{r.notes}</p></div>
+                    )}
+                  </div>
+                  {actionButtons(r, true)}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop: Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden sm:table-cell">#</th>
-                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Amount</th>
-                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Date</th>
-                  <th className="text-left px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden sm:table-cell">Time</th>
-                  <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide hidden md:table-cell">Status</th>
-                  <th className="text-center px-3 sm:px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Actions</th>
+                <tr className="bg-slate-50 border-b border-slate-100 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                  <th className="text-left px-4 lg:px-6 py-3">Requester</th>
+                  <th className="text-right px-4 lg:px-6 py-3">Quantity</th>
+                  <th className="text-left px-4 lg:px-6 py-3">Claimant / Contact</th>
+                  <th className="text-left px-4 lg:px-6 py-3 hidden lg:table-cell">Notes</th>
+                  <th className="text-left px-4 lg:px-6 py-3">Requested</th>
+                  <th className="text-center px-4 lg:px-6 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -148,42 +203,28 @@ function PendingWithdrawGC() {
                     </td>
                   </tr>
                 ) : (
-                  records.map((record, index) => (
-                    <tr key={record.id} className="hover:bg-slate-50 transition-colors duration-150">
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-slate-400 text-xs hidden sm:table-cell">{index + 1}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 font-semibold text-slate-900 text-xs sm:text-sm">
-                        {record.amount.toLocaleString()}{' '}
-                        <span className="text-slate-400 font-normal text-xs">GC</span>
+                  records.map((r) => (
+                    <tr key={r.id} className="hover:bg-slate-50 transition-colors duration-150 align-top">
+                      <td className="px-4 lg:px-6 py-4">
+                        <p className="font-medium text-slate-900">{r.user?.name || '—'}</p>
+                        {r.user?.username && <p className="text-xs text-slate-400 mt-0.5">@{r.user.username}</p>}
                       </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-slate-500 text-xs sm:text-sm">
-                        {new Date(record.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      <td className="px-4 lg:px-6 py-4 text-right font-semibold text-slate-900 whitespace-nowrap">
+                        {r.amount.toLocaleString()} <span className="text-slate-400 font-normal text-xs">GC</span>
                       </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-slate-500 text-xs sm:text-sm hidden sm:table-cell">
-                        {new Date(record.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      <td className="px-4 lg:px-6 py-4">
+                        <p className="text-slate-700">{claimantName(r)}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{claimantContact(r)}</p>
                       </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-center hidden md:table-cell">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200">
-                          <Clock className="w-3 h-3" />
-                          Pending
-                        </span>
+                      <td className="px-4 lg:px-6 py-4 text-slate-500 text-xs max-w-xs whitespace-pre-wrap hidden lg:table-cell">
+                        {r.notes || <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2">
-                          <button
-                            onClick={() => handleApprove(record.id)}
-                            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition-colors"
-                          >
-                            <Check className="w-3 h-3" />
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleDecline(record.id)}
-                            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200 hover:bg-red-100 transition-colors"
-                          >
-                            <X className="w-3 h-3" />
-                            Decline
-                          </button>
-                        </div>
+                      <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                        <p className="text-slate-700">{formatDate(r.createdAt)}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{formatTime(r.createdAt)}</p>
+                      </td>
+                      <td className="px-4 lg:px-6 py-4">
+                        {actionButtons(r, false)}
                       </td>
                     </tr>
                   ))

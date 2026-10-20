@@ -41,6 +41,13 @@ export class PairingService {
   private readonly RATE_PHP_PER_POINT = 400;
 
   /**
+   * Repeat Binary: how much Available PV makes one bronze-equivalent point (one ₱400 pair).
+   * Product PVs follow the company table (100ml perfume = 1 PV, 60ml = 0.50 PV,
+   * 10ml = 0.10 PV, 5ml vial = 0.05 PV, RelieFleX = 0.25 PV, …), so 1 PV = 1 point.
+   */
+  private readonly PV_PER_REPEAT_BINARY_POINT = 1;
+
+  /**
    * Maximum TOTAL pairs per day per membership tier (the "safety net").
    * Bronze = 3, Silver = 16, Gold = 30, Platinum = 50
    *
@@ -664,19 +671,19 @@ export class PairingService {
   /**
    * Repeat Binary pairing — fires after regular pairing each sweep.
    *
-   * Evaluated per-user. The user with ≥ 80 Available PV (Unilevel POINTS wallet)
+   * Evaluated per-user. The user with ≥ 1 Available PV (Unilevel POINTS wallet)
    * is the one who benefits. It is a genuine binary pairing: the user's PV is
    * converted into bronze-equivalent points and paired against the tier volume
    * of the member on the OPPOSITE side of the same parent — the smaller side
    * decides how many pairs fire ("silver pairs bronze" → min(3, 1) = 1 pair).
    *
-   *   1. Check the user's own Available PV ≥ 80.
-   *   2. Convert PV to points: 80 PV = 1 bronze point (≈ ₱400).
+   *   1. Check the user's own Available PV ≥ PV_PER_REPEAT_BINARY_POINT (1 PV).
+   *   2. Convert PV to points: 1 PV = 1 bronze point (₱400).
    *   3. Find the user's position in the genealogy (left or right child of parent).
    *   4. Find the sibling on the OPPOSITE side and read their tier points
    *      (bronze=1, silver=3, gold=5, platinum=7; FREE = 0).
    *   5. pairs = min(user PV points, opposite-side tier points).
-   *      Each pair pays ₱400 and consumes 80 PV; unpaired PV is kept.
+   *      Each pair pays ₱400 and consumes 1 PV; unpaired PV is kept.
    *
    * Bypasses the regular binary daily cap — Unilevel PV is a separate income stream.
    * Shows on the user's own dashboard as "Total Income of Repeat Binary Bonus".
@@ -694,10 +701,13 @@ export class PairingService {
     // 1. Check user's own Available PV (from unilevel purchases/pins minus redemptions/deductions)
     const userPV = await this.unilevelProductsService.computeAvailablePv(userId);
 
-    if (userPV < 80) return { skipped: true, reason: 'Insufficient Available PV (need ≥ 80)' };
+    if (userPV < this.PV_PER_REPEAT_BINARY_POINT) {
+      return { skipped: true, reason: `Insufficient Available PV (need ≥ ${this.PV_PER_REPEAT_BINARY_POINT})` };
+    }
 
-    // 2. Convert PV to bronze-equivalent points — 80 PV = 1 point (₱400)
-    const userPvPoints = Math.floor(userPV / 80);
+    // 2. Convert PV to bronze-equivalent points — 1 PV = 1 point (₱400).
+    //    Epsilon guards fractional PV sums (e.g. 10 × 0.10 = 0.9999…) from flooring short.
+    const userPvPoints = Math.floor(userPV / this.PV_PER_REPEAT_BINARY_POINT + 1e-9);
 
     // 3. Find user's own genealogy node to know parent + position
     const ownNode = await this.genealogyNodeModel
@@ -736,9 +746,9 @@ export class PairingService {
       return { skipped: true, reason: `Opposite side (${siblingPos}) has no tier volume to pair against` };
     }
 
-    // 5. Pair the smaller side — the 80-PV (bronze) side pairs against ANY
+    // 5. Pair the smaller side — the 1-PV (bronze) side pairs against ANY
     //    opposite package (bronze/silver/gold/platinum) → min(userPvPoints,
-    //    oppositePoints). Each pair pays ₱400 and DEDUCTS 80 PV. Only the paired
+    //    oppositePoints). Each pair pays ₱400 and DEDUCTS 1 PV. Only the paired
     //    PV is deducted — any unpaired PV is kept for a later pairing event.
     const pairsCount  = Math.min(userPvPoints, oppositePoints);
 
@@ -746,7 +756,7 @@ export class PairingService {
       return { skipped: true, reason: 'No pairs — one side has zero points' };
     }
 
-    const pvToConsume = pairsCount * 80;                     // deduct 80 PV per pair
+    const pvToConsume = pairsCount * this.PV_PER_REPEAT_BINARY_POINT;
     const payoutPhp   = pairsCount * this.RATE_PHP_PER_POINT;
 
     const tier      = (user as any).membershipTier as MembershipTier ?? MembershipTier.BRONZE;

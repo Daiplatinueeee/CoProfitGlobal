@@ -81,6 +81,63 @@ function EditField({
   );
 }
 
+/* ── LockedNameField ─────────────────────────────────────────── */
+// The full name is tied to payouts and KYC, so members can't edit it themselves —
+// clicking it explains that an admin has to make the change.
+function LockedNameField({ value, onRequestChange }: { value: string; onRequestChange: () => void }) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Full Name</p>
+      <button
+        type="button"
+        onClick={onRequestChange}
+        className="w-full text-left text-sm text-slate-500 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 min-h-9.5 flex items-center justify-between gap-2 hover:border-slate-300 transition-colors"
+      >
+        <span className="truncate">{value || '—'}</span>
+        <span className="shrink-0 inline-flex items-center gap-1 text-[11px] text-slate-400">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <rect x="5" y="11" width="14" height="10" rx="2" />
+            <path strokeLinecap="round" d="M8 11V7a4 4 0 018 0v4" />
+          </svg>
+          Locked
+        </span>
+      </button>
+    </div>
+  );
+}
+
+/* ── Name Change Locked Modal ────────────────────────────────── */
+function NameChangeLockedModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden">
+        <div className="px-6 py-6 text-center">
+          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <rect x="5" y="11" width="14" height="10" rx="2" />
+              <path strokeLinecap="round" d="M8 11V7a4 4 0 018 0v4" />
+            </svg>
+          </div>
+          <h3 className="text-base font-semibold text-slate-900">Name changes need admin approval</h3>
+          <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+            Your full name is used for payouts and account verification, so it can't be changed from your profile.
+            Please contact the admin to request a name change — they will update it for you once verified.
+          </p>
+        </div>
+        <div className="px-6 pb-6">
+          <button
+            onClick={onClose}
+            className="w-full text-sm font-medium py-2.5 rounded-lg bg-slate-900 text-white hover:bg-slate-700 transition-colors"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const FILE_SIZE_WARNING_BYTES = 2 * 1024 * 1024; // 2 MB
 
 /* ── Large File Warning Modal ────────────────────────────────── */
@@ -404,6 +461,7 @@ function ViewMyAccount() {
   const [draft, setDraft] = useState<Partial<Profile>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [showNameLockModal, setShowNameLockModal] = useState(false);
 
   /* ── Fetch profile ── */
   const fetchProfile = async () => {
@@ -464,8 +522,11 @@ function ViewMyAccount() {
     setSaving(true);
     setSaveError('');
     try {
-      await patchProfile(draft);
-      setProfile((prev) => prev ? { ...prev, ...draft } : prev);
+      // Name is admin-managed — never send it from the member's profile form.
+      const fields: Partial<Profile> = { ...draft };
+      delete fields.name;
+      await patchProfile(fields);
+      setProfile((prev) => prev ? { ...prev, ...fields } : prev);
       setEditingSection(null);
       setDraft({});
     } catch (err: any) {
@@ -598,6 +659,11 @@ function ViewMyAccount() {
           saving={photoSaving}
           error={photoError}
         />
+      )}
+
+      {/* Name Change Locked Modal */}
+      {showNameLockModal && (
+        <NameChangeLockedModal onClose={() => setShowNameLockModal(false)} />
       )}
 
       {/* Change Password Modal */}
@@ -816,7 +882,7 @@ function ViewMyAccount() {
                 {editingSection === 'account' ? (
                   <>
                     <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      <EditField label="Full Name" name="name" value={draft.name ?? ''} onChange={handleDraftChange} />
+                      <LockedNameField value={profile.name} onRequestChange={() => setShowNameLockModal(true)} />
                       <EditField label="Username" name="username" value={draft.username ?? ''} onChange={handleDraftChange} />
                       <EditField
                         label="Birthday"

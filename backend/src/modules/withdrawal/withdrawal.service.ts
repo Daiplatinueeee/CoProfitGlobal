@@ -12,6 +12,8 @@ import { WalletService } from '../wallet/wallet.service';
 import { WalletCurrency, WalletTxnSource } from '../wallet/schemas/wallet-transaction.schema';
 
 const VAT_RATE = 0.10;
+const ADMIN_FEE_PHP = 50;
+const MIN_PHP_PAYOUT = 500;
 
 @Injectable()
 export class WithdrawalService {
@@ -37,29 +39,31 @@ export class WithdrawalService {
     availableBalance: number,
   ): { vat: number; totalAmount: number; paymentMethod: string; accountName: string } {
     if (dto.amount <= 0) throw new BadRequestException('Amount must be greater than 0');
-    if (currency !== WalletCurrency.GC_POINTS && dto.amount < 100) {
-      throw new BadRequestException('Minimum payout request is ₱100');
+    if (currency !== WalletCurrency.GC_POINTS && dto.amount < MIN_PHP_PAYOUT) {
+      throw new BadRequestException(`Minimum payout request is ₱${MIN_PHP_PAYOUT}`);
     }
 
     let vat           = 0;
     let totalAmount   = dto.amount;
     const paymentMethod = dto.paymentMethod ?? '';
-    const accountName   = dto.accountName ?? '';
+    const accountName   = (dto.accountName ?? '').trim();
 
     if (currency === WalletCurrency.GC_POINTS) {
+      // GC is claimed in person / delivered — admin needs to know who and how to reach them.
+      if (!accountName) throw new BadRequestException('Full name is required');
+      if (!dto.contactNumber?.trim()) throw new BadRequestException('Contact number is required');
       if (availableBalance < dto.amount) {
         throw new BadRequestException(
           `Insufficient GC balance. Available: ${availableBalance.toLocaleString()} GC, required: ${dto.amount.toLocaleString()} GC`,
         );
       }
     } else {
-      // PHP — apply VAT and validate payment details
+      // PHP — apply 10% processing fee + ₱50 admin fee on every request
       if (!paymentMethod) throw new BadRequestException('Payment method is required');
       if (paymentMethod !== 'cash' && !accountName) throw new BadRequestException('Account name is required');
 
-      const adminFee = 50;
       vat         = Math.floor(dto.amount * VAT_RATE);
-      totalAmount = dto.amount - vat - adminFee;
+      totalAmount = dto.amount - vat - ADMIN_FEE_PHP;
 
       if (availableBalance < dto.amount) {
         throw new BadRequestException(
@@ -74,24 +78,13 @@ export class WithdrawalService {
   /**
    * User submits a withdrawal request.
    * The requested amount is debited from the wallet IMMEDIATELY (not on approval).
-   * Only one pending request per currency is allowed — the user must update the
-   * existing one instead of creating a second.
+   * Multiple pending requests are allowed — each one is its own transaction with
+   * its own 10% + ₱50 fee, and each locks its amount from the available balance.
+   * Requests cannot be edited once submitted; the user may only cancel.
    */
   async submitRequest(userId: string, dto: CreateWithdrawalDto) {
     const currency = (dto.currency as WalletCurrency) ?? WalletCurrency.PHP;
     const uid = this.toObjectId(userId);
-
-    // ── Single active request guard ──────────────────────────────────────
-    const existing = await this.withdrawalModel.findOne({
-      userId:   uid,
-      currency,
-      status:   WithdrawalStatus.PENDING,
-    }).lean();
-    if (existing) {
-      throw new BadRequestException(
-        'You can only submit one payout request at a time. Please update your existing pending request instead.',
-      );
-    }
 
     const { balances } = await this.walletService.getBalances(userId);
     const available = balances[currency] ?? 0;
@@ -112,79 +105,27 @@ export class WithdrawalService {
       status:        WithdrawalStatus.PENDING,
     });
 
-    // Debit immediately so the balance reflects the locked funds.
-    await this.walletService.debit({
-      userId,
-      currency,
-      amount: dto.amount,
-      source: WalletTxnSource.WITHDRAWAL,
-      refKey: `withdrawal:${request._id}`,
-      note:   currency === WalletCurrency.GC_POINTS
-        ? `GC withdrawal request — ${dto.amount.toLocaleString()} GC`
-        : `Withdrawal request — ${paymentMethod} | ${accountName}`,
-      meta:   { withdrawalId: request._id.toString(), currency, paymentMethod, accountName },
-    });
+    // Debit immediately so the balance reflects the locked funds. If the debit
+    // fails (e.g. a concurrent request drained the balance), drop the record so
+    // no request exists without its matching wallet lock.
+    try {
+      await this.walletService.debit({
+        userId,
+        currency,
+        amount: dto.amount,
+        source: WalletTxnSource.WITHDRAWAL,
+        refKey: `withdrawal:${request._id}`,
+        note:   currency === WalletCurrency.GC_POINTS
+          ? `GC withdrawal request — ${dto.amount.toLocaleString()} GC | ${accountName}`
+          : `Withdrawal request — ${paymentMethod} | ${accountName}`,
+        meta:   { withdrawalId: request._id.toString(), currency, paymentMethod, accountName },
+      });
+    } catch (err) {
+      await this.withdrawalModel.deleteOne({ _id: request._id });
+      throw err;
+    }
 
     return this.format(request.toObject());
-  }
-
-  /**
-   * User updates their existing PENDING request.
-   * Refunds the previously-locked amount and re-debits the new amount.
-   */
-  async updateRequest(userId: string, withdrawalId: string, dto: CreateWithdrawalDto) {
-    const doc = await this.withdrawalModel.findById(withdrawalId);
-    if (!doc) throw new NotFoundException('Withdrawal request not found');
-    if (doc.userId.toString() !== userId) {
-      throw new ForbiddenException('You can only update your own request');
-    }
-    if (doc.status !== WithdrawalStatus.PENDING) {
-      throw new BadRequestException(`Request is already ${doc.status} and can no longer be edited`);
-    }
-
-    const currency = doc.currency ?? WalletCurrency.PHP;
-
-    // Effective available = current balance + the amount already locked by this request.
-    const { balances } = await this.walletService.getBalances(userId);
-    const available = (balances[currency] ?? 0) + doc.amount;
-
-    const { vat, totalAmount, paymentMethod, accountName } =
-      this.computeAndValidate(dto, currency, available);
-
-    const ts = Date.now();
-
-    // Refund the old locked amount, then debit the new amount.
-    await this.walletService.credit({
-      userId,
-      currency,
-      amount: doc.amount,
-      source: WalletTxnSource.WITHDRAWAL,
-      refKey: `withdrawal-refund:${withdrawalId}:${ts}`,
-      note:   'Payout request updated — previous amount refunded',
-      meta:   { withdrawalId, currency, reason: 'update-refund' },
-    });
-
-    await this.walletService.debit({
-      userId,
-      currency,
-      amount: dto.amount,
-      source: WalletTxnSource.WITHDRAWAL,
-      refKey: `withdrawal:${withdrawalId}:${ts}`,
-      note:   currency === WalletCurrency.GC_POINTS
-        ? `GC withdrawal request (updated) — ${dto.amount.toLocaleString()} GC`
-        : `Withdrawal request (updated) — ${paymentMethod} | ${accountName}`,
-      meta:   { withdrawalId, currency, paymentMethod, accountName, reason: 'update-debit' },
-    });
-
-    doc.amount        = dto.amount;
-    doc.vat           = vat;
-    doc.totalAmount   = totalAmount;
-    doc.paymentMethod = paymentMethod;
-    doc.accountName   = accountName;
-    doc.contactNumber = dto.contactNumber ?? '';
-    await doc.save();
-
-    return this.format(doc.toObject());
   }
 
   /**
@@ -233,14 +174,15 @@ export class WithdrawalService {
       .find(filter)
       .sort({ createdAt: -1 })
       .lean();
-    return rows.map(this.format);
+    return rows.map((r) => this.format(r));
   }
 
   /**
    * Admin: approve a pending request.
-   * The wallet was already debited at request time, so this only marks it completed.
+   * The wallet was already debited at request time, so this only marks it completed
+   * and records which admin processed it.
    */
-  async approve(withdrawalId: string, adminNote = '') {
+  async approve(withdrawalId: string, adminId: string, adminNote = '') {
     const doc = await this.withdrawalModel.findById(withdrawalId);
     if (!doc) throw new NotFoundException('Withdrawal request not found');
     if (doc.status !== WithdrawalStatus.PENDING) {
@@ -250,6 +192,7 @@ export class WithdrawalService {
     doc.status      = WithdrawalStatus.COMPLETED;
     doc.adminNote   = adminNote;
     doc.processedAt = new Date();
+    doc.processedBy = this.toObjectId(adminId);
     await doc.save();
 
     return this.format(doc.toObject());
@@ -258,7 +201,7 @@ export class WithdrawalService {
   /**
    * Admin: reject a pending request. Refunds the amount locked at request time.
    */
-  async reject(withdrawalId: string, adminNote = '') {
+  async reject(withdrawalId: string, adminId: string, adminNote = '') {
     const doc = await this.withdrawalModel.findById(withdrawalId);
     if (!doc) throw new NotFoundException('Withdrawal request not found');
     if (doc.status !== WithdrawalStatus.PENDING) {
@@ -280,30 +223,61 @@ export class WithdrawalService {
     doc.status      = WithdrawalStatus.REJECTED;
     doc.adminNote   = adminNote;
     doc.processedAt = new Date();
+    doc.processedBy = this.toObjectId(adminId);
     await doc.save();
 
     return this.format(doc.toObject());
   }
 
   /**
-   * Admin: get all withdrawal requests, optionally filtered by status and/or currency.
+   * Admin: get all withdrawal requests, optionally filtered by status, currency
+   * and a createdAt date range (YYYY-MM-DD, inclusive, Philippine time).
+   * Populates the requester and the admin who processed each request so the
+   * payout report can show who did what and when.
    */
-  async getAllRequests(status?: WithdrawalStatus, currency?: WalletCurrency) {
+  async getAllRequests(
+    status?: WithdrawalStatus,
+    currency?: WalletCurrency,
+    from?: string,
+    to?: string,
+  ) {
     const filter: Record<string, any> = {};
     if (status)   filter.status   = status;
     if (currency) filter.currency = currency;
 
+    const createdAt: Record<string, Date> = {};
+    if (from) {
+      const d = new Date(`${from}T00:00:00.000+08:00`);
+      if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid "from" date');
+      createdAt.$gte = d;
+    }
+    if (to) {
+      const d = new Date(`${to}T23:59:59.999+08:00`);
+      if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid "to" date');
+      createdAt.$lte = d;
+    }
+    if (Object.keys(createdAt).length) filter.createdAt = createdAt;
+
     const rows = await this.withdrawalModel
       .find(filter)
+      .populate('userId', 'name username email contact')
+      .populate('processedBy', 'name username')
       .sort({ createdAt: -1 })
       .lean();
-    return rows.map(this.format);
+    return rows.map((r) => this.format(r));
   }
 
   private format(doc: any) {
+    // userId / processedBy are populated documents on admin listings, raw ObjectIds elsewhere.
+    const user        = doc.userId?.username !== undefined ? doc.userId : null;
+    const processedBy = doc.processedBy?.username !== undefined ? doc.processedBy : null;
+
     return {
       id:            doc._id?.toString?.() ?? doc._id,
-      userId:        doc.userId?.toString(),
+      userId:        user ? user._id?.toString() : doc.userId?.toString(),
+      user:          user
+        ? { name: user.name ?? '', username: user.username ?? '', email: user.email ?? '', contact: user.contact ?? '' }
+        : null,
       currency:      doc.currency ?? WalletCurrency.PHP,
       amount:        doc.amount,
       vat:           doc.vat ?? 0,
@@ -315,7 +289,11 @@ export class WithdrawalService {
       status:        doc.status,
       adminNote:     doc.adminNote ?? '',
       processedAt:   doc.processedAt ?? null,
+      processedBy:   processedBy
+        ? { id: processedBy._id?.toString(), name: processedBy.name ?? '', username: processedBy.username ?? '' }
+        : null,
       createdAt:     doc.createdAt,
+      updatedAt:     doc.updatedAt,
     };
   }
 }

@@ -342,7 +342,10 @@ export default function OrderOnline() {
                 </span>
                 <p className="text-sm font-semibold text-slate-900">{perfume.name}</p>
                 <p className="text-xs text-slate-400 line-clamp-2">{perfume.description}</p>
-                <p className="text-sm font-bold text-slate-800 mt-auto">{formatPrice(perfume.price)}</p>
+                <p className="text-sm font-bold text-slate-800 mt-auto">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mr-1">SRP</span>
+                  {formatPrice(perfume.price)}
+                </p>
 
                 {inCartItem ? (
                   <div className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5">
@@ -426,7 +429,7 @@ export default function OrderOnline() {
             <img src={item.image} alt={item.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-slate-800 truncate">{item.name}</p>
-              <p className="text-[11px] text-slate-400">{formatPrice(item.price)} × {item.quantity}</p>
+              <p className="text-[11px] text-slate-400">SRP {formatPrice(item.price)} × {item.quantity}</p>
             </div>
           </div>
         ))}
@@ -678,7 +681,7 @@ export default function OrderOnline() {
                     <img src={item.image} alt={item.name} className="w-12 h-12 rounded-lg object-cover shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-slate-800 truncate">{item.name}</p>
-                      <p className="text-xs text-slate-400">{item.price}</p>
+                      <p className="text-xs text-slate-400">SRP {item.price}</p>
                       <div className="flex items-center gap-2 mt-1.5">
                         <button onClick={() => updateQuantity(item.id, -1)} className="w-5 h-5 flex items-center justify-center rounded bg-slate-100 text-slate-500 hover:text-slate-800">
                           <Minus size={10} />
